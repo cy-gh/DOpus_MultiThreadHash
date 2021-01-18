@@ -1181,16 +1181,28 @@ function addColumn(initData, method, name, label, justify, autogroup, autorefres
 function _initializeCommands(initData) {
 	/*
 		Available icon names, used by GetIcon()
-			Query       - info i
-			Create      - plus
-			Update      - refresh
-			Verify      - check mark
-			Delete      - trash
-			FindDirty   - exclamation mark
-			FindMissing - question mark
-			Copy        - arrow to the right
-			CreateFile  - arrow do the bottom
-			Options     - gear
+			Add
+			Attach
+			CopyToClipboard
+			Delete
+			FileExport-Download
+			FileExport-Download2
+			FileImport-Upload
+			FileImport-Upload2
+			FileImportExport
+			FindDirty
+			FindDirty2
+			FindMissing
+			GitHub
+			Homepage
+			QueryInfo
+			RefreshUpdate
+			Settings
+			Sync1
+			Sync2
+			Unarchive
+			Verify
+			Warning
 	*/
 	// function addCommand(initData, name, method, template, icon, label, desc)
 	addCommand(initData,
@@ -1200,21 +1212,21 @@ function _initializeCommands(initData) {
 		'HARD_UPDATE_ADS/S,VERIFY_FROM_ADS/S,SMART_UPDATE_ADS/S,FIND_DIRTY/S,FIND_MISSING/S,' +
 		'COPY_TO_CLIPBOARD/S,EXPORT_TO_FILE/S,IMPORT_FROM_FILE/S,VERIFY_FROM_FILE/S'
 		,
-		'NOICON',
-		'Manager Start',
+		'Add',
+		'MTH Manager',
 		'Start hashing of selected files'
 		);
 	addCommand(initData,
 		'Worker',
 		'THREADID/K,MAXWAIT/N,CMD/K,FILE/K',
-		'NOICON',
-		'Worker Start - DO NOT CALL DIRECTLY'
+		'Warning',
+		'MTH Worker (do not call directly!)'
 		);
-	addCommand(initData,
-		'CalculateHash',
-		'RESVAR/K,FILE/K,ALGORITHM/K',
-		'NOICON',
-		'Calculate hash with given algorithm');
+	// addCommand(initData,
+	// 	'CalculateHash',
+	// 	'RESVAR/K,FILE/K,ALGORITHM/K',
+	// 	'Warning',
+	// 	'Calculate hash with given algorithm');
 }
 // internal method called by OnInit()
 function _initializeColumns(initData) {
@@ -1483,7 +1495,7 @@ function GetIcon(scriptPath, iconName) {
 	var isOSP = true;
 	//logger.normal('Requested icon: ' + iconName + ', is OSP: ' + isOSP + '  --  ' + scriptPath);
 	return isOSP
-			? '#MExt:' + iconName
+			? '#MTHasher:' + iconName
 			: oPath.pathpart + "\\icons\\ME_32_" + iconName + ".png";
 }
 // internal method
