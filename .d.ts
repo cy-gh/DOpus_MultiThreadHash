@@ -46,3 +46,20 @@ interface Object {
      */
     keys(): Array<string>;
 }
+
+interface String {
+    /**
+     * makes sure that the paths always have a trailing backslash but no doubles
+     * this happens mainly because the oItem.path does not return a trailing slash for any directory
+     * other than root dir of a drive, i.e. it returns Y:\Subdir (no BS) but Y:\ (with BS)
+     */
+    normalizeTrailingBackslashes(): string;
+}
+
+// export class DOpus {
+//     // members
+//     constructor();
+//     clone(): Point;
+//     FSUtil: object;
+// }
+
