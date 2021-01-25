@@ -130,7 +130,7 @@
 		 */
 
 
-		// @ts-ignore
+
 		function __GLOBAL__(){ var i; }
 
 		var Global = {};
@@ -148,10 +148,13 @@
 
 
 		var util = {};
+
 		// @ts-ignore
-		util.cmd     = DOpus.Create.Command;
+		util.dc      = DOpus.Create;
 		// @ts-ignore
-		util.st      = DOpus.Create.StringTools;
+		util.cmd     = util.dc.Command;
+		// @ts-ignore
+		util.st      = util.dc.StringTools;
 		// @ts-ignore
 		util.sv      = Script.vars;
 		util.shell   = new ActiveXObject('WScript.shell');
@@ -228,7 +231,7 @@
 
 		// show detailed information in DOpus Output for each file after operation
 		// files with errors will be put into a collection regardless of this setting
-		var DUMP_DETAILED_RESULTS = true;
+		var DUMP_DETAILED_RESULTS = false;
 
 		// automatically add current date-time to generated export file names
 		var APPEND_CURRENT_DATETIME_TO_EXPORT_FILES = false;
@@ -252,425 +255,6 @@
 
 
 
-/*
-	8888888b.   .d88888b.  8888888b.  888     888  .d8888b.      888    888 8888888888 888      8888888b.  8888888888 8888888b.   .d8888b.
-	888  "Y88b d88P" "Y88b 888   Y88b 888     888 d88P  Y88b     888    888 888        888      888   Y88b 888        888   Y88b d88P  Y88b
-	888    888 888     888 888    888 888     888 Y88b.          888    888 888        888      888    888 888        888    888 Y88b.
-	888    888 888     888 888   d88P 888     888  "Y888b.       8888888888 8888888    888      888   d88P 8888888    888   d88P  "Y888b.
-	888    888 888     888 8888888P"  888     888     "Y88b.     888    888 888        888      8888888P"  888        8888888P"      "Y88b.
-	888    888 888     888 888        888     888       "888     888    888 888        888      888        888        888 T88b         "888
-	888  .d88P Y88b. .d88P 888        Y88b. .d88P Y88b  d88P     888    888 888        888      888        888        888  T88b  Y88b  d88P
-	8888888P"   "Y88888P"  888         "Y88888P"   "Y8888P"      888    888 8888888888 88888888 888        8888888888 888   T88b  "Y8888P"
-*/
-{
-
-	// I only wanted a little bit better CodeCompletion...
-	// ...4 hours later...
-	// at least I can reuse them now
-
-	/**
-	 * @constructor
-	 */
-	function DOpusItem () {
-		/** @property {Date} access Returns the "last accessed" Date, in local time. */
-		this.access = '';
-		/** @property {Date} access_utc Returns the "last accessed" Date, in UTC. */
-		this.access_utc = '';
-		/** @property {number} attr Returns the item attributes. This value is a series of flags that are logically OR'd together. The attributes supported by Opus are: 1: read only, 2: hidden, 4: system, 32: archive, 1024: reparse ponumber (junctions, etc.), 2048: compressed, 4096: offline storage, 8192: not content-indexed, 16384: encrypted, 524288: pinned */
-		this.attr = '';
-		/** @property {string} attr_text Returns the item attributes as a string, as displayed in the file display. */
-		this.attr_text = '';
-		/** @property {boolean} checked Returns True if the item was checked (in checkbox mode), or False otherwise. */
-		this.checked = '';
-		/** @property {Date} create Returns the "creation" Date, in local time. */
-		this.create = '';
-		/** @property {Date} create_utc Returns the "creation" Date, in UTC. */
-		this.create_utc = '';
-		/** @property {boolean} current For Item objects obtained from a Viewer, this property is True if the item represents the currently displayed image and False otherwise. */
-		this.current = '';
-		/** @property {string} display_name Returns the display name of the item. Only a few items have a display name that is different to their actual name - some examples are certain system folders (like C:\Users which might have a translated display name in non-English locales). */
-		this.display_name = '';
-		/** @property {string} ext Returns the filename extension. */
-		this.ext = '';
-		/** @property {string} ext_m Returns the filename extension, taking multi-part extensions numbero account. For example, a file called "file.part1.rar" might return ".rar" for ext but ".part1.rar" for ext_m. */
-		this.ext_m = '';
-		/** @property {boolean} failed Returns True if the item failed when used by a command. This is only meaningful in conjunction with the Command.files collection - once the command has returned, this property will indicate success or failure on a per-file basis. */
-		this.failed = '';
-		/** @property {object} fileattr Returns a FileAttr object that represents the item's attributes. */
-		this.fileattr = '';
-		/** @property {object} filegroup If the file display this item came from is grouped by a particular column, this property returns a FileGroup object representing the group the item is in. If the item has no group this will return an empty string. */
-		this.filegroup = '';
-		/** @property {boolean} focus For Item objects obtained from a file display, this property is True if the object represents the item with focus, and False otherwise. Only one item can have focus at a time. The item with focus is typically shown with an outline around it, and is usually the last item which was clicked on, or which was moved to with the keyboard. The item with focus is often also one of the selected items, but not always; selection and focus are two separate things. */
-		this.focus = '';
-		/** @property {boolean} got_size Returns True for folder items if their size has been calculated by, for example, the GetSizes command. If False, the size property will be unreliable for folders. */
-		this.got_size = '';
-		/** @property {DOpusVector} groups a Vector of FiletypeGroup objects representing any and all file type groups that this file is a member of. */
-		this.groups = '';
-		/** @property {DOpusMap} groupsobject Similar to the groups property, except a FiletypeGroups object is returned instead of a Vector. */
-		this.groupsobject = '';
-		/** @property {number} id This is a unique ID for the item; it is used numberernally by Opus. */
-		this.id = '';
-		/** @property {boolean} is_dir Returns True if the item represents a folder, and False for a file. */
-		this.is_dir = '';
-		/** @property {boolean} is_junction Returns True if the item is a junction to another folder. */
-		this.is_junction = '';
-		/** @property {boolean} is_reparse Returns True if the item is a reparse ponumber. */
-		this.is_reparse = '';
-		/** @property {boolean} is_symlink Returns True if the item is a symbolic link. */
-		this.is_symlink = '';
-		/** @property {object} metadata a Metadata object that provides access to the item's metadata. */
-		this.metadata = '';
-		/** @property {Date} modify Returns the "last modified" Date, in local time. */
-		this.modify = '';
-		/** @property {Date} modify_utc Returns the "last modified" Date, in UTC. */
-		this.modify_utc = '';
-		/** @property {string} name Returns the name of the item. */
-		this.name = '';
-		/** @property {string} name_stem Returns the filename "stem" of the item. This is the name of the item with the filename extension removed. It will be the same as the name for folders. */
-		this.name_stem = '';
-		/** @property {string} name_stem_m Returns the filename "stem" of the item, taking multi-part extensions numbero account. For example, a file called "file.part1.rar" might return "file.part1" for name_stem but "file" for name_stem_m. */
-		this.name_stem_m = '';
-		/** @property {DOpusPath} path Returns the path of the item's parent folder. This does not include the name of the item itself, which can be obtained via the name property. */
-		this.path = '';
-		/** @property {DOpusPath} realpath Returns the "real" path of the item. For items located in virtual folders like Libraries or Collections, this lets you access the item's underlying path in the real file system. The realpath property includes the full path to the item, including its own name. */
-		this.realpath = '';
-		/** @property {boolean} selected Returns True if the item was selected, or False otherwise. */
-		this.selected = '';
-		/** @property {DOpusPath} shortpath the short path of the item, if it has one. Note that short paths are disabled by default in Windows 10. */
-		this.shortpath = '';
-		/** @property {string} size Returns the size of the item as a FileSize object. */
-		this.size = '';
-		/** @property {function} InGroup Tests the file for membership of the specified file type group. */
-		this.InGroup = '';
-	}
-
-	/**
-	 * @constructor
-	 */
-	function DOpusVector () {
-		/** @property {number} capacity Returns the capacity of the Vector (the number of elements it can hold without having to reallocate memory). This is not the same as the number of elements it currently holds, which can be 0 even if the capacity is something larger. */
-		this.capacity = 0;
-		/** @property {number} count Returns the number of elements the Vector currently holds. */
-		this.count = 0;
-		/** @property {boolean} empty Returns True if the Vector is empty, False if not. */
-		this.empty = false;
-		/** @property {number} length A synonym for count. */
-		this.length = 0;
-		/** @property {number} size A synonym for count. */
-		this.size = 0;
-		/**
-		 * Copies the values of another Vector to the end of this one, preserving the existing values as well. If start and end are not provided, the entire Vector is appended - otherwise, only the specified elements are appended. In JScript you can pass a standard array to this method to copy the array to the end of a Vector.
-		 * @param {DOpusVector} fromVector
-		 * @param {number} start
-		 * @param {number} end
-		 * @returns
-		 */
-		this.append = function (fromVector, start, end) {}
-
-		/**
-		 * Copies the value of another Vector to this one. If start and end are not provided, the entire Vector is copied - otherwise, only the specified elements are copied. Instead of a Vector object you can also pass a collection to this method and the contents of the collection will be copied to the Vector. In JScript you can pass a standard array to this method to copy the array into a Vector.
-		 * @param {DOpusVector} fromVector
-		 * @param {number} start
-		 * @param {number} end
-		 * @returns
-		 */
-		this.assign = function (fromVector, start, end) {}
-
-		/**
-		 * Returns the last element in the Vector.
-		 * @returns {any}
-		 */
-		this.back = function () {}
-
-		/**
-		 * Clears the contents of the Vector.
-		 */
-		this.clear = function () {}
-
-		/**
-		 * Erases the element at the specified index.
-		 * @param {number} index
-		 */
-		this.erase = function (index) {}
-
-		/**
-		 * Exchanges the positions of the two specified elements.
-		 * @param {number} index1
-		 * @param {number} index2
-		 */
-		this.exchange = function (index1, index2) {}
-
-		/**
-		 * Returns the first element in the Vector.
-		 * @returns {any}
-		 */
-		this.front = function () {}
-
-		/**
-		 * Inserts the provided value at the specified position.
-		 * @param {number} index1
-		 * @param {any} value
-		 */
-		this.insert = function (index1, value) {}
-
-		/**
-		 * Removes the last element of the Vector.
-		 */
-		this.pop_back = function () {}
-
-		/**
-		 * Adds the provided value to the end of the Vector.
-		 * @param {any} value
-		 */
-		this.push_back = function (value) {}
-
-		/**
-		 * Reserves space in the Vector for the specified number of elements (increases its capacity, although the count of elements remains unchanged). Note that Vectors grow dynamically - you don't have to specifically reserve or resize them. However if you want to add a large number of elements to a Vector it can be more efficient to reserve space for them first.
-		 * @param {number} capacity
-		 */
-		this.reserve = function (capacity) {}
-
-		/**
-		 * Resizes the Vector to the specified number of elements. Any existing elements past the new size of the Vector will be erased.
-		 * @param {number} size
-		 */
-		this.resize = function (size) {}
-
-		/**
-		 * Reduces the capacity of the Vector to the number of elements it currently holds.
-		 */
-		this.shrink_to_fit = function () {}
-
-		/**
-		 * Sorts the contents of the Vector. Strings and numbers are sorted alphabetically and numerically - other elements are grouped by type but not specifically sorted in any particular order.
-		 */
-		this.sort = function () {}
-
-		/**
-		 * Removes all but one of any duplicate elements from the Vector. The number of elements removed is returned.
-		 * @returns {number}
-		 */
-		this.unique = function () { return 0; }
-	}
-
-	/**
-	 * @constructor
-	 */
-	function DOpusMap () {
-		/** @property {number} count   Returns the number of elements the Map currently holds. */
-		this.count = undefined;
-		/** @property {boolean} empty  Returns True if the Map is empty, False if not. */
-		this.empty = undefined;
-		/** @property {number} length  A synonym for count. */
-		this.length = undefined;
-		/** @property {number} size    A synonym for count. */
-		this.size = undefined;
-		/**
-		 * Copies the contents of another Map to this one.
-		 * @param {DOpusMap} mapFrom
-		 * @returns
-		 */
-		this.assign = function (mapFrom) {}
-		/**
-		 * Clears the contents of the Map.
-		 * @returns
-		 * */
-		this.clear = function () {}
-		/**
-		 * Erases the element matching the specified key, if it exists in the map.
-		 * @param {any} key
-		 * @returns
-		 */
-		this.erase = function (key) {}
-		/**
-		 * Returns True if the specified key exists in the map.
-		 * @param {any} key
-		 * @returns {boolean}
-		 */
-		this.exists = function (key) { return false; }
-		/**
-		 * Merges the contents of another Map with this one.
-		 * @param {DOpusMap} mapFrom
-		 * @returns
-		 */
-		this.merge = function (mapFrom) {}
-	}
-
-	/**
-	 * @constructor
-	 */
-	function DOpusPath () {
-		/** @property {number} Returns the number of elements the Map currently holds*/
-		this.count = undefined;
-		/**
-		 * @param {object} mapFrom
-		 */
-		this.assign = function (mapFrom) {}
-	}
-
-
-	// doh: DOpus Helper
-	var doh = (function (){
-		var myName = 'doh';
-		function _validate(cmdData) {
-			if (!cmdData.func || !cmdData.func.sourcetab) {
-				throw new Error('this object type is not supported');
-			}
-			return true;
-		}
-		return {
-			name: myName,
-			/**
-			 * DOpus.FSUtil.GetItem wrapper
-			 * @param {string} sPath file full path
-			 * @returns {object} DOpus Item
-			 */
-			getItem: function (path) {
-				if (typeof path !== 'string') {
-					throw new Error('Expected path string, got type: ' + typeof path + ', value:  ' + path);
-				}
-				// @ts-ignore
-				var _tmp = DOpus.FSUtil.GetItem(path);
-				return this.isValidDOItem(_tmp) ? _tmp : false;
-			},
-			/**
-			 * @param {object} oItem DOpus Item
-			 * @returns {boolean} true if DOpus item
-			 */
-			isValidDOItem: function (oItem) {
-				return (typeof oItem === 'object' && oItem.realpath && oItem.modify);
-			},
-			/**
-			 * @param {object} oItem DOpus Item
-			 * @returns {boolean} true if DOpus file, false if dir, reparse, junction, symlink
-			 */
-			isFile: function (oItem) {
-				return (typeof oItem === 'object' && oItem.realpath && !oItem.is_dir && !oItem.is_reparse && !oItem.is_junction && !oItem.is_symlink);
-			},
-			/**
-			 * @param {object} oItem DOpus Item
-			 * @returns {boolean} true if DOpus directory, false if file, reparse, junction, symlink
-			 */
-			isDir: function (oItem) {
-				return (typeof oItem === 'object' && oItem.realpath && oItem.is_dir);
-			},
-			/**
-			 * @param {object} oItem DOpus Item
-			 * @returns {boolean} true if DOpus file or directory, false if reparse, junction, symlink
-			 */
-			isDirOrFile: function (oItem) {
-				return (typeof oItem === 'object' && oItem.realpath && !oItem.is_reparse && !oItem.is_junction && !oItem.is_symlink);
-			},
-			/**
-			 * @param {object} oCmdData DOpus command data
-			 * @returns {boolean} true if DOpus command data
-			 */
-			isValidDOCommandData: function (oCmdData) {
-				return (typeof oCmdData === 'object' && oCmdData.func && oCmdData.func.Dlg);
-			},
-			/**
-			 * @param {object} oColData DOpus column data
-			 * @returns {boolean} true if DOpus column data
-			 */
-			isValidDOColumnData: function (oColData) {
-				return (typeof oColData === 'object' && typeof oColData.value !== 'undefined' && typeof oColData.group !== 'undefined');
-			},
-			/**
-			 * @param {object} oMap DOpus Map
-			 * @returns {boolean} true if DOpus Map
-			 */
-			isValidDOMap: function (oMap) {
-				return (typeof oMap === 'object' && typeof oMap.capacity === 'undefined' && typeof oMap.count !== 'undefined' && typeof oMap.length !== 'undefined' && oMap.count === oMap.length);
-			},
-			/**
-			 * @param {object} oVector DOpus Vector
-			 * @returns {boolean} true if DOpus Vector
-			 */
-			isValidDOVector: function (oVector) {
-				return (typeof oVector === 'object' && typeof oVector.capacity !== 'undefined' && typeof oVector.count !== 'undefined' && typeof oVector.length !== 'undefined' && oVector.count === oVector.length);
-			},
-			/**
-			 * @param {object} oAny any enumerable object, e.g. scriptCmdData.func.sourcetab.selected
-			 * @returns {boolean}
-			 */
-			isValidDOEnumerable: function (oAny) {
-				try {
-					var e = new Enumerator(oAny);
-					return (e && typeof e.atEnd === 'function' && typeof e.moveNext === 'function');
-				} catch(e) { return false }
-			},
-
-			// current tab's path
-			getCurrentPath: function (cmdData) {
-				// auto convert to string, and make sure it has a trailing slash
-				return _validate(cmdData) && (''+cmdData.func.sourcetab.path+'\\').replace(/\\\\/g, '\\');
-			},
-
-			// if the current lister tab is 'dirty'
-			isTabDirty: function (cmdData) {
-				return _validate(cmdData) && !!cmdData.func.sourcetab.dirty;
-			},
-			// dialog
-			getDialog: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.Dlg;
-			},
-			// progress bar
-			getProgressBar: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.command.progress;
-			},
-
-			// all - DOpus enumerables
-			getAllItems: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.all;
-			},
-			getAllDirs: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.dirs;
-			},
-			getAllFiles: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.files;
-			},
-			// selected - DOpus enumerables
-			getSelItems: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selected;
-			},
-			getSelDirs: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selected_dirs;
-			},
-			getSelFiles: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selected_files;
-			},
-
-			// get single selected file directly as item
-			getSelFileAsItem: function (cmdData) {
-				// @ts-ignore
-				return _validate(cmdData) && DOpus.FSUtil.GetItem(new Enumerator(cmdData.func.sourcetab.selected_files).item());
-			},
-
-			// all items, dirs, files - selstats takes checkbox mode into account
-			getAllItemsCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.items;
-			},
-			getAllDirsCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.dirs;
-			},
-			getAllFilesCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.files;
-			},
-			// selected items, dirs, files - selstats takes checkbox mode into account
-			getSelItemsCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.selitems;
-			},
-			getSelDirsCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.seldirs;
-			},
-			getSelFilesCount: function (cmdData) {
-				return _validate(cmdData) && cmdData.func.sourcetab.selstats.selfiles;
-			}
-		}
-	}());
-}
-
-
 
 /*
 	8888888 888b    888 8888888 88888888888
@@ -683,7 +267,7 @@
 	8888888 888    Y888 8888888     888
 */
 {
-	// @ts-ignore
+
 	function __INIT__(){ var i; }
 
 	// called by DOpus
@@ -698,25 +282,8 @@
 		initData.log_prefix     = Global.SCRIPT_PREFIX;
 		initData.default_enable = true;
 
-		new DOpusMap().assign(new DOpusMap());
-
 		// @ts-ignore
-		DOpus.ClearOutput();
-
-		// @ts-ignore
-		var alphabet = new EnumFactory(['A', 'B', 'C']);
-		// @ts-ignore
-		DOpus.Output('alphabet A: ' + alphabet.A);
-
-		// @ts-ignore
-		var units = new EnumFactory({
-			TB: { name: 'Terabyte', size: Math.pow(2, 40) },
-			GB: { name: 'Gigabyte', size: Math.pow(2, 30) },
-			MB: { name: 'Megabyte', size: Math.pow(2, 20) },
-			KB: { name: 'Kilobyte', size: Math.pow(2, 10) }
-		});
-		// @ts-ignore
-		DOpus.Output('units MB: ' + units.MB.name + ', ' + units.MB.size);
+		doh.clear();
 
 		_initializeCommands(initData);
 		_initializeColumns(initData);
@@ -734,8 +301,8 @@
 	// internal method called by OnInit() directly or indirectly
 	function _getIcon(iconName, scriptPath) {
 		// helper method to get the Icon Name for development and OSP version
-		// @ts-ignore
-		var oPath = DOpus.FSUtil.Resolve(scriptPath);
+
+		var oPath = util.fu.Resolve(scriptPath);
 		var isOSP = oPath.ext === 'osp';
 		return ( isOSP
 				? ('#MTHasher:' + iconName)
@@ -918,12 +485,12 @@
 {
 	// CLEAR CACHE
 	// called by user command, button, etc.
-	// @ts-ignore
+
 	function onDOpusCmdMHTClearCache(cmdData) {
 		clearCache();
 	}
 	function onDOpusCopyToClipboard(cmdData) {
-		// @ts-ignore
+
 		var fnName = funcNameExtractor(onDOpusCopyToClipboard);
 
 		var res = _getHashesOfAllSelectedFiles(cmdData);
@@ -932,7 +499,7 @@
 		util.cmd.RunCommand('Clipboard SET ' + JSON.stringify(res, null, 4));
 	}
 	function onDOpusADSExportFrom(cmdData) {
-		// @ts-ignore
+
 		var fnName = funcNameExtractor(onDOpusADSExportFrom);
 
 		// check command parameters
@@ -950,7 +517,7 @@
 		fileExchangeHandler.exportTo(cmdData, format, filename, res, useForwardSlash);
 	}
 	function onDOpusADSImportInto(cmdData) {
-		// @ts-ignore
+
 		var fnName = funcNameExtractor(onDOpusADSImportInto);
 
 		// check command parameters
@@ -959,7 +526,7 @@
 
 		fileExchangeHandler.importFrom(cmdData, format, filename);
 	}
-	// @ts-ignore
+
 	function onDOpusOnTheFlyCalculateAndExport(cmdData) {
 		var fnName = funcNameExtractor(onDOpusOnTheFlyCalculateAndExport);
 		abortWithFatalError('Not impl yet - ' + fnName);
@@ -968,9 +535,9 @@
 		var fnName = funcNameExtractor(onDOpusOnTheFlyVerifyFromFile);
 
 		// check command parameters
-		// @ts-ignore
+
 		var format          = cmdData.func.args.FORMAT;
-		// @ts-ignore
+
 		var filename        = cmdData.func.args.FILE;
 
 		// fileExchangeHandler.verifyFrom(scriptCmdData, format, filename);
@@ -1011,6 +578,7 @@
 					outstr += sprintf('; %s: %s', kheader, oInternalJSONFormat[kheader]) + '\n';
 				}
 			} else {
+
 				// @ts-ignore
 				outstr += '; Snapshot (Compact Date): ' + getTS().formatAsDateTimeCompact() + '\n';
 			}
@@ -1057,8 +625,8 @@
 				relpath  = lineParts[2];
 				fullpath = currentPath + relpath;
 				logger.verbose('Hash: ' + hash + '\tRelPath: ' + relpath + '\tFullPath: ' + fullpath);
-				// @ts-ignore
-				var oItem = DOpus.FSUtil.GetItem(fullpath);
+
+				var oItem = util.fu.GetItem(fullpath);
 				if (!FS.isValidPath(oItem.realpath)) {
 					// outPOJO.errors.push({ hash: hash, relpath: relpath, error: 'Not found: ' + oItem.realpath });
 					dummy.addItem(new HashedItem(oItem, relpath, false, 'Not found: ' + oItem.realpath, hash));
@@ -1066,20 +634,20 @@
 				} else {
 					//var _tmp = packageAsPOJO(oItem, hash);
 					var oCachedItem = new CachedItem(oItem, null, null, hash, algorithm);
-					// @ts-ignore
-					oCachedItem.relpath = ''+oItem.path;
-					// @ts-ignore
-					oCachedItem.name    = ''+oItem.name;
+					// TODO - REVIEW
+					oCachedItem['realpath'] = ''+oItem.path;
+					oCachedItem['name']     = ''+oItem.name;
 					outPOJO.items[oItem.realpath] = oCachedItem;
 				}
 			}
 			// return oCachedItem;
 			return outPOJO;
 		}
-		// @ts-ignore
+
 		function convertForImportFromJSON(sContents, currentPath) {
 			// TODO - currently there is no automatic path adjustment
 			// future release may implement smart path adjustment with the given path (currentPath)
+			// TODO - REVIEW
 			// @ts-ignore
 			var outPOJO = new CommandResults();
 			try {
@@ -1090,14 +658,11 @@
 			logger.sforce('%s -- outPOJO: %s', 'fnName', JSON.stringify(outPOJO, null, 4));
 
 			if (
-				 // @ts-ignore
-				 !outPOJO.rootPath || !FS.isValidPath(outPOJO.rootPath) ||
+				 !outPOJO.RootPath || !FS.isValidPath(outPOJO.RootPath) ||
 				  !isObject(outPOJO.items) ||
-				// @ts-ignore
-				(outPOJO.errors && typeof outPOJO.errors.length !== 'number')
+				(outPOJO.error && typeof outPOJO.error.length !== 'number')
 			) {
-				// @ts-ignore
-				abortWithFatalError('Given file contents do not match expected format, unexpected key: ' + unexpectedField);
+				abortWithFatalError('Given file contents do not match expected format');
 			}
 			return outPOJO;
 		}
@@ -1110,11 +675,9 @@
 
 			if (filename) {
 				// validate given filename - but we may not check for existence!
-				// @ts-ignore
-				var oItem = DOpus.FSUtil.GetItem(filename);
+				var oItem = util.fu.GetItem(filename);
 				if (!oItem.path) {
-					// @ts-ignore
-					oItem = DOpus.FSUtil.GetItem(currentPath + filename);
+					oItem = util.fu.GetItem(currentPath + filename);
 				}
 				if (!oItem.path) {
 					abortWithFatalError('Given filepath ' + filename + ' is not valid');
@@ -1123,7 +686,7 @@
 			} else {
 				// determine suggested file name & show a Save Dialog
 				var defaultName = (''+currentPath).replace(/[\\:]/g, '_').replace(/_*$/, '').replace(/_+/, '_') + (useForwardSlash ? '_FS' : ''),
-					// @ts-ignore
+
 					nameSuffix  = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES ? ' - ' + getTS().formatAsDateTimeCompact() :
 					              APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES ? ' - ' + oInternalJSONFormat.Latest_File_DateTime_TS.formatAsDateTimeCompact() : '',
 					ext         = VALID_FORMATS_AND_EXTS[format.toUpperCase()][1];
@@ -1200,21 +763,23 @@
 			// check if given format is valid
 			// TODO - very crappy at the moment
 			detectedFormat = fileExchangeHandler.detectFormatFromName(inFilename);
+			if (!detectedFormat) {
+				abortWithFatalError('Unrecognized format: ' + format); return; // return is needed only for tsc
+			}
 
-			// @ts-ignore
 			if (format.toLowerCase() !== detectedFormat.toLowerCase()) {
 				abortWithFatalError('given filename & format do not match\nGiven: ' + format + ', Detected: ' + detectedFormat);
 			}
 			logger.snormal('%s -- Using filename: %s, format: %s', fnName, inFilename, format);
 
 			// read file
-			// @ts-ignore
 			var inContents = FS.readFile(inFilename);
 			logger.sverbose('%s -- Input:\n%s', fnName, inContents);
 
 			// convert to internal format and fill in values
+			// TODO - REVIEW
 			// @ts-ignore
-			var inPOJO = new CommandResults({}, [], currentPath, format.toLowerCase(), 0, 0);
+			var inPOJO = new CommandResults({}, currentPath, format.toLowerCase());
 			var res;
 			switch(format.toUpperCase()) {
 				case VALID_FORMATS_AND_EXTS.MD5[0]:
@@ -1227,12 +792,9 @@
 					abortWithFatalError('Given format ' + format + ' is unknown or not yet implemented');
 			}
 			inPOJO.items        = res.items || {};
-			// @ts-ignore
-			inPOJO.errors       = res.errors || [];
-			// @ts-ignore
+			inPOJO.error        = res.errors || [];
 			inPOJO.ValidCount   = inPOJO.items.keys().length;
-			// @ts-ignore
-			inPOJO.InvalidCount = inPOJO.errors.length;
+			inPOJO.InvalidCount = inPOJO.error.keys().length;
 			logger.snormal('%s -- Input as JSON:\n%s', fnName, JSON.stringify(inPOJO, null, 4));
 
 			return inPOJO;
@@ -1268,22 +830,16 @@
 					return; // user cancelled
 				}
 				// copy the files with errors into clipboard
-				// @ts-ignore
-				if (inPOJO.errors.length) {
-					// @ts-ignore
-					util.cmd.RunCommand('Clipboard SET ' + JSON.stringify(inPOJO.errors, null, 4));
+
+				if (inPOJO.error.length) {
+					util.cmd.RunCommand('Clipboard SET ' + JSON.stringify(inPOJO.error, null, 4));
 				}
-				var importErrors = []
+				var importErrors = [];
 				for (var filepath in inPOJO.items) {
 					if (!inPOJO.items.hasOwnProperty(filepath)) continue;
-					// @ts-ignore
-					var oItem = DOpus.FSUtil.GetItem(filepath);
-					// if(ADS.save(oItem, packageAsPOJO(oItem, inPOJO.items[filepath].hash))) {
-					// @ts-ignore
-					if(ADS.save(oItem, new CachedItem(oItem, null, null, inPOJO.items[filepath].hash))) {
-						// items: array of [ { 'path': string, 'name': string, 'size': number }, ... ]
-						// importErrors.push(''+oItem.realpath);
-						importErrors.push({ path: ''+oItem.realpath });
+					var oItem = util.fu.GetItem(filepath);
+					if(!ADS.save(oItem, new CachedItem(oItem, null, null, inPOJO.items[filepath].hash))) {
+						importErrors.push(''+oItem.realpath);
 					}
 				}
 				if (importErrors.length) {
@@ -1291,14 +847,13 @@
 						var el = importErrors[i];
 						logger.sforce('%s -- Error: %s', fnName, el);
 					}
-					// @ts-ignore
 					addFilesToCollection(importErrors, COLLECTION_FOR_IMPORT_ERRORS);
 				}
 				// addFilesToCollection(inPOJO.errors, COLLECTION_FOR_IMPORT_ERRORS);
 				// abortWithFatalError('NOT IMPL YET - Save to ADS');
 			},
 			verifyFrom: function (cmdData, format, filename) {
-				// @ts-ignore
+
 				var fnName = 'fileExchangeHandler.verifyFrom';
 
 				var inPOJO = prepareForImport(cmdData, format, filename);
@@ -1311,12 +866,10 @@
 				abortWithFatalError('NOT IMPL YET - Verify from external file');
 			},
 			exportTo: function (cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
-				// @ts-ignore
-				var fnName = 'fileExchangeHandler.exportTo';
 
+				var fnName = 'fileExchangeHandler.exportTo';
 				var res = prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash);
 				if (!res) { return; }
-				// @ts-ignore
 				FS.saveFile(res.filename, res.contents);
 			},
 			isValidFormat: function (format) {
@@ -1335,9 +888,12 @@
 				}
 				return outstr;
 			},
+			/**
+			 * @param {string} filename
+			 * @returns {string|false} format on success, false if unknown
+			 */
 			detectFormatFromName: function (filename) {
-				// @ts-ignore
-				var oItem = DOpus.FSUtil.GetItem(filename);
+				var oItem = util.fu.GetItem(filename);
 				if (!oItem) return false;
 				switch(oItem.ext.toLowerCase()) {
 					case VALID_FORMATS_AND_EXTS.MD5[1]:  return VALID_FORMATS_AND_EXTS.MD5[0];
@@ -1376,20 +932,17 @@
 		}
 		busyIndicator.stop();
 
-
 		// if precheck is active and some hashes are missing or dirty, show and quit
 		if (!skipCheck && itemsFiltered.countSkipped) {
 			showMessageDialog(doh.getDialog(cmdData), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.\n\nAlternatively, you can use\nthe Skip Check parameter (NOT RECOMMENDED)');
 			return;
 		}
 
-
 		// check if we have any items to process further
 		if (!itemsFiltered.countTotal) {
 			if (doh.getSelItemsCount(cmdData)) {
 				return showMessageDialog(doh.getDialog(cmdData),
-					// @ts-ignore
-					sprintf('Nothing to do, quitting...\n\nNo suitable files found for the requested\nAction: %s\nFilter: %s', actionName, fnFilterName),
+					sprintf('Nothing to do, quitting...\n\nNo suitable files found for the requested\nFilter: %s', fnFilterName),
 					'No suitable files found');
 			} else {
 				return showMessageDialog(doh.getDialog(cmdData),
@@ -1398,32 +951,28 @@
 			}
 		}
 
-
 		// everything ok, proceed
 		var currentPath   = doh.getCurrentPath(cmdData),
 			oSuccessItems = itemsFiltered.getSuccessItems(); // process only success items!
 		for (var k in oSuccessItems) {
 			if (!oSuccessItems.hasOwnProperty(k)) continue;
 			var oHashedItem = oSuccessItems[k],
-				// @ts-ignore
-				oDOItem     = DOpus.FSUtil.GetItem(oHashedItem.fullpath),
+				oDOItem     = util.fu.GetItem(oHashedItem.fullpath),
 				oADSData    = ADS.read(oDOItem);
-			// @ts-ignore
-			if (!oADSData) abortWithFatalError('Cannot read stream data for: ' + oHashedItem.path);
+
+			if (!oADSData) abortWithFatalError('Cannot read stream data for: ' + oHashedItem.fullpath);
 			// remove cache only fields if necessary
 			removeCacheFields(oADSData);
 			// enrich with useful info
 			oHashedItem.relpath   = (''+oDOItem.path).replace(currentPath, '');
 			oHashedItem.name      = ''+oDOItem.name;
-			// TODO - review these 2
-			// @ts-ignore
-			oHashedItem.hash      = oADSData.hash;
-			// @ts-ignore
-			oHashedItem.algorithm = oADSData.algorithm;
+			// // TODO - review these 2
+			// oHashedItem.hash      = oADSData.hash;
+			// oHashedItem.algorithm = oADSData.algorithm;
 		}
 
 		// calculate the command results and return
-		// @ts-ignore
+
 		var oCR = new CommandResults(itemsFiltered, doh.getCurrentPath(cmdData));
 		logger.sverbose('%s -- oCR:\n%s', fnName, JSON.stringify(oCR, null, 4));
 		return oCR;
@@ -1452,7 +1001,6 @@
 		return res;
 	}
 	function onDOpusColMultiCol(scriptColData) {
-		// @ts-ignore
 		var fnName = funcNameExtractor(onDOpusColMultiCol);
 
 		var ts1 = new Date().getTime();
@@ -1471,27 +1019,22 @@
 		for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
 			var key = e.item();
 
-			var outstr = '';
+			var outstr;
 
 			switch(key) {
 				case _getColumnNameFor('NeedsUpdate'):
-					// @ts-ignore
 					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						// @ts-ignore
-						differentSize      = parseInt(item.size, 10)             !== item_props.last_size;
-					// @ts-ignore
+						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
+
 					outstr = differentModifDate || differentSize ? 1 : 0;
 					scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
 					scriptColData.columns(key).value = outstr;
 					break;
 
 				case _getColumnNameFor('NeedsUpdateVerbose'):
-					// @ts-ignore
 					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						// @ts-ignore
 						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
-					// @ts-ignore
-					outstr = differentModifDate || differentSize ? 1 : 0;
+					outstr = differentModifDate || differentSize ? '1' : '0';
 					if (differentModifDate && differentSize) {
 						outstr += ' (date & size)';
 					} else if (differentModifDate) {
@@ -1530,15 +1073,13 @@
 	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
 */
 {
-	// @ts-ignore
+
 	function __MANAGER__(){ var i; }
 	// called by custom DOpus command
 	function onDOpusCmdMTHManagerStart(cmdData) {
 		var fnName = funcNameExtractor(onDOpusCmdMTHManagerStart);
 
-		// @ts-ignore
-		DOpus.ClearOutput();
-
+		doh.clear();
 
 		// VALIDATE PARAMETERS & SET FILTERS, ACTIONS AND COLLECTIONS
 		{
@@ -1547,7 +1088,7 @@
 				collectionName = command.collName,
 				fnFilter       = command.filter,
 				fnFilterName   = command.filterName,
-				// @ts-ignore
+
 				fnAction       = command.action,
 				fnActionName   = command.actionName;
 			logger.sforce('%s -- Selected Command: %s, Using Filter: %s, Action: %s', fnName, commandName, fnFilterName, fnActionName);
@@ -1571,9 +1112,9 @@
 			if (collectionName) {
 				busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
 				logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
-				// @ts-ignore
+
 				addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
-				// @ts-ignore
+
 				logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
 				busyIndicator.stop();
 				return;
@@ -1601,15 +1142,15 @@
 
 		// SPLITTING / KNAPSACKING
 		{
-			var selectedKnapsacked = knapsackItems(selectedFiltered, selectedItemsSize, command.maxcount, PROCESS_BIGGEST_FILES_FIRST);
+			var selectedKnapsacked = knapsackItems(selectedFiltered, command.maxcount);
 		}
 
 
 		// INITIALIZE PROGRESS BAR
 		{
-			// @ts-ignore
+
 			var unitMax      = selectedItemsSize.getUnit();
-			// @ts-ignore
+
 			var formattedMax = selectedItemsSize.formatAsSize(unitMax);
 			var progbar      = initializeProgressBar(cmdData);
 		}
@@ -1617,8 +1158,7 @@
 
 		// INITIALIZE THREAD POOL
 		{
-			// @ts-ignore
-			util.sv.Set('TP') = DOpus.Create.Map();
+			util.sv.Set('TP', util.dc.Map());
 			var tp = util.sv.Get('TP');
 		}
 
@@ -1635,10 +1175,10 @@
 				// continue;
 
 				// put all files in this knapsack into a map
-				// @ts-ignore
-				var filesMap = DOpus.Create.Map();
+
+				var filesMap = util.dc.Map();
 				var oHashedItems = ks.itemsColl.getSuccessItems();
-				// @ts-ignore
+
 				fileloop:for (var hikey in oHashedItems) {
 					if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
 					/** @type {HashedItem} */
@@ -1646,33 +1186,20 @@
 
 					// create a new DOpus map for this file
 					// @ts-ignore
-					new_file               = DOpus.Create.Map();
-					// @ts-ignore
-					new_file('maxwait')    = command.maxwait;
-					// @ts-ignore
-					new_file('filename')   = oHashedItem.name;
-					// @ts-ignore
-					new_file('filepath')   = oHashedItem.fullpath;
-					// @ts-ignore
-					new_file('filesize')   = oHashedItem.size;
-					// @ts-ignore
-					new_file('finished')   = false; // if it timed out or was unfinished for any reason
-					// @ts-ignore
-					new_file('elapsed')    = 0;
-					// @ts-ignore
-					new_file('timeout')    = false;
-					// @ts-ignore
-					new_file('error')      = false;
-					// @ts-ignore
-					new_file('hash')       = false;
-					// @ts-ignore
-					new_file('finalized')  = false; // if the file has been processed completely, can include timed out files
-
-					// @ts-ignore
+					var new_file           = util.dc.Map();	// @ts-ignore
+					new_file('maxwait')    = command.maxwait;		// @ts-ignore
+					new_file('filename')   = oHashedItem.name;		// @ts-ignore
+					new_file('filepath')   = oHashedItem.fullpath;	// @ts-ignore
+					new_file('filesize')   = oHashedItem.size;		// @ts-ignore
+					new_file('finished')   = false; 				// @ts-ignore // if it timed out or was unfinished for any reason
+					new_file('elapsed')    = 0;						// @ts-ignore
+					new_file('timeout')    = false;					// @ts-ignore
+					new_file('error')      = false;					// @ts-ignore
+					new_file('hash')       = false;					// @ts-ignore
+					new_file('finalized')  = false; 				// @ts-ignore // if the file has been processed completely, can include timed out files
 					filesMap(oHashedItem.fullpath) = new_file;
 				}
-				// put this knapsack into thread pool
-				// @ts-ignore
+				// @ts-ignore // put this knapsack into thread pool
 				tp(ks.id) = filesMap;
 				// @ts-ignore
 				util.sv.Set('TP') = tp;
@@ -1691,24 +1218,21 @@
 			logger.sforce('');
 			logger.sforce('');
 			logger.sforce('');
-			// @ts-ignore
+
 			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
 			var ts = getTS();
 			var finished_bytes_so_far = 0;
 			itercnt = 0;
 			itermax = 5000; // TODO DELETE
 			unfinished: while(++itercnt < itermax && getTS() - ts < command.maxwait && !selectedKnapsacked.allFinished()) {
-				// @ts-ignore
-				DOpus.Delay(sleepdur);
+
+				doh.delay(sleepdur);
 				for (var kskey in selectedKnapsacked.unfinishedKS) {
 					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
 					var ks = selectedKnapsacked.unfinishedKS[kskey];
-
 					var threadID               = ks.id;
-					// @ts-ignore
 					var this_knapsack_finished = true;
 					var ksMap                  = tp(threadID);
-
 					// logger.forceSprintf('%s -- KS Thread ID: %s', fnName, threadID);
 					for (var e = new Enumerator(ksMap); !e.atEnd(); e.moveNext()) {
 						var ksItemKey = e.item();         // full path is the key, as we put it in the manager
@@ -1718,15 +1242,13 @@
 						// check for any unfinished files
 						if (!ksItemVal('finished')) {
 							// file not finished yet
-							// @ts-ignore
-							all_knapsacks_finished = false;
+							// all_knapsacks_finished = false;
 							this_knapsack_finished = false;
 							continue;
 						} else if (ksItemVal('finalized')) {
 							continue;
 						} else {
-							// file finished
-							// @ts-ignore
+							// @ts-ignore // file finished
 							ksItemVal('finalized') = true;
 
 							// EXTREMELY IMPORTANT
@@ -1743,23 +1265,23 @@
 					}
 				}
 			}
-			// @ts-ignore
+
 			logger.force(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
 		}
 
 
 		// LAST CLEANUP ACTIONS
 		{
-			// @ts-ignore
-			DOpus.Delay(10);
+
+			doh.delay(10);
 			finalizeProgressBar(progbar);
 			var tsFinish = getTS();
 			// following is only for cosmetical reasons
 			// wait for DOpus to output the last 'Script Completed' lines
 			// otherwise DOpus might show a 'Script Completed' in the middle of our outputs below
-			// @ts-ignore
-			DOpus.Delay(500);
-			// DOpus.ClearOutput();
+
+			doh.delay(500);
+			// doh.clear();
 		}
 
 
@@ -1840,8 +1362,7 @@
 		util.cmd.RunCommand('CreateFolder "coll://' + collectionName + '"');
 		util.cmd.ClearFiles();
 		for (var i = 0; i < filepathsArray.length; i++) {
-			// @ts-ignore
-			util.cmd.AddFile(DOpus.FSUtil.GetItem(filepathsArray[i]));
+			util.cmd.AddFile(util.fu.GetItem(filepathsArray[i]));
 		}
 		util.cmd.RunCommand('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
 		util.cmd.RunCommand('Go "coll://' + collectionName + '" NEWTAB=findexisting');
@@ -1897,12 +1418,9 @@
 	 */
 	function dumpDetailedResultsToDOPusOutput(actionResultsObject) {
 		var fnName = funcNameExtractor(dumpDetailedResultsToDOPusOutput);
-		// @ts-ignore
-		for (f in actionResultsObject.items) {
-			// @ts-ignore
+		for (var f in actionResultsObject.items) {
 			if (!actionResultsObject.items.hasOwnProperty(f)) continue;
 			/** @type {MTActionResultFile} */
-			// @ts-ignore
 			var el = actionResultsObject.items[f];
 			var itemSummaryMsg = sprintf(
 				'%s -- Worker finished: %s, timeout: %s, size: %10d, elapsed: %7d ms, file: %s, %s',
@@ -1937,7 +1455,7 @@
 	888P     Y888  "Y88888P"  888   T88b 888    Y88b 8888888888 888   T88b
 */
 {
-	// @ts-ignore
+
 	function __WORKER__(){ var i; }
 	// called by onDOpusCmdMTHManager - do not call directly
 	function onDOpusCmdMTHWorker(cmdData) {
@@ -1971,8 +1489,8 @@
 			// if the manager sets the pause or abort status, honor it
 			while(getPauseStatus() === true) {
 				// already started hashing jobs won't be affected, obviously
-				// @ts-ignore
-				DOpus.Delay(500); // doesn't need to be too short, pause is pause
+
+				doh.delay(500); // doesn't need to be too short, pause is pause
 			}
 			if (getAbortStatus() === true) {
 				break filesloop;
@@ -1981,8 +1499,8 @@
 			// call the hash calculator
 			stopwatch.start(fnName + ksItemKey);
 			// logger.sforce('%s -- ksItemVal("filepath"): %s', fnName, ksItemVal('filepath'));
-			// @ts-ignore
-			var oItem = DOpus.FSUtil.GetItem(ksItemVal('filepath'));
+
+			var oItem = util.fu.GetItem(ksItemVal('filepath'));
 			var newHashResult = new Result(); // needed so that VSCode can auto-complete
 			// newHashResult = (param.actionfunc)(oItem, null); // IMPORTANT: this is the heart of actions
 			newHashResult = param.actionfunc.call(param.actionfunc, oItem, null); // IMPORTANT: this is the heart of actions
@@ -2024,7 +1542,7 @@
 	888        8888888 88888888   888     8888888888 888   T88b 8888888 888    Y888  "Y8888P88
 */
 {
-	// @ts-ignore
+
 	function __FILTERING__(){ var i; }
 	/**
 	 * 	output structure
@@ -2048,7 +1566,7 @@
 		// PRESELECT ALL FILES
 		{
 			var oItemsPreFilter = new HashedItemsCollection();
-			// @ts-ignore
+
 			logger.normal(stopwatch.startAndPrint(fnName, 'File Selection'));
 			// first collect all the path & size information for the selected items
 			// note we pass an 'enumerableItems' which is most likely passed from scriptCmdData.func.sourcetab.selected
@@ -2061,24 +1579,23 @@
 					continue;
 				} else if (doh.isDir(selitem) && recurse) {
 					// type: directory
-					// @ts-ignore
-					var fEnum = DOpus.FSUtil.ReadDir(selitem, recurse && 'r');
-					if (fEnum.error) abortWithFatalError('DOpus.FSUtil.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
+					var fEnum = util.fu.ReadDir(selitem, (recurse && 'r'));
+					if (fEnum.error) abortWithFatalError('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
 					icnt = 0; // just as a precaution for while loop
 					while (!fEnum.complete && ++icnt < imax) {
 						var subitem = fEnum.next;
 						if (!doh.isFile(subitem)) continue;
-						// @ts-ignore
+
 						oItemsPreFilter.addItem(new HashedItem(subitem));
 					}
 					fEnum.Close();
 				} else {
 					// type: file
-					// @ts-ignore
+
 					oItemsPreFilter.addItem(new HashedItem(selitem));
 				}
 			}
-			// @ts-ignore
+
 			logger.normal(stopwatch.stopAndPrint(fnName, 'File Selection'));
 		}
 
@@ -2087,7 +1604,7 @@
 		{
 			var oItemsPostFilter = new HashedItemsCollection();
 			// apply filter to all candidates
-			// @ts-ignore
+
 			logger.normal(stopwatch.startAndPrint(fnName, 'Filtering'));
 			var oSuccessItems = oItemsPreFilter.getSuccessItems();
 			for (var key in oSuccessItems) {
@@ -2095,11 +1612,10 @@
 				if (!(fnItemFilter.call(fnItemFilter, oSuccessItems[key].item ))) { // IMPORTANT: this is the heart of filters
 					logger.sinfo('%s -- Filtering out %s', fnName, oSuccessItems[key].name);
 					oSuccessItems[key].skipped = true;
-					// oItemsPostFilter.addItem(oSuccessItems[key], null, true);
 				}
 				oItemsPostFilter.addItem(oSuccessItems[key]);
 			}
-			// @ts-ignore
+
 			logger.normal(stopwatch.stopAndPrint(fnName, 'Filtering'));
 		}
 
@@ -2121,7 +1637,7 @@
 	888    Y88b 888    Y888 d88P     888 888         "Y8888P"  d88P     888  "Y8888P"  888    Y88b 8888888 888    Y888  "Y8888P88
 */
 {
-	// @ts-ignore
+
 	function __KNAPSACKING__(){ var i; }
 	/**
 	 * output structure:
@@ -2141,23 +1657,17 @@
 	 *     ...
 	 * }
 	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
-	 * @param {number} iItemsSize total size of selected items
 	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
-	 * @param {boolean} sortBySizeFirst sort file list by size, default {PROCESS_BIGGEST_FILES_FIRST}
 	 * @returns {KnapsackCollection} knapsacked items
 	 */
-	// @ts-ignore
-	function knapsackItems(oHashedItemsCollection, iItemsSize, numThreads, sortBySizeFirst) {
+	function knapsackItems(oHashedItemsCollection, numThreads) {
 		var fnName = funcNameExtractor(knapsackItems);
 
-		// @ts-ignore
 		logger.normal(stopwatch.startAndPrint(fnName, 'Knapsacking'));
 
-		// @ts-ignore
-		numThreads = typeof numThreads === 'number' & numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
-
+		numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
 		// SPLIT FILES INTO KNAPSACKS
-		// @ts-ignore
+
 		logger.normal(stopwatch.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
 		{
 			// now that we all file paths & sizes
@@ -2174,8 +1684,7 @@
 			var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
 
 			// create the collection
-			// @ts-ignore
-			var outObj = new KnapsackCollection(getTS());
+			var outObj = new KnapsackCollection(getTS().toString());
 
 			// we will not use a knapsack algorithm in the classical sense per se
 			// since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
@@ -2187,9 +1696,16 @@
 			// at the very max each knapsack will have this many elements
 			var knapsackMaxElements = Math.ceil(oHashedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
 
-			// @ts-ignore
-			logger.sforce('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)', fnName, maxNeeded, knapsackMaxElements, maxNeeded, knapsackMaxElements, maxNeeded*knapsackMaxElements, oHashedItemsCollection.countSuccess, idealKnapsackSize, idealKnapsackSize.formatAsSize());
-
+			logger.sforce('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
+				fnName,
+				maxNeeded,
+				knapsackMaxElements,
+				maxNeeded,
+				knapsackMaxElements,
+				maxNeeded*knapsackMaxElements,
+				oHashedItemsCollection.countSuccess,
+				idealKnapsackSize,
+				idealKnapsackSize.formatAsSize());
 
 			// initialize individual knapsacks
 			/** @type {Knapsack[]} */
@@ -2204,7 +1720,6 @@
 			knapsackAllocLoop: for (var key in oAllItems) {
 				if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
 				var oHashedItem = oAllItems[key];
-
 
 				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
 				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
@@ -2245,20 +1760,18 @@
 					// ksArray[minimumFilledKnapsackNumber]['items'].push(oHashedItem);
 					// ksArray[minimumFilledKnapsackNumber]['capacity'] += oHashedItem['size'];
 					ksArray[minimumFilledKnapsackNumber].addItem(oHashedItem);
-
 				} else {
 					var msg = sprintf('%s -- THIS SHOULD HAVE NEVER HAPPENED - Found no home for file: %s, size: %d', fnName, oHashedItem['path'], oHashedItem['size']);
 					abortWithFatalError(msg);
 				}
 			}
 		}
-		// @ts-ignore
 		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
 
 
 		// OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
-		// @ts-ignore
-		logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.filescnt, outObj.totalsize, numThreads)));
+
+		logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
 		{
 			if (AVOID_OVERFILLED_KNAPSACKS) {
 				// optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
@@ -2287,7 +1800,7 @@
 						// move items from overfilled to underfilled
 						// ksArray[underfilledKS]['items'] = ksArray[overfilledKS]['items'].splice(0, Math.round(ksArray[overfilledKS].count / 2) );
 						var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
-						// @ts-ignore
+
 						var i = 0, iMax = Math.floor(oOverfilledItems.keys().length / 2);
 						for (var key in oOverfilledItems) {
 							if (++i > iMax) break;
@@ -2298,16 +1811,6 @@
 							ksArray[underfilledKS].addItem(oHashedItem);
 						}
 						logger.sinfo('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-
-						// // update the capacities
-						// ksArray[overfilledKS]['capacity']  = 0;
-						// for (var i = 0; i < ksArray[overfilledKS].count; i++) {
-						// 	ksArray[overfilledKS]['capacity'] += ksArray[overfilledKS]['items'][i]['size'];
-						// }
-						// ksArray[underfilledKS]['capacity'] = 0;
-						// for (var i = 0; i < ksArray[underfilledKS].count; i++) {
-						// 	ksArray[underfilledKS]['capacity'] += ksArray[underfilledKS]['items'][i]['size'];
-						// }
 					}
 					underfilledKS = 0;
 					for (var i = 0; i < maxNeeded; i++) {
@@ -2319,20 +1822,16 @@
 				}
 			}
 		}
-		// @ts-ignore
 		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 2nd Stage'));
 
 
-		// @ts-ignore
 		logger.normal(stopwatch.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
-		// @ts-ignore
-		var ksColl = new KnapsackCollection(getTS());
+		var ksColl = new KnapsackCollection(getTS().toString());
 		for (var i = 0; i < ksArray.length; i++) {
 			var ks = ksArray[i];
 			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d (ideal %+15d)', fnName, i, ks.id, ks.count, ks.size, (ks.size - idealKnapsackSize));
 			ksColl.addKnapsack(ksArray[i]);
 		}
-		// @ts-ignore
 		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 3rd Stage'));
 
 
@@ -2365,7 +1864,7 @@
 */
 {
 	// LOGGER object
-	// @ts-ignore
+
 	function __LOGGER__(){ var i; }
 	var logger = (function () {
 		var VALID_LEVELS = {
@@ -2379,34 +1878,20 @@
 		var _level = VALID_LEVELS.NORMAL;
 		function _setLevel (level) {
 			_level = typeof level === 'number' && level >= VALID_LEVELS.NONE && level <= VALID_LEVELS.VERBOSE ? level : _level; // if valid use new, if not use old
-			// @ts-ignore
-			if (typeof config !== 'undefined' && config.exists('DEBUG_LEVEL')) {
-				// @ts-ignore
-				config.set('DEBUG_LEVEL', _level);
-			}
 		}
 		function _getLevel() {
 			if (typeof _level === 'undefined') {
-				// @ts-ignore
-				if (typeof config !== 'undefined' && config.exists('DEBUG_LEVEL')) {
-					// @ts-ignore
-					var cl = config.get('DEBUG_LEVEL');
-					if (cl !== _level) { _level = cl }
-				} else {
-					_level = VALID_LEVELS.ERROR;
-				}
+				_level = VALID_LEVELS.ERROR;
 			}
 			return _level;
 		}
 		function _baseout(level, message) {
-			// @ts-ignore
-			if (level <= _level) DOpus.Output(message);
+			if (level <= _level) doh.out(message);
 		}
 		return {
 			levels: VALID_LEVELS,
 			raw: function (message) {
-				// @ts-ignore
-				DOpus.Output(message); // basically the same as force, but without the level check
+				doh.out(message); // basically the same as force, but without the level check
 			},
 			force: function (message) {
 				_baseout(-1, message);
@@ -2444,7 +1929,6 @@
 			sverbose: function () {
 				_baseout(this.levels.VERBOSE, sprintf.apply(sprintf, arguments));
 			},
-
 			setLevel: function (level) {
 				_setLevel(level);
 			},
@@ -2453,11 +1937,8 @@
 			},
 			getKeys: function () {
 				var keys = [];
-				// @ts-ignore
-				for (k in this.levels) {
-					// @ts-ignore
+				for (var k in this.levels) {
 					if (this.levels.hasOwnProperty(k)) {
-						// @ts-ignore
 						keys.push(k);
 					}
 				}
@@ -2480,18 +1961,18 @@
 	888        8888888 88888888 8888888888     d88P     888  "Y8888P"   "Y8888P"  8888888888  "Y8888P"   "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __FILE_ACCESS__(){ var i; }
 	var FS = (function (){
 		var myName = 'FS';
-		var TEXT_ENCODING = { 'utf8': 1, 'utf16': 2 };
+		var TEXT_ENCODING = { utf8: 1, utf16: 2 };
 		return {
 			name: myName,
 			TEXT_ENCODING: TEXT_ENCODING,
 			/**
 			 * reads requested file contents (incl. ADS streams)
 			 * @param {string} path file path to read
-			 * @param {TEXT_ENCODING} format {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
+			 * @param {number=} format use one of {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
 			 * @returns {string|boolean} file contents, false on error
 			 * @see TEXT_ENCODING
 			 */
@@ -2504,14 +1985,12 @@
 				// res = ReadFile("Y:\\MediaInfo\\victim.txt:SecondStream", encoding.utf8);
 				// res = ReadFile("Y:\\MediaInfo\\victim.txt", encoding.utf16);
 				var res = false;
-				// @ts-ignore
-				format = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
-				// @ts-ignore
-				if (!DOpus.FSUtil.Exists(path)) { return res; }
+				var decformat = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
-				// @ts-ignore
-				var fh = DOpus.FSUtil.OpenFile(path); // default read mode
+				if (!util.fu.Exists(path)) { return res; }
+
+				var fh = util.fu.OpenFile(path); // default read mode
 				if(fh.error !== 0) {
 					// if you enable this log level in the global options you will receive a lot of messages for missing streams of unprocessed files
 					logger.normal(path + ', error occurred while opening file: ' + fh.error);
@@ -2520,9 +1999,8 @@
 						var blob = fh.Read(	);
 						logger.verbose('blob size: ' + blob.size + ', type: ' + typeof blob);
 						try {
-							res = util.st.Decode(blob, format); // "utf-8" seems to be standard, "auto" does not work for me
-							// @ts-ignore
-							logger.verbose('blob -- type: ' + typeof res + ', size: ' + res.length + "\n" + res);
+							res = util.st.Decode(blob, decformat); // "utf-8" seems to be standard, "auto" does not work for me
+							// logger.verbose('blob -- type: ' + typeof res + ', size: ' + res.length + "\n" + res);
 						} catch(e) { logger.error(path + ', st.decode: ' + e.description); }
 						blob.Free();
 					} catch(e) { logger.error(path + ', fh.read: ' + e.description); }
@@ -2534,7 +2012,7 @@
 			 * saves given contents to file (incl. ADS streams)
 			 * @param {string} path file path to save
 			 * @param {*} contents contents
-			 * @param {TEXT_ENCODING} format {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
+			 * @param {number=} format use one of {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
 			 * @returns {number|boolean} number of bytes written, false on error
 			 * @see TEXT_ENCODING
 			 */
@@ -2547,24 +2025,20 @@
 				//
 				// res = SaveFile("Y:\\Path\\file.txt:CustomMetaInfo", encodeURI(new Date().getTime().toString()), encoding.utf16);
 				// res = SaveFile("Y:\\Path\\file.txt:CustomMetaInfo", encodeURI("{\"a\": 1}"), encoding.utf8);
-				var res = false, decFormat;
+				var res = false, copyformat, decformat;
 
-				// @ts-ignore
-				decFormat = format === TEXT_ENCODING.utf16 ? '' : 'utf8';	// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
-				// @ts-ignore
-				format 	  = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
+				copyformat = format === TEXT_ENCODING.utf16 ? '' : 'utf8';	// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
+				decformat  = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
-				// @ts-ignore
-				var fh = DOpus.FSUtil.OpenFile(path, 'wa'); // wa: wa - create a new file, always. If the file already exists it will be overwritten. (This is the default.)
+				var fh = util.fu.OpenFile(path, 'wa'); // wa: wa - create a new file, always. If the file already exists it will be overwritten. (This is the default.)
 				if(fh.error !== 0) {
 					logger.error(path + ', error occurred while opening file: ' + fh.error); return;
 				}
 				try {
 					logger.verbose('String to write to ' + path + ': ' + contents);
-					// @ts-ignore
-					var blob = DOpus.Create.Blob;
-					blob.CopyFrom(contents, decFormat);	// seems to use implicitly utf-16, only available optional param is utf8
-					res = util.st.Decode(blob, format);
+					var blob = util.dc.Blob;
+					blob.CopyFrom(contents, copyformat);	// seems to use implicitly utf-16, only available optional param is utf8
+					res = util.st.Decode(blob, decformat);
 					logger.verbose('blob -- type: ' + typeof blob + ', size: ' + blob.size + "\n" + res);
 					res = fh.Write(blob);
 					logger.verbose('Written bytes: ' + res);
@@ -2579,8 +2053,8 @@
 			 * @returns {boolean} true if file exists
 			 */
 			isValidPath: function (path) {
-				// @ts-ignore
-				return DOpus.FSUtil.Exists(path);
+
+				return util.fu.Exists(path);
 			}
 		}
 	}());
@@ -2599,12 +2073,11 @@
 	d88P     888 8888888P"   "Y8888P"      d88P     888  "Y8888P"   "Y8888P"  8888888888  "Y8888P"   "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __ADS_ACCESS__(){ var i; }
 	var ADS = (function (){
 		var myName = 'ADS';
 
-		// @ts-ignore
 		var msn = getHashStreamName();
 
 		function validateStreamNameAndItem(callerName, oItem) {
@@ -2638,7 +2111,7 @@
 		/**
 		 * returns the hash stream name
 		 * WARNING: if you change this you will lose access to streams and they will become orphans
-		 * @param {string} algorithm one of DOpus builtin algorithms: sha1, sha256, sha512, md5, etc.
+		 * @param {string=} algorithm one of DOpus builtin algorithms: sha1, sha256, sha512, md5, etc.
 		 * @returns {string} the ADS stream name to use
 		 */
 		function getHashStreamName(algorithm) {
@@ -2650,7 +2123,7 @@
 			name: myName,
 			/**
 			 * checks if given item has a hash stream
-			 * @param {object} oItem DOpus Item object
+			 * @param {DOpusItem} oItem DOpus Item object
 			 * @returns {boolean} true if file has a hash stream
 			 * @see getHashStreamName()
 			 */
@@ -2664,8 +2137,8 @@
 			 * returns the stored ADS data as POJO
 			 *
 			 * uses cache if enabled and possible
-			 * @param {object} oItem DOpus Item object
-			 * @returns {CachedItem|boolean} POJO on success, false on error
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {CachedItem|false} POJO on success, false on error
 			 * @see FS.readFile()
 			 * @see initCacheIfNecessary()
 			 */
@@ -2678,20 +2151,25 @@
 
 				// check if cache is enabled and item is in cache
 				var res;
+				var cache = util.sv.Get('cache');
 
-				if (CACHE_ENABLED && util.sv.Get('cache').exists(rp)) {
+				if (CACHE_ENABLED && cache.exists(rp)) {
 					logger.verbose(oItem.name + ' found in cache');
-					res = util.sv.Get('cache')(rp);
+					res = cache(rp);
 				} else {
 					logger.verbose(oItem.name + ' reading from disk');
-					// @ts-ignore
+
 					res = FS.readFile(rp + ':' + msn, FS.TEXT_ENCODING.utf8); // always string or false ion error
 					if (res === false) { return res; }
-					if (CACHE_ENABLED && typeof res === 'string' && !util.sv.Get('cache').exists(rp)) {
+					if (CACHE_ENABLED && typeof res === 'string' && !cache.exists(rp)) {
 						logger.verbose(oItem.name + ' was missing in cache, adding');
 						res = enrichWithCacheFields(res);
 						// @ts-ignore
 						util.sv.Get('cache')(rp) = res;
+						// TODO - recheck, this should work somehow!
+						// doh.out('Putting: ' + res);
+						// util.sv.Set(cache(rp), res);
+						// doh.out('After : ' + cache(rp));
 					}
 				}
 				// convert to custom object
@@ -2702,7 +2180,7 @@
 			 * saves given POJO as ADS data, calls SaveFile()
 			 *
 			 * populates/updates cache if enabled
-			 * @param {object} oItem DOpus Item object
+			 * @param {DOpusItem} oItem DOpus Item object
 			 * @param {CachedItem} oCachedItem
 			 * @returns {number|boolean} number of bytes written, false on error
 			 * @see FS.saveFile()
@@ -2719,7 +2197,7 @@
 
 				util.cmd.ClearFiles();
 				util.cmd.AddFile(oItem);
-				// @ts-ignore
+
 				var res = FS.saveFile(rp + ':' + msn, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
 				logger.sinfo('%s -- Saving %s to %s', fnName, JSON.stringify(oCachedItem), rp+':'+msn);
 
@@ -2738,7 +2216,7 @@
 			 * deletes ADS data, directly deletes "file:stream"
 			 *
 			 * removes item from cache if enabled
-			 * @param {object} oItem DOpus Item object
+			 * @param {DOpusItem} oItem DOpus Item object
 			 * @returns nothing
 			 * @see initCacheIfNecessary()
 			 */
@@ -2781,8 +2259,7 @@
 
 	function clearCache() {
 		var fnName = funcNameExtractor(clearCache);
-		// @ts-ignore
-		util.sv.Set('cache') = DOpus.Create.Map();
+		util.sv.Set('cache', util.dc.Map());
 		logger.sforce('%s -- Cache cleared', fnName);
 	}
 	/**
@@ -2805,18 +2282,6 @@
 		delete oPOJO.added_to_cache;
 		delete oPOJO.added_to_cache_friendly;
 	}
-	// function packageAsPOJO(oItem, hash) {
-	// 	if (!doh.isValidDOItem(oItem)) {
-	// 		logger.serror('packageAsPOJO -- Expected DOpus Item, got: %s, type: %s', oItem, typeof oItem); return false;
-	// 	}
-	// 	return {
-	// 		last_modify         : new Date(oItem.modify).getTime(),
-	// 		last_modify_friendly: new Date(oItem.modify).getTime().formatAsDateTimeCompact(),
-	// 		last_size           : parseInt(oItem.size, 10),
-	// 		algorithm           : CURRENT_ALGORITHM,
-	// 		hash                : hash
-	// 	};
-	// }
 }
 
 
@@ -2835,8 +2300,8 @@
 	/**
 	 * hash algorithm proxy
 	 * to redirect the request to DOpus or external program
-	 * @param {object} oItem DOpus Item object
-	 * @param {string} algo Hashing algorithm to use
+	 * @param {DOpusItem} oItem DOpus Item object
+	 * @param {string=} algo Hashing algorithm to use
 	 * @returns {Result} result object
 	 * @see CURRENT_ALGORITHM
 	 */
@@ -2858,31 +2323,23 @@
 	}
 	/**
 	 * internal method to calculate hash with given algorithm
-	 * @param {object} oItem DOpus Item object
-	 * @param {string} algo Hashing algorithm to use
-	 * @see CURRENT_ALGORITHM
-	 */
-	/**
-	 * @param {object} oItem DOpus Item
+	 * @param {DOpusItem} oItem DOpus Item
 	 * @param {string} algo algorithm to use
 	 * @returns {Result} result object
+	 * @see CURRENT_ALGORITHM
 	 */
 	function calculateFileHashWithDOpus(oItem, algo) {
 		var fnName = 'calculateFileHashWithDOpus'
-		// @ts-ignore
-		if (!doh.isValidDOItem(oItem)) return logger.serror('%s -- No file name received: ', fnName, oItem);
+		if (!doh.isValidDOItem(oItem)) { logger.serror('%s -- No file name received: ', fnName, oItem); return; }
 
 		var outObj = new Result();
 		logger.sverbose('\t\t%s -- Calculating %s hash, started @%s, file: %s', fnName, algo, getTS(), oItem);
 
 		try {
-			// @ts-ignore
-			outObj = new Result(DOpus.FSUtil.Hash(oItem, algo), false, false);
-			// outObj['result'] = DOpus.FSUtil().Hash(oItem, algo);
+			outObj = new Result(util.fu.Hash(oItem, algo), false, false);
 			logger.sinfo('\t\t%s -- Calculating %s hash, finished @%s, file: %s, result: %s', fnName, algo, getTS(), oItem, outObj['result']);
 		} catch (e) {
 			outObj = new Result(false, e.toString(), false);
-			// outObj['error'] = e;
 			logger.sforce('\t\t%s -- Error: %s, File: %s', fnName, e.toString(), oItem);
 		}
 		return outObj;
@@ -2902,17 +2359,17 @@
 	888        8888888 88888888   888     8888888888 888   T88b  "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __FILTERS__(){ var i; }
 	// valid filters for workers
 	var filters = (function (){
 		var myName = 'filters';
 		var PUBLIC = {
-			// @ts-ignore
+
 			fnFilterAcceptAnyFile: function (oItem) {
 				return true;
 			},
-			// @ts-ignore
+
 			fnFilterRejectAnyFile: function (oItem) {
 				return false;
 			},
@@ -2933,8 +2390,7 @@
 				return res;
 			},
 			fnFilterAcceptWithValidHashesOnly: function (oItem, oADSData) {
-				// @ts-ignore
-				return PUBLIC.fnFilterAcceptWithHashes(oItem, oADSData) && !(PUBLIC.fnFilterAcceptDirtyOnly(oItem, oADSData)); // note how we must reverse the value
+				return PUBLIC.fnFilterAcceptWithHashes(oItem) && !(PUBLIC.fnFilterAcceptDirtyOnly(oItem, oADSData)); // note how we must reverse the value
 			},
 			fnFilterAcceptWithHashes: function (oItem) {
 				return ADS.hasHashStream(oItem);
@@ -2976,7 +2432,7 @@
 	d88P     888  "Y8888P"     888     8888888  "Y88888P"  888    Y888  "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __ACTIONS__(){ var i; }
 	// valid actions for workers
 	var actions = (function (){
@@ -2994,7 +2450,7 @@
 			fnActionCalculateOnly: function (oItem) {
 				var fnName = 'actions.fnActionCalculateOnly';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
-				// @ts-ignore
+
 				return calculateHashProxy(oItem);
 			},
 			fnActionCalculateAndCompareToADS: function (oItem) {
@@ -3002,28 +2458,28 @@
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
 
 				var oldData = ADS.read(oItem);
-				// @ts-ignore
+				if (!oldData) {
+					// TODO - Replicate this scenario and replace the message below
+					logger.serror('Cannot read data for: ' + oItem.realpath);
+					return;
+				}
 				var newHashResult = calculateHashProxy(oItem);
-				// @ts-ignore
-				logger.sverbose('%s -- old: %s, new: %s', fnName, oldData.hash, newHashResult.result);
-
-				// @ts-ignore
+				logger.sverbose('%s -- old: %s, new: %s', fnName, oldData.hash, newHashResult.ok);
 				if (newHashResult.isOK() && newHashResult.ok === oldData.hash) {
 					return new Result('Stored hash is valid', false, false);
 				} else {
-					// @ts-ignore
 					return new Result(false, 'Hashes differ! Stored: ' + oldData.hash + ', New: ' + newHashResult.ok);
 				}
 			},
 			fnActionCalculateAndSaveToADS: function (oItem) {
 				var fnName = 'actions.fnActionCalculateAndSaveToADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
-				// @ts-ignore
+
 				var newHashResult = calculateHashProxy(oItem);
 
 				if (newHashResult.isOK()) {
 					// ADS.save(oItem, packageAsPOJO(oItem, newHashResult.ok));
-					// @ts-ignore
+
 					ADS.save(oItem, new CachedItem(oItem, null, null, newHashResult.ok));
 				}
 				return newHashResult;
@@ -3042,8 +2498,7 @@
 				var fnName = 'actions.validate';
 				if (!PUBLIC.hasOwnProperty(name)) {
 					// abortWithFatalError(sprintf('%s -- No or invalid action -- type: %s - %s', fnName, typeof name, name));
-					// @ts-ignore
-					abortWithFatalError(sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(fnFunction)));
+					abortWithFatalError(sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(name)));
 				}
 			},
 			// another ugly solution
@@ -3079,7 +2534,7 @@
 	 "Y8888P"     888      "Y88888P"  888        888P     Y888 d88P     888     888      "Y8888P"  888    888
 */
 {
-	// @ts-ignore
+
 	function __STOPWATCH__(){ var i; }
 	var stopwatch = (function (){
 		var myName = 'stopwatch';
@@ -3105,11 +2560,8 @@
 			 */
 			start: function (id) {
 				ensureNotExists(id, 'start');
-				// @ts-ignore
-				_now = getTS();
-				// @ts-ignore
+				var _now = getTS();
 				_running[id] = { startTS: _now, finishTS: 0 }
-				// @ts-ignore
 				return _now;
 			},
 			/**
@@ -3148,8 +2600,8 @@
 			/**
 			 * starts a stopwatch and returns a formatted string
 			 * @param {string} id any unique name
-			 * @param {string} prefix string prefix in output
-			 * @param {string} suffix string suffix in output
+			 * @param {string=} prefix string prefix in output
+			 * @param {string=} suffix string suffix in output
 			 * @returns {number} current time in millisecs
 			 * @see start
 			 */
@@ -3160,40 +2612,39 @@
 			/**
 			 * resets the stopwatch and returns a formatted string
 			 * @param {string} id any unique name
-			 * @param {string} prefix string prefix in output
-			 * @param {string} suffix string suffix in output
+			 * @param {string=} prefix string prefix in output
+			 * @param {string=} suffix string suffix in output
 			 * @returns {number} elapsed time in millisecs
 			 * @see reset
 			 */
 			resetAndPrint: function (id, prefix, suffix) {
 				var _elapsed = this.reset(id);
-				// @ts-ignore
+
 				return sprintf('%s -- %s Reset @%d, Elapsed so far: %d ms (%s s) %s', id, (prefix ? prefix + ' -' : ''), _running[id]['startTS'], _elapsed, _elapsed.formatAsDuration(), (suffix ? '- ' + suffix : ''));
 			},
 			/**
 			 * returns elapsed time as a formatted string
 			 * @param {string} id any unique name
-			 * @param {string} prefix string prefix in output
-			 * @param {string} suffix string suffix in output
+			 * @param {string=} prefix string prefix in output
+			 * @param {string=} suffix string suffix in output
 			 * @returns {number} elapsed time in millisecs
 			 * @see getElapsed
 			 */
 			getElapsedAndPrint: function (id, prefix, suffix) {
 				var _elapsed =  this.getElapsed(id);
-				// @ts-ignore
+
 				return sprintf('%s -- %s Elapsed so far: %d ms (%s s) %s', id, (prefix ? prefix + ' -' : ''), _elapsed, _elapsed.formatAsDuration(), (suffix ? '- ' + suffix : ''));
 			},
 			/**
 			 * stops a stopwatch and returns elapsed time as a formatted string
 			 * @param {string} id any unique name
-			 * @param {string} prefix string prefix in output
-			 * @param {string} suffix string suffix in output
+			 * @param {string=} prefix string prefix in output
+			 * @param {string=} suffix string suffix in output
 			 * @returns {number} elapsed time in millisecs
 			 * @see stop
 			 */
 			stopAndPrint: function (id, prefix, suffix) {
 				var _elapsed = this.stop(id);
-				// @ts-ignore
 				return sprintf('%s -- %s Finished @%d, Duration: %d ms (%s s) %s', id, (prefix ? prefix + ' -' : ''), getTS(), _elapsed, _elapsed.formatAsDuration(), (suffix ? '- ' + suffix : ''));
 			}
 		}
@@ -3213,7 +2664,7 @@
 	888        888   T88b  "Y88888P"   "Y8888P88 888   T88b 8888888888  "Y8888P"   "Y8888P"      8888888P"  d88P     888 888   T88b
 */
 {
-	// @ts-ignore
+
 	function __PROGRESS_BAR__(){ var i; }
 	// TODO - convert these methods to its own object
 	function initializeProgressBar(cmdData) {
@@ -3252,8 +2703,7 @@
 			case 'p':
 				while (progbar.GetAbortState() !== '') {
 					setPauseStatus(true);
-					// @ts-ignore
-					if (sleepdur) DOpus.Delay(sleepdur);
+					if (sleepdur) doh.delay(sleepdur);
 					if (progbar.GetAbortState() === 'a') {
 						userAborted = true;
 						break;
@@ -3272,7 +2722,7 @@
 			// refresh these slower
 			var bytesPerSec      = Math.round( finished_bytes_so_far / elapsed||1 );
 			var timeRemaining    = elapsed < 3 ? '....' : Math.round( elapsed * ( (selected_bytes_cnt/finished_bytes_so_far) - 1) ) + 's';
-			// @ts-ignore
+
 			progbar.SetStatus(sprintf('Time Remaining (rough): %4s, Average Speed: %7s/s', timeRemaining, bytesPerSec.formatAsSize()));
 		}
 		progbar.SetName(filename);
@@ -3285,22 +2735,20 @@
 		if (!USE_PROGRESS_BAR) return;
 		// progbar.SetBytesProgress(100);
 		progbar.FinishFile();
-		// DOpus.Delay(10);
+		// doh.delay(10);
 		// progbar.SkipFile();
-		// DOpus.Delay(10);
+		// doh.delay(10);
 		progbar.Hide();
 	}
 	function setPauseStatus(status) {
 		// true: paused, false: unpaused/unknown
-		// @ts-ignore
-		util.sv.Set('paused') = !!status;
+		util.sv.Set('paused', !!status);
 	}
 	function getPauseStatus() {
 		return util.sv.Exists('paused') ? util.sv.Get('paused') : false;
 	}
 	function setAbortStatus(status) {
-		// @ts-ignore
-		util.sv.Set('aborted') = !!status;
+		util.sv.Set('aborted', !!status);
 	}
 	function getAbortStatus() {
 		return util.sv.Exists('aborted') ? util.sv.Get('aborted') : false;
@@ -3320,11 +2768,10 @@
 	888        8888888888 8888888888 8888888P"  8888888P"  d88P     888  "Y8888P"  888    Y88b
 */
 {
-	// @ts-ignore
+
 	function __FEEDBACK__(){ var i; }
 	function showMessageDialog(dialog, msg, title, buttons) {
-		// @ts-ignore
-		var dlgConfirm      = dialog || DOpus.Dlg();
+		var dlgConfirm      = dialog || doh.dlg;
 		dlgConfirm.message  = msg;
 		dlgConfirm.title    = Global.SCRIPT_NAME + '-' + (title || '');
 		dlgConfirm.buttons  = buttons || 'OK';
@@ -3333,38 +2780,28 @@
 	}
 	function abortWithFatalError(msg) {
 		var err = 'Fatal error occurred:\n\n' + msg;
-		// @ts-ignore
-		DOpus.Output('');
-		// @ts-ignore
-		DOpus.Output('');
-		// @ts-ignore
-		DOpus.Output('');
-		// @ts-ignore
-		DOpus.Output('');
-		// @ts-ignore
-		DOpus.Output(err);
+		doh.out('');
+		doh.out('');
+		doh.out('');
+		doh.out('');
+		doh.out(err);
 		showMessageDialog(null, err);
 		throw new Error(err);
 	}
 	var busyIndicator = (function (){
 		var myName = 'busyIndicator';
-		var _busyind = false;
+		var _busyind = null;
 		return {
 			name: myName,
 			start: function (sourceTab, message) {
 				if (_busyind) this.stop();
-				// @ts-ignore
-				_busyind = DOpus.Create.BusyIndicator();
-				// @ts-ignore
+				_busyind = util.dc.BusyIndicator();
 				_busyind.Init(sourceTab);
-				// @ts-ignore
 				_busyind.Update(message);
-				// @ts-ignore
 				_busyind.Show();
 			},
 			stop: function () {
 				if (!_busyind) return;
-				// @ts-ignore
 				_busyind.Destroy();
 				_busyind = false;
 			}
@@ -3385,10 +2822,9 @@
 	888         "Y88888P"  888   T88b 888       888 d88P     888     888         888     8888888888 888   T88b  "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __FORMATTERS__(){ var i; }
 	// turns 2^10 to "KB", 2^20 to "MB" and so on
-	// @ts-ignore
 	Number.prototype.getUnit = (function () {
 		var units = {
 			B : [ 'B', 0],
@@ -3408,7 +2844,6 @@
 		}
 	}());
 	// turns 2^10 to "1.0 KB", 2^20 to "1.0 MB" and so on
-	// @ts-ignore
 	Number.prototype.formatAsSize = function (unit, decimal) {
 		if (this == 0) { // must be == (not ===) because this is a Number object!
 			return '0 bytes';
@@ -3424,23 +2859,18 @@
 		return (this / unit[1]).toFixed(decimal) + ' ' + unit[0];
 	};
 	// turns milliseconds to rounded seconds
-	// @ts-ignore
 	Number.prototype.formatAsDuration = function () {
 		// @ts-ignore
 		return (this/1000).toFixed(1);
 	};
 	// converts timestamps to time format
-	// @ts-ignore
 	Number.prototype.formatAsHms = function () {
-		// "18:24:16"
-		// @ts-ignore
+		// @ts-ignore // "18:24:16"
 		return new Date(this).toTimeString().substr(0,8);
 	}
 	// turns timestamp to ISO "2021-01-19T18:24:16.123Z" format
-	// @ts-ignore
 	Number.prototype.formatAsDateISO = function () {
-		// "2021-01-19T18:24:16.123Z"
-		// @ts-ignore
+		// @ts-ignore // "2021-01-19T18:24:16.123Z"
 		var oDate    = new Date(this);
 		var vYear    = oDate.getUTCFullYear();
 		var vMonth   = (1 + oDate.getUTCMonth()).toString();  if (vMonth.length == 1) { vMonth = '0' + vMonth; }
@@ -3452,10 +2882,8 @@
 		return '' + vYear + '-' + vMonth + '-' + vDay + ' T' + vHours + ':' + vMinutes + ':' + vSeconds + '.' + vMilliS + 'Z';
 	};
 	// turns timestamp to ISO like "20210119-182416" format
-	// @ts-ignore
 	Number.prototype.formatAsDateTimeCompact = function () {
-		// "20210119-182416"
-		// @ts-ignore
+		// @ts-ignore // "20210119-182416"
 		var oDate    = new Date(this);
 		var vYear    = oDate.getFullYear();
 		var vMonth   = (1 + oDate.getMonth()).toString(); if (vMonth.length == 1) { vMonth = '0' + vMonth; }
@@ -3468,10 +2896,8 @@
 		// return (new Date(this).toISOString()).replace(/[:-]/g, '').replace(/\..+$/, '').replace('T', '-');
 	}
 	// turns timestamp to DOpus "D2021-01-19 T18:24:16" format
-	// @ts-ignore
 	Number.prototype.formatAsDateDOpus = function () {
-		// "20210119-182416"
-		// @ts-ignore
+		// @ts-ignore // "20210119-182416"
 		var oDate    = new Date(this);
 		var vYear    = oDate.getFullYear();
 		var vMonth   = (1 + oDate.getMonth()).toString(); if (vMonth.length == 1) { vMonth = '0' + vMonth; }
@@ -3484,14 +2910,7 @@
 	// Date formatter for "SetAttr META lastmodifieddate..."
 	// D2021-01-19 T18:24:16
 	function DateToDOpusFormat(oItemDate) {
-		// @ts-ignore
-		return DOpus.Create.Date(oItemDate).Format("D#yyyy-MM-dd T#HH:mm:ss");
-	}
-	// @ts-ignore
-	Object.prototype.toDOpusFormat = function () {
-		if(!(doh.isDirOrFile(this))) throw new Error('This method can be called only for DOpus Items');
-		// @ts-ignore
-		return DOpus.Create.Date(this.modify).Format("D#yyyy-MM-dd T#HH:mm:ss");
+		return util.dc.Date(oItemDate).Format("D#yyyy-MM-dd T#HH:mm:ss");
 	}
 }
 
@@ -3508,24 +2927,20 @@
 	 "Y88888P"      888     8888888 88888888
 */
 {
-	// @ts-ignore
+
 	function __UTIL__(){ var i; }
 	function getTS() {
 		return new Date().getTime();
 	}
 	function getNewThreadID() {
 		var _now = getTS();
-		// @ts-ignore
-		var blob = DOpus.Create.Blob;
+		var blob = util.dc.Blob;
 		blob.CopyFrom('' + _now + Math.floor(1000000 + Math.random() * 8999999));
-		// @ts-ignore
-		var _nowMD5 = DOpus.FSUtil.Hash(blob, 'md5');
+		var _nowMD5 = util.fu.Hash(blob, 'md5');
 		return 't_' + _now + '_' + _nowMD5;
-
 		// without the delay, the line below is not reliable enough
 		// I occasionally get duplicate IDs: same TS & same random number!  O.O
-		// @ts-ignore
-		DOpus.Delay(1);
+		doh.delay(1);
 		return 't_' + getTS() + '_' + Math.floor(1000 + Math.random() * 8999);
 	}
 	function getResVar(tid) {
@@ -3539,9 +2954,9 @@
 	function isObject(obj) {
 		return Object.prototype.toString.call(obj) === '[object Object]';
 	};
-	// @ts-ignore
+
 	Object.prototype.keys = function () {
-		// WARNING: be careful using this!
+		// WARNING: be careful after activating this!
 		// for (var k in myObject) for ANY object will include this function by default
 		// if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
 		var out = [];
@@ -3562,8 +2977,8 @@
 		for (var i = 0; i < size; i++) {
 			instr += Math.floor(Math.random() * 10);
 		}
-		// @ts-ignore
-		var blob = DOpus.Create.Blob;
+
+		var blob = util.dc.Blob;
 		blob.CopyFrom(instr);
 		logger.sforce('instr: %s', instr);
 		logger.sforce('');
@@ -3574,17 +2989,471 @@
 		for (var i = 0; i < algorithms.length; i++) {
 			var algo = algorithms[i];
 			var id = sprintf('%20s', algo);
-			// @ts-ignore
+
 			logger.sforce(stopwatch.startAndPrint(id, 'Testing algorithm: ' + algo));
 			for (var j = 0; j < count; j++) {
-				// @ts-ignore
-				var res = DOpus.FSUtil.Hash(blob, algo);
+
+				var res = util.fu.Hash(blob, algo);
 			}
-			// @ts-ignore
+
 			logger.sforce(stopwatch.stopAndPrint(id));
 			logger.sforce('');
 		}
 	}
+}
+
+
+/*
+	8888888b.   .d88888b.  8888888b.  888     888  .d8888b.      888    888 8888888888 888      8888888b.  8888888888 8888888b.   .d8888b.
+	888  "Y88b d88P" "Y88b 888   Y88b 888     888 d88P  Y88b     888    888 888        888      888   Y88b 888        888   Y88b d88P  Y88b
+	888    888 888     888 888    888 888     888 Y88b.          888    888 888        888      888    888 888        888    888 Y88b.
+	888    888 888     888 888   d88P 888     888  "Y888b.       8888888888 8888888    888      888   d88P 8888888    888   d88P  "Y888b.
+	888    888 888     888 8888888P"  888     888     "Y88b.     888    888 888        888      8888888P"  888        8888888P"      "Y88b.
+	888    888 888     888 888        888     888       "888     888    888 888        888      888        888        888 T88b         "888
+	888  .d88P Y88b. .d88P 888        Y88b. .d88P Y88b  d88P     888    888 888        888      888        888        888  T88b  Y88b  d88P
+	8888888P"   "Y88888P"  888         "Y88888P"   "Y8888P"      888    888 8888888888 88888888 888        8888888888 888   T88b  "Y8888P"
+*/
+{
+
+	// I only wanted a little bit better CodeCompletion...
+	// ...4 hours later...
+	// at least I can reuse them now
+
+	/**
+	 * @constructor
+	 */
+	function DOpusItem () {
+		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		/** @property {Date} access Returns the "last accessed" Date, in local time. */
+		this.access = new Date();
+		/** @property {Date} access_utc Returns the "last accessed" Date, in UTC. */
+		this.access_utc = new Date();
+		/** @property {number} attr Returns the item attributes. This value is a series of flags that are logically OR'd together. The attributes supported by Opus are: 1: read only, 2: hidden, 4: system, 32: archive, 1024: reparse ponumber (junctions, etc.), 2048: compressed, 4096: offline storage, 8192: not content-indexed, 16384: encrypted, 524288: pinned */
+		this.attr = 0;
+		/** @property {string} attr_text Returns the item attributes as a string, as displayed in the file display. */
+		this.attr_text = '';
+		/** @property {boolean} checked Returns True if the item was checked (in checkbox mode), or False otherwise. */
+		this.checked = false;
+		/** @property {Date} create Returns the "creation" Date, in local time. */
+		this.create = new Date();
+		/** @property {Date} create_utc Returns the "creation" Date, in UTC. */
+		this.create_utc = new Date();
+		/** @property {boolean} current For Item objects obtained from a Viewer, this property is True if the item represents the currently displayed image and False otherwise. */
+		this.current = false;
+		/** @property {string} display_name Returns the display name of the item. Only a few items have a display name that is different to their actual name - some examples are certain system folders (like C:\Users which might have a translated display name in non-English locales). */
+		this.display_name = '';
+		/** @property {string} ext Returns the filename extension. */
+		this.ext = '';
+		/** @property {string} ext_m Returns the filename extension, taking multi-part extensions numbero account. For example, a file called "file.part1.rar" might return ".rar" for ext but ".part1.rar" for ext_m. */
+		this.ext_m = '';
+		/** @property {boolean} failed Returns True if the item failed when used by a command. This is only meaningful in conjunction with the Command.files collection - once the command has returned, this property will indicate success or failure on a per-file basis. */
+		this.failed = false;
+		/** @property {object} fileattr Returns a FileAttr object that represents the item's attributes. */
+		this.fileattr = {};
+		/** @property {object} filegroup If the file display this item came from is grouped by a particular column, this property returns a FileGroup object representing the group the item is in. If the item has no group this will return an empty string. */
+		this.filegroup = {};
+		/** @property {boolean} focus For Item objects obtained from a file display, this property is True if the object represents the item with focus, and False otherwise. Only one item can have focus at a time. The item with focus is typically shown with an outline around it, and is usually the last item which was clicked on, or which was moved to with the keyboard. The item with focus is often also one of the selected items, but not always; selection and focus are two separate things. */
+		this.focus = false;
+		/** @property {boolean} got_size Returns True for folder items if their size has been calculated by, for example, the GetSizes command. If False, the size property will be unreliable for folders. */
+		this.got_size = false;
+		/** @property {DOpusVector} groups a Vector of FiletypeGroup objects representing any and all file type groups that this file is a member of. */
+		this.groups = {};
+		/** @property {DOpusMap} groupsobject Similar to the groups property, except a FiletypeGroups object is returned instead of a Vector. */
+		this.groupsobject = {};
+		/** @property {number} id This is a unique ID for the item; it is used numberernally by Opus. */
+		this.id = 0;
+		/** @property {boolean} is_dir Returns True if the item represents a folder, and False for a file. */
+		this.is_dir = false;
+		/** @property {boolean} is_junction Returns True if the item is a junction to another folder. */
+		this.is_junction = false;
+		/** @property {boolean} is_reparse Returns True if the item is a reparse ponumber. */
+		this.is_reparse = false;
+		/** @property {boolean} is_symlink Returns True if the item is a symbolic link. */
+		this.is_symlink = false;
+		/** @property {object} metadata a Metadata object that provides access to the item's metadata. */
+		this.metadata = {};
+		/** @property {Date} modify Returns the "last modified" Date, in local time. */
+		this.modify = new Date();
+		/** @property {Date} modify_utc Returns the "last modified" Date, in UTC. */
+		this.modify_utc = new Date();
+		/** @property {string} name Returns the name of the item. */
+		this.name = '';
+		/** @property {string} name_stem Returns the filename "stem" of the item. This is the name of the item with the filename extension removed. It will be the same as the name for folders. */
+		this.name_stem = '';
+		/** @property {string} name_stem_m Returns the filename "stem" of the item, taking multi-part extensions numbero account. For example, a file called "file.part1.rar" might return "file.part1" for name_stem but "file" for name_stem_m. */
+		this.name_stem_m = '';
+		/** @property {DOpusPath} path Returns the path of the item's parent folder. This does not include the name of the item itself, which can be obtained via the name property. */
+		this.path = {};
+		/** @property {DOpusPath} realpath Returns the "real" path of the item. For items located in virtual folders like Libraries or Collections, this lets you access the item's underlying path in the real file system. The realpath property includes the full path to the item, including its own name. */
+		this.realpath = {};
+		/** @property {boolean} selected Returns True if the item was selected, or False otherwise. */
+		this.selected = false;
+		/** @property {DOpusPath} shortpath the short path of the item, if it has one. Note that short paths are disabled by default in Windows 10. */
+		this.shortpath = {};
+		/** @property {string} size Returns the size of the item as a FileSize object. */
+		this.size = '';
+		/** @property {function} InGroup Tests the file for membership of the specified file type group. */
+		this.InGroup = function(){};
+	}
+
+	/**
+	 * @constructor
+	 */
+	function DOpusVector () {
+		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		/** @property {number} capacity Returns the capacity of the Vector (the number of elements it can hold without having to reallocate memory). This is not the same as the number of elements it currently holds, which can be 0 even if the capacity is something larger. */
+		this.capacity = 0;
+		/** @property {number} count Returns the number of elements the Vector currently holds. */
+		this.count = 0;
+		/** @property {boolean} empty Returns True if the Vector is empty, False if not. */
+		this.empty = false;
+		/** @property {number} length A synonym for count. */
+		this.length = 0;
+		/** @property {number} size A synonym for count. */
+		this.size = 0;
+		/**
+		 * Copies the values of another Vector to the end of this one, preserving the existing values as well. If start and end are not provided, the entire Vector is appended - otherwise, only the specified elements are appended. In JScript you can pass a standard array to this method to copy the array to the end of a Vector.
+		 * @param {DOpusVector} fromVector
+		 * @param {number} start
+		 * @param {number} end
+		 * @returns
+		 */
+		this.append = function (fromVector, start, end) {}
+
+		/**
+		 * Copies the value of another Vector to this one. If start and end are not provided, the entire Vector is copied - otherwise, only the specified elements are copied. Instead of a Vector object you can also pass a collection to this method and the contents of the collection will be copied to the Vector. In JScript you can pass a standard array to this method to copy the array into a Vector.
+		 * @param {DOpusVector} fromVector
+		 * @param {number} start
+		 * @param {number} end
+		 * @returns
+		 */
+		this.assign = function (fromVector, start, end) {}
+
+		/**
+		 * Returns the last element in the Vector.
+		 * @returns {any}
+		 */
+		this.back = function () {}
+
+		/**
+		 * Clears the contents of the Vector.
+		 */
+		this.clear = function () {}
+
+		/**
+		 * Erases the element at the specified index.
+		 * @param {number} index
+		 */
+		this.erase = function (index) {}
+
+		/**
+		 * Exchanges the positions of the two specified elements.
+		 * @param {number} index1
+		 * @param {number} index2
+		 */
+		this.exchange = function (index1, index2) {}
+
+		/**
+		 * Returns the first element in the Vector.
+		 * @returns {any}
+		 */
+		this.front = function () {}
+
+		/**
+		 * Inserts the provided value at the specified position.
+		 * @param {number} index1
+		 * @param {any} value
+		 */
+		this.insert = function (index1, value) {}
+
+		/**
+		 * Removes the last element of the Vector.
+		 */
+		this.pop_back = function () {}
+
+		/**
+		 * Adds the provided value to the end of the Vector.
+		 * @param {any} value
+		 */
+		this.push_back = function (value) {}
+
+		/**
+		 * Reserves space in the Vector for the specified number of elements (increases its capacity, although the count of elements remains unchanged). Note that Vectors grow dynamically - you don't have to specifically reserve or resize them. However if you want to add a large number of elements to a Vector it can be more efficient to reserve space for them first.
+		 * @param {number} capacity
+		 */
+		this.reserve = function (capacity) {}
+
+		/**
+		 * Resizes the Vector to the specified number of elements. Any existing elements past the new size of the Vector will be erased.
+		 * @param {number} size
+		 */
+		this.resize = function (size) {}
+
+		/**
+		 * Reduces the capacity of the Vector to the number of elements it currently holds.
+		 */
+		this.shrink_to_fit = function () {}
+
+		/**
+		 * Sorts the contents of the Vector. Strings and numbers are sorted alphabetically and numerically - other elements are grouped by type but not specifically sorted in any particular order.
+		 */
+		this.sort = function () {}
+
+		/**
+		 * Removes all but one of any duplicate elements from the Vector. The number of elements removed is returned.
+		 * @returns {number}
+		 */
+		this.unique = function () { return 0; }
+	}
+
+	/**
+	 * @constructor
+	 */
+	function DOpusMap () {
+		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		/** @property {number} count   Returns the number of elements the Map currently holds. */
+		this.count = 0;
+		/** @property {boolean} empty  Returns True if the Map is empty, False if not. */
+		this.empty = false;
+		/** @property {number} length  A synonym for count. */
+		this.length = 0;
+		/** @property {number} size    A synonym for count. */
+		this.size = 0;
+		/**
+		 * Copies the contents of another Map to this one.
+		 * @param {DOpusMap} mapFrom
+		 * @returns
+		 */
+		this.assign = function (mapFrom) {}
+		/**
+		 * Clears the contents of the Map.
+		 * @returns
+		 * */
+		this.clear = function () {}
+		/**
+		 * Erases the element matching the specified key, if it exists in the map.
+		 * @param {any} key
+		 * @returns
+		 */
+		this.erase = function (key) {}
+		/**
+		 * Returns True if the specified key exists in the map.
+		 * @param {any} key
+		 * @returns {boolean}
+		 */
+		this.exists = function (key) { return false; }
+		/**
+		 * Merges the contents of another Map with this one.
+		 * @param {DOpusMap} mapFrom
+		 * @returns
+		 */
+		this.merge = function (mapFrom) {}
+	}
+
+	/**
+	 * @constructor
+	 */
+	function DOpusPath () {
+		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		/** @property {number} Returns the number of elements the Map currently holds*/
+		this.count = 0;
+		/**
+		 * @param {object} mapFrom
+		 */
+		this.assign = function (mapFrom) {}
+	}
+
+
+	// doh: DOpus Helper
+	var doh = (function (){
+		var myName = 'doh';
+		function _validate(cmdData) {
+			if (!cmdData.func || !cmdData.func.sourcetab) {
+				throw new Error('this object type is not supported');
+			}
+			return true;
+		}
+		return {
+			name: myName,
+			/**
+			 * DOpus.Output wrapper
+			 * @param {string} string
+			 */
+			out: function (string) {
+				// @ts-ignore
+				DOpus.Output(string);
+			},
+			/**
+			 * DOpus.ClearOutput wrapper
+			 */
+			clear: function () {
+				// @ts-ignore
+				DOpus.ClearOutput();
+			},
+			/**
+			 * DOpus.Delay wrapper
+			 * @param {number} millisecs to sleep
+			 */
+			delay: function (millisecs) {
+				// @ts-ignore
+				DOpus.Delay(millisecs);
+			},
+			/**
+			 * DOpus.Dlg() wrapper
+			 * @returns {object}
+			 */
+			dlg: function () {
+				// @ts-ignore
+				return DOpus.Dlg();
+			},
+			/**
+			 * util.fu.GetItem wrapper
+			 * @param {string} sPath file full path
+			 * @returns {DOpusItem} DOpus Item object
+			 */
+			getItem: function (path) {
+				if (typeof path !== 'string') {
+					throw new Error('Expected path string, got type: ' + typeof path + ', value:  ' + path);
+				}
+
+				var _tmp = util.fu.GetItem(path);
+				return this.isValidDOItem(_tmp) ? _tmp : false;
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {boolean} true if DOpus item
+			 */
+			isValidDOItem: function (oItem) {
+				return (typeof oItem === 'object' && typeof oItem.realpath !== 'undefined' && typeof oItem.modify !== 'undefined');
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {boolean} true if DOpus file, false if dir, reparse, junction, symlink
+			 */
+			isFile: function (oItem) {
+				return (typeof oItem === 'object' && oItem.realpath && !oItem.is_dir && !oItem.is_reparse && !oItem.is_junction && !oItem.is_symlink);
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {boolean} true if DOpus directory, false if file, reparse, junction, symlink
+			 */
+			isDir: function (oItem) {
+				return (typeof oItem === 'object' && typeof oItem.realpath !== 'undefined' && oItem.is_dir === true);
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {boolean} true if DOpus file or directory, false if reparse, junction, symlink
+			 */
+			isDirOrFile: function (oItem) {
+				return (typeof oItem === 'object' && oItem.realpath && !oItem.is_reparse && !oItem.is_junction && !oItem.is_symlink);
+			},
+			/**
+			 * @param {object} oCmdData DOpus command data
+			 * @returns {boolean} true if DOpus command data
+			 */
+			isValidDOCommandData: function (oCmdData) {
+				return (typeof oCmdData === 'object' && oCmdData.func && oCmdData.func.Dlg);
+			},
+			/**
+			 * @param {object} oColData DOpus column data
+			 * @returns {boolean} true if DOpus column data
+			 */
+			isValidDOColumnData: function (oColData) {
+				return (typeof oColData === 'object' && typeof oColData.value !== 'undefined' && typeof oColData.group !== 'undefined');
+			},
+			/**
+			 * @param {object} oMap DOpus Map
+			 * @returns {boolean} true if DOpus Map
+			 */
+			isValidDOMap: function (oMap) {
+				return (typeof oMap === 'object' && typeof oMap.capacity === 'undefined' && typeof oMap.count !== 'undefined' && typeof oMap.length !== 'undefined' && oMap.count === oMap.length);
+			},
+			/**
+			 * @param {object} oVector DOpus Vector
+			 * @returns {boolean} true if DOpus Vector
+			 */
+			isValidDOVector: function (oVector) {
+				return (typeof oVector === 'object' && typeof oVector.capacity !== 'undefined' && typeof oVector.count !== 'undefined' && typeof oVector.length !== 'undefined' && oVector.count === oVector.length);
+			},
+			/**
+			 * @param {object} oAny any enumerable object, e.g. scriptCmdData.func.sourcetab.selected
+			 * @returns {boolean}
+			 */
+			isValidDOEnumerable: function (oAny) {
+				try {
+					var e = new Enumerator(oAny);
+					return (e && typeof e.atEnd === 'function' && typeof e.moveNext === 'function');
+				} catch(e) { return false }
+			},
+
+			// current tab's path
+			getCurrentPath: function (cmdData) {
+				// auto convert to string, and make sure it has a trailing slash
+				return _validate(cmdData) && (''+cmdData.func.sourcetab.path+'\\').replace(/\\\\/g, '\\');
+			},
+
+			// if the current lister tab is 'dirty'
+			isTabDirty: function (cmdData) {
+				return _validate(cmdData) && !!cmdData.func.sourcetab.dirty;
+			},
+			// dialog
+			getDialog: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.Dlg;
+			},
+			// progress bar
+			getProgressBar: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.command.progress;
+			},
+
+			// all - DOpus enumerables
+			getAllItems: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.all;
+			},
+			getAllDirs: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.dirs;
+			},
+			getAllFiles: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.files;
+			},
+			// selected - DOpus enumerables
+			getSelItems: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selected;
+			},
+			getSelDirs: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selected_dirs;
+			},
+			getSelFiles: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selected_files;
+			},
+
+			// get single selected file directly as item
+			getSelFileAsItem: function (cmdData) {
+
+				return _validate(cmdData) && util.fu.GetItem(new Enumerator(cmdData.func.sourcetab.selected_files).item());
+			},
+
+			// all items, dirs, files - selstats takes checkbox mode into account
+			getAllItemsCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.items;
+			},
+			getAllDirsCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.dirs;
+			},
+			getAllFilesCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.files;
+			},
+			// selected items, dirs, files - selstats takes checkbox mode into account
+			getSelItemsCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.selitems;
+			},
+			getSelDirsCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.seldirs;
+			},
+			getSelFilesCount: function (cmdData) {
+				return _validate(cmdData) && cmdData.func.sourcetab.selstats.selfiles;
+			}
+		}
+	}());
 }
 
 
@@ -3603,53 +3472,6 @@
 	                                                                                              888P"
 */
 {
-
-	// EnumFactory
-	{
-		function EnumFactory(oArrayOrMap) {
-			if (typeof oArrayOrMap !== 'object') {
-				abortWithFatalError('Not an array or object');
-			}
-			var that = this;
-			function createEnumType() {
-				return function (props) {
-					Object.defineProperties(that, props);
-				}
-			}
-
-			// @ts-ignore
-			var outObj;
-			// is array or map
-			if (typeof oArrayOrMap.length !== 'undefined') {
-				// array
-				// ...
-				for (var i = 0; i < oArrayOrMap.length; i++) {
-					var val = oArrayOrMap[i];
-					if (typeof val !== 'string') {
-						throw new Error('Only strings are allowed, found: ' + typeof val + '\n' + val);
-					}
-					// @ts-ignore
-					createEnumType(val);
-					// this[val] = val;
-				}
-			} else {
-				// object
-				try {
-					for (var k in oArrayOrMap) {
-						if (!oArrayOrMap.hasOwnProperty(k)) continue;
-						if (typeof k !== 'string') {
-							throw new Error('Only strings are allowed, found: ' + typeof k + '\n' + k);
-						}
-						this[k] = oArrayOrMap[k];
-					}
-				} catch (e) {
-					throw new Error(e.toString());
-				}
-			}
-		}
-	}
-
-
 
 	// ManagerCommand
 	{
@@ -3695,11 +3517,9 @@
 			this.err       = oErrValue;
 			this.skip      = oSkipValue;
 		}
-		// @ts-ignore
-		Result.prototype.isOK      = function () { return this.ok && !this.err && !this.skipped }
+		Result.prototype.isOK      = function () { return this.ok && !this.err && !this.skip }
 		Result.prototype.isErr     = function () { return this.err ? true : false }
-		// @ts-ignore
-		Result.prototype.isSkipped = function () { return this.skipped ? true : false }
+		Result.prototype.isSkipped = function () { return this.skip ? true : false }
 		Result.prototype.toString  = function () { return JSON.stringify(this, null, 4) }
 	}
 
@@ -3712,7 +3532,6 @@
 			}
 			return {
 				last_modify         : new Date(oItem.modify).getTime(),
-				// @ts-ignore
 				last_modify_friendly: new Date(oItem.modify).getTime().formatAsDateTimeCompact(),
 				last_size           : parseInt(oItem.size, 10),
 				algorithm           : CURRENT_ALGORITHM,
@@ -3723,8 +3542,10 @@
 		 * ADS-Cached Item
 		 * DOpus Item object
 		 * @param {DOpusItem} oItem DOpus Item object
+		 * @param {Date} modify file mod date
+		 * @param {number} size file size
 		 * @param {string} hash hash checksum
-		 * @param {string} algorithm algorithm used
+		 * @param {string=} algorithm algorithm used
 		 */
 		function CachedItem(oItem, modify, size, hash, algorithm) {
 			if (!doh.isValidDOItem(oItem)) {
@@ -3739,7 +3560,6 @@
 		CachedItem.prototype.enrichWithCacheFields = function () {
 			// add cache only attributes for tooltips, etc.
 			this.added_to_cache          = new Date().getTime();
-			// @ts-ignore
 			this.added_to_cache_friendly = this.added_to_cache.formatAsDateTimeCompact();
 			return JSON.stringify(this);
 		}
@@ -3758,9 +3578,12 @@
 	{
 		/**
 		 * Hashed Item
-		 * @param {object} oItem DOpus Item
-		 * @param {boolean} skipped true if item was skipped by filters
-		 * @param {any} error any error message string or object
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @param {string=} relpath relative path
+		 * @param {boolean=} skipped true if item was skipped by filters
+		 * @param {any=} error any error message string or object
+		 * @param {string=} hash hash value
+		 * @param {string=} algorithm algorithm, e.g. 'sha1'
 		 */
 		function HashedItem(oItem, relpath, skipped, error, hash, algorithm) {
 			if (!doh.isValidDOItem(oItem)) {
@@ -3770,7 +3593,6 @@
 			this.fullpath  = ''+oItem.realpath || '';
 			this.size      = parseInt(oItem.size, 10) || 0;
 			this.mod_ts    = new Date(oItem.modify).getTime() || 0;
-			// @ts-ignore
 			this.mod_date  = this.mod_ts.formatAsDateTimeCompact();
 			this.relpath   = ''+relpath || '';
 			this.name      = ''+oItem.name;
@@ -3778,7 +3600,6 @@
 			this.error     = error;
 			this.hash      = hash || '';
 			this.algorithm = algorithm || '';
-
 			this.finished  = false;
 		}
 		/**
@@ -3809,6 +3630,12 @@
 		 * @constructor
 		 */
 		function HashedItemsCollection() {
+			/**
+			 * apparently either one works: https://stackoverflow.com/a/51075508
+			 * type {Object.<string, HashedItem>}
+			 * type {{string, HashedItem}}
+			 * @type {Object.<string, HashedItem>}
+			 */
 			this._myItems     = {};
 
 			this.sizeTotal    = 0;
@@ -3824,8 +3651,10 @@
 		/**
 		 * do not call directly!
 		 * @param {function} fnFilter filter
+		 * @returns {Object.<string, HashedItem>}
 		 */
 		HashedItemsCollection.prototype._filterByAttribute = function (fnFilter) {
+			/** @type {Object.<string, HashedItem>} */
 			var out = {};
 			for(var fp in this._myItems) {
 				if (!this._myItems.hasOwnProperty(fp)) continue;
@@ -3931,24 +3760,20 @@
 			return this._myItems[''+oDOpusItem.realpath];
 		}
 		/**
-		 * @returns {HashedItem[]} all items
+		 * @returns {Object.<string, HashedItem>} all items
 		 */
-		// @ts-ignore
 		HashedItemsCollection.prototype.getItems        = function () { return this._myItems }
 		/**
-		 * @returns {HashedItem[]} success items
+		 * @returns {Object.<string, HashedItem>} success items
 		 */
-		// @ts-ignore
 		HashedItemsCollection.prototype.getSuccessItems = function () { return this._filterByAttribute(function (o){ return o.error === undefined && o.skipped === false }) }
 		/**
-		 * @returns {HashedItem[]} error items
+		 * @returns {Object.<string, HashedItem>} error items
 		 */
-		// @ts-ignore
 		HashedItemsCollection.prototype.getErrorItems   = function () { return this._filterByAttribute(function (o){ return o.error !== undefined }) }
 		/**
-		 * @returns {HashedItem[]} skipped items
+		 * @returns {Object.<string, HashedItem>} skipped items
 		 */
-		// @ts-ignore
 		HashedItemsCollection.prototype.getSkippedItems = function () { return this._filterByAttribute(function (o){ return o.skipped === true }) }
 		/**
 		 * @returns {HashedItem} earliest item
@@ -3978,7 +3803,7 @@
 		 *
 		 * @param {HashedItemsCollection} oHashedItemsColl
 		 * @param {string} rootPath root path, not checked for validity
-		 * @param {string} algorithm hashing algorithm used, default: CURRENT_ALGORITHM
+		 * @param {string=} algorithm hashing algorithm used, default: CURRENT_ALGORITHM
 		 * @constructor
 		 */
 		function CommandResults(oHashedItemsColl, rootPath, algorithm) {
@@ -3993,14 +3818,10 @@
 
 			this.RootPath                       = rootPath;
 			this.Algorithm                      = algorithm || CURRENT_ALGORITHM;
-			// @ts-ignore
 			this.ValidCount                     = oSuccess.keys().length;
-			// @ts-ignore
 			this.SkippedCount                   = oSkipped.keys().length;
-			// @ts-ignore
 			this.InvalidCount                   = oError.keys().length;
 			this.Generated_By                   = sprintf('%s v%s -- %s', Global.SCRIPT_NAME, Global.SCRIPT_VERSION, Global.SCRIPT_URL);
-			// @ts-ignore
 			this.Snapshot_DateTime_Compact      = ts.formatAsDateTimeCompact();
 
 			if (EXPORT_EXTENDED_DATA && !EXPORT_EXTRA_COMPACT) {
@@ -4011,18 +3832,13 @@
 					oSmallestItem = items.getSmallestItem(),
 					oLargestItem  = items.getLargestItem();
 
-				// @ts-ignore
-				this.Snapshot_DateTime_Timestamp    = this.ts;
-				// @ts-ignore
-				this.Snapshot_DateTime_DOpus        = this.ts.formatAsDateDOpus();
-				// @ts-ignore
-				this.Snapshot_DateTime_ISO          = this.ts.formatAsDateISO();
-				// @ts-ignore
-				this.Snapshot_DateTime_String       = new Date(this.ts).toString();
-				// @ts-ignore
-				this.Snapshot_DateTime_UTC          = new Date(this.ts).toUTCString();
-				// @ts-ignore
-				this.Snapshot_DateTime_Locale       = new Date(this.ts).toLocaleString();
+
+				this.Snapshot_DateTime_Timestamp    = ts;
+				this.Snapshot_DateTime_DOpus        = ts.formatAsDateDOpus();
+				this.Snapshot_DateTime_ISO          = ts.formatAsDateISO();
+				this.Snapshot_DateTime_String       = new Date(ts).toString();
+				this.Snapshot_DateTime_UTC          = new Date(ts).toUTCString();
+				this.Snapshot_DateTime_Locale       = new Date(ts).toLocaleString();
 				this.Earliest_File_Name             = oEarliestItem.fullpath;
 				this.Earliest_File_DateTime_Compact = oEarliestItem.mod_date; // already formatted
 				this.Earliest_File_DateTime_TS      = oEarliestItem.mod_ts;
@@ -4031,11 +3847,11 @@
 				this.Latest_File_DateTime_TS        = oLatestItem.mod_ts;
 				this.Smallest_File_Name             = oSmallestItem.fullpath;
 				this.Smallest_File_Size             = oSmallestItem.size;
-				// @ts-ignore
+
 				this.Smallest_File_Size_Friendly    = oSmallestItem.size.formatAsSize();
 				this.Largest_File_Name              = oLargestItem.fullpath;
 				this.Largest_File_Size              = oLargestItem.size;
-				// @ts-ignore
+
 				this.Largest_File_Size_Friendly     = oLargestItem.size.formatAsSize();
 			}
 			// remove some internal fields
@@ -4107,13 +3923,12 @@
 		function MTActionResults(fnCallerName, selectedKnapsacked, tp, userAborted, tsStart, tsFinish, selectedItemsCount, selectedItemsSize) {
 			var fnName = funcNameExtractor(MTActionResults);
 
-			// @ts-ignore
+
 			logger.normal(stopwatch.startAndPrint(fnName, 'Output preparation'));
 
 			/** @type {object} */
 			this.summary = {};
-			/** @type {MTActionResultFile}} */
-			// @ts-ignore
+			/** @type {Object.<string, MTActionResultFile>} */
 			this.items   = {};
 			/** @type {string[]} */
 			this.errors  = [];
@@ -4128,14 +3943,14 @@
 
 			// a threadID points to 1 knapsack
 			var oFinishedKS = selectedKnapsacked.finishedKS;
-			// @ts-ignore
+
 			knapsacks: for (var kskey in oFinishedKS) {
 				if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
 				var ksMap = tp(oFinishedKS[kskey].id);
 
 				// each knapsack contains a DOpus Map of files (DOpus Maps)
 				var elapsedThread = 0;
-				// @ts-ignore
+
 				files: for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
 					var fileFullpath = eKS.item(),
 						fileAttribs  = ksMap(fileFullpath);
@@ -4181,7 +3996,7 @@
 			};
 			this.errors = filesWithErrors;
 
-			// @ts-ignore
+
 			logger.normal(stopwatch.stopAndPrint(fnName, 'Output preparation'));
 		}
 	}
@@ -4251,14 +4066,11 @@
 		function KnapsackCollection(id){
 			this.id              = id || getTS();
 
-			/** @type {Knapsack[]} */
-			// @ts-ignore
+			/** @type {Object.<string, Knapsack>} */
 			this._myItems        = {};
-			/** @type {Knapsack[]} */
-			// @ts-ignore
+			/** @type {Object.<string, Knapsack>} */
 			this.finishedKS      = {};
-			/** @type {Knapsack[]} */
-			// @ts-ignore
+			/** @type {Object.<string, Knapsack>} */
 			this.unfinishedKS    = {};
 
 			this.sizeTotal       = 0;
@@ -4278,8 +4090,6 @@
 			}
 			if (this._myItems[oKnapsack.id]) {
 				throw new Error('Knapsack cannot be added, already in collection:\n' + oKnapsack.id);
-				// @ts-ignore
-				throw new Error('Knapsack cannot be added, already in collection:\n' + dumpObject(oKnapsack));
 			}
 			this._myItems[oKnapsack.id] = oKnapsack;
 			this.sizeTotal  += oKnapsack.size;
@@ -4321,28 +4131,6 @@
 			}
 			return this.countUnfinished === 0;
 		}
-
-		// /**
-		//  * @param {Knapsack} oKnapsack
-		//  */
-		// KnapsackCollection.prototype.delKnapsack = function (oKnapsack) {
-		// 	if (!(oKnapsack instanceof Knapsack)) {
-		// 		throw new Error('Expected Knapsack object, got:\n' + dumpObject(oKnapsack));
-		// 	}
-		// 	if (this._myItems[oKnapsack.id]) {
-		// 		throw new Error('Knapsack cannot be deleted, not in collection:\n' + dumpObject(oKnapsack));
-		// 	}
-		// 	this.sizeTotal -= oKnapsack.size;
-		// 	this.countTotal--;
-		// 	delete this._myItems[oKnapsack.id];
-		// }
-		// /**
-		//  * @returns {Knapsack{}} unfinished knapsacks
-		//  */
-		// KnapsackCollection.prototype.getUnfinished = function () {
-		// 	return this.unfinishedKS;
-		// }
-
 	}
 }
 
@@ -4369,11 +4157,17 @@
 			abortWithFatalError(sprintf('%s -- Given parameter is not a recognized function\n%s', fnName, dumpObject(fnFunc)));
 		}
 		var _matches = fnFunc.toString().match(reFuncNameExtractor);
-		// @ts-ignore
+
 		return _matches ? _matches[1] : 'Anonymous -- ' + dumpObject(fnFunc, AS_POJO).value.replace(/\n|^\s+|\s+$/mg, '');
 	};
 
 	// poor man's debugger
+	/**
+	 * returns the given object in a printable fashion, incl. some of DOpus objects
+	 * @param {any} obj any object, tries to find out the type automatically
+	 * @param {boolean=} asPOJO if the output object should be returned as POJO or string
+	 * @returns {object|string}
+	 */
 	function dumpObject(obj, asPOJO) {
 		asPOJO = asPOJO || false;
 		var out = {};
@@ -4388,9 +4182,6 @@
 				out.value = obj; break;
 			case 'undefined':
 				out.value = 'undefined'; break;
-			// @ts-ignore
-			case 'regexp':
-				out.value = obj.toString(); break;
 			case 'function':
 				out.value = obj.toString().slice(0, 100) + ' ...cropped for brevity'; break;
 				// out.value = obj.toString(); break;
@@ -4405,8 +4196,9 @@
 					else if (doh.isValidDOEnumerable(obj))  { out.value = 'DOpus Enumerable'; break; }
 				} catch (e) {}
 				try { JSON.parse(JSON.stringify(obj, null, 4)); out.value = obj; break; } catch(e) {}
-				// @ts-ignore
-				try { var _tmp = obj.toString(); } catch(e) {}
+
+				try { out.value = obj.toString(); return out.value; } catch (e) {}
+				try { out.value = new RegExp(obj); return out.value; } catch (e) {}
 				out.value = 'undetermined object';
 				break;
 			default:
@@ -4429,7 +4221,7 @@
 	88888888 8888888 8888888P"   "Y8888P"
 */
 {
-	// @ts-ignore
+
 	function __LIBS__(){ var i; }
 	// sprintf - BEGIN
 	// https://hexmen.com/blog/2007/03/14/printf-sprintf/
@@ -4587,8 +4379,7 @@
 					case 'x': case 'X': base = 16; break;
 					case 'i':
 					case 'd': {
-						// @ts-ignore
-						var number = parseInt(+value, 10);
+						var number = parseInt(value, 10);
 						if (isNaN(number)) {
 							return '';
 						}
@@ -4645,7 +4436,7 @@
 		 */
 		function printf() {
 			// delegate the work to sprintf in an IE5 friendly manner:
-			// @ts-ignore
+
 			var i = 0, a = arguments, args = Array(arguments.length);
 			while (i < args.length) args[i] = 'a[' + (i++) + ']';
 			document.write(eval('sprintf(' + args + ')'));
@@ -4667,7 +4458,7 @@
 	    888      "Y88888P"  8888888P"   "Y88888P"
 */
 {
-	// @ts-ignore
+
 	function __TODO__(){ var i; }
 	// TODO
 	{
