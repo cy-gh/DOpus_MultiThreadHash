@@ -190,7 +190,7 @@
 		// you can read more about it here:
 		// https://security.stackexchange.com/a/87377
 		var DEFAULT_ALGORITHM = 'sha1';
-		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM;
+		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM; // TODO - might be converted to a config parameter or command parameter
 
 		// false usually increases the speed up to 25% for mixed groups of files
 		// but makes little difference if file sizes are close to each other (usually few big files)
@@ -221,15 +221,15 @@
 		var COLLECTION_FOR_VERIFY_ERRORS = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify errors';
 
 		// show a summary dialog after manager actions
-		var SHOW_SUMMARY_DIALOG = true; // TODO reactivate
+		var SHOW_SUMMARY_DIALOG = false;
 
 		// export detailed data as comments (SHA, MD5...) or headers (JSON)
 		// such as snapshot date in various formats, earliest/latest/smallest/largest file name/date, etc.
-		var EXPORT_EXTENDED_DATA = false;
+		var EXPORT_EXTENDED_DATA = true;
 
 		// show detailed information in DOpus Output for each file after operation
 		// files with errors will be put into a collection regardless of this setting
-		var DUMP_DETAILED_RESULTS = false;
+		var DUMP_DETAILED_RESULTS = true;
 
 		// do not use both of the following; if you do "current datetime" wins
 		// automatically add current date-time to generated export file names
@@ -482,20 +482,16 @@
 	// called by user command, button, etc.
 
 	function onDOpusCmdMHTClearCache(cmdData) {
-		clearCache();
+		cacheMgr.clearCache();
 	}
 	function onDOpusCopyToClipboard(cmdData) {
-
 		var fnName = funcNameExtractor(onDOpusCopyToClipboard);
-
 		var res = _getHashesOfAllSelectedFiles(cmdData);
 		if (!res) { return; }
-
 		doh.cmd.RunCommand('Clipboard SET ' + JSON.stringify(res, null, 4));
 	}
 	function onDOpusADSExportFrom(cmdData) {
 		var fnName = funcNameExtractor(onDOpusADSExportFrom);
-
 		// check command parameters
 		var format          = cmdData.func.args.FORMAT;
 		var filename        = cmdData.func.args.FILE;
@@ -503,37 +499,27 @@
 		if (!format || !fileExchangeHandler.isValidFormat(format)) {
 			abortWithFatalError('No or invalid format supplied for FORMAT parameter,\nvalid formats are:\n' + fileExchangeHandler.getValidFormats());
 		}
-
 		// get the hashes
 		var res = _getHashesOfAllSelectedFiles(cmdData);
 		if (!res) { return; }
-
 		fileExchangeHandler.exportTo(cmdData, format, filename, res, useForwardSlash);
 	}
 	function onDOpusADSImportInto(cmdData) {
-
 		var fnName = funcNameExtractor(onDOpusADSImportInto);
-
 		// check command parameters
 		var format          = cmdData.func.args.FORMAT;
 		var filename        = cmdData.func.args.FILE;
-
 		fileExchangeHandler.importFrom(cmdData, format, filename);
 	}
-
 	function onDOpusOnTheFlyCalculateAndExport(cmdData) {
 		var fnName = funcNameExtractor(onDOpusOnTheFlyCalculateAndExport);
 		abortWithFatalError('Not impl yet - ' + fnName);
 	}
 	function onDOpusOnTheFlyVerifyFromFile(cmdData) {
 		var fnName = funcNameExtractor(onDOpusOnTheFlyVerifyFromFile);
-
 		// check command parameters
-
 		var format          = cmdData.func.args.FORMAT;
-
 		var filename        = cmdData.func.args.FILE;
-
 		// fileExchangeHandler.verifyFrom(scriptCmdData, format, filename);
 		abortWithFatalError('Not impl yet - ' + fnName);
 	}
@@ -562,75 +548,54 @@
 		var SHA1_MD5_SPLITTER = new RegExp(/^([a-zA-Z0-9]+)\b\s+\*(.+)/);
 		/**
 		 * @param {string} filename
-		 * @returns {string|false} format on success, false if unknown
+		 * @returns {Result} format on success, false if unknown
 		 */
 		function detectFormatFromName(filename) {
 			var oItem = doh.fsu.GetItem(filename);
-			if (!oItem) return false;
+			if (!oItem) return ResultError();
 			switch(oItem.ext.toLowerCase()) {
-				case VALID_FORMATS_AND_EXTS.MD5[1]:  return VALID_FORMATS_AND_EXTS.MD5[0];
-				case VALID_FORMATS_AND_EXTS.SHA1[1]: return VALID_FORMATS_AND_EXTS.SHA1[0];
-				case VALID_FORMATS_AND_EXTS.JSON[1]: return VALID_FORMATS_AND_EXTS.JSON[0];
-				default:                             return false;
+				case VALID_FORMATS_AND_EXTS.MD5[1]:  return ResultSuccess(VALID_FORMATS_AND_EXTS.MD5[0]);
+				case VALID_FORMATS_AND_EXTS.SHA1[1]: return ResultSuccess(VALID_FORMATS_AND_EXTS.SHA1[0]);
+				case VALID_FORMATS_AND_EXTS.JSON[1]: return ResultSuccess(VALID_FORMATS_AND_EXTS.JSON[0]);
+				default:                             return ResultError();
 			}
 		}
 		/**
-		 * @param {CommandResults} oInternalJSONFormat
+		 * @param {CommandResults} oInternalJSON
 		 * @returns {string}
 		 */
-		function convertForExportToMTHJSON(oInternalJSONFormat) {
-			return JSON.stringify(oInternalJSONFormat, null, '\t');
+		function convertForExportToMTHJSON(oInternalJSON) {
+			return JSON.stringify(oInternalJSON, null, '\t');
 		}
 		/**
-		 * @param {CommandResults} oInternalJSONFormat
+		 * @param {CommandResults} oInternalJSON
+		 * @param {string=} format not used at the moment, all currently recognized formats use the same structure
 		 * @returns {string}
 		 */
-		function convertForExportToMD5(oInternalJSONFormat) {
-			return convertForExportToSHA1(oInternalJSONFormat);
-		}
-		/**
-		 * @param {CommandResults} oInternalJSONFormat
-		 * @returns {string}
-		 */
-		function convertForExportToSHA1(oInternalJSONFormat) {
+		function convertForExportToClassical(oInternalJSON, format) {
 			var outstr = '';
-			for (var kheader in oInternalJSONFormat) {
-				if (typeof oInternalJSONFormat[kheader] !== 'string' && typeof oInternalJSONFormat[kheader] !== 'number') continue; // skip objects, arrays, functions...
-				outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSONFormat[kheader]) + '\n';
+			for (var kheader in oInternalJSON) {
+				if (typeof oInternalJSON[kheader] !== 'string' && typeof oInternalJSON[kheader] !== 'number') continue; // skip objects, arrays, functions...
+				outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSON[kheader]) + '\n';
 				if (kheader === 'Generated_By') outstr += ';\n';
 			}
 			outstr += ';\n';
 			if (EXPORT_EXTENDED_DATA) {
-				for (var kheader in oInternalJSONFormat.ExtInfo) {
-					if (typeof oInternalJSONFormat.ExtInfo[kheader] !== 'string' && typeof oInternalJSONFormat.ExtInfo[kheader] !== 'number') continue; // skip objects, arrays, functions...
-					outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSONFormat.ExtInfo[kheader]) + '\n';
+				for (var kheader in oInternalJSON.ExtInfo) {
+					if (typeof oInternalJSON.ExtInfo[kheader] !== 'string' && typeof oInternalJSON.ExtInfo[kheader] !== 'number') continue; // skip objects, arrays, functions...
+					outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSON.ExtInfo[kheader]) + '\n';
 				}
 				outstr += ';\n';
 			}
 			outstr += '\n';
-			for (var kitem in oInternalJSONFormat.items) {
-				if (!oInternalJSONFormat.items.hasOwnProperty(kitem)) continue; // skip prototype stuff
-				var item = oInternalJSONFormat.items[kitem];
+			for (var kitem in oInternalJSON.items) {
+				if (!oInternalJSON.items.hasOwnProperty(kitem)) continue; // skip prototype stuff
+				var item = oInternalJSON.items[kitem];
 				outstr += item.hash + ' *' + (item.relpath || '').normalizeTrailingBackslashes() + item.name + '\n';
 			}
 			return outstr;
 		}
-		/**
-		 * @param {string} sContents file contents
-		 * @param {string} currentPath current path to use as the base
-		 * @returns {CommandResults}
-		 */
-		function convertForImportFromMD5(sContents, currentPath) {
-			return convertForImportFromClassical(sContents, currentPath, 'md5');
-		}
-		/**
-		 * @param {string} sContents file contents
-		 * @param {string} currentPath current path to use as the base
-		 * @returns {CommandResults}
-		 */
-		function convertForImportFromSHA1(sContents, currentPath) {
-			return convertForImportFromClassical(sContents, currentPath, 'sha1');
-		}
+
 		/**
 		 * generic checksum file parser for sha, md5, etc.
 		 * @param {string} sContents file contents
@@ -639,7 +604,7 @@
 		 * @returns {CommandResults}
 		 */
 		function convertForImportFromClassical(sContents, currentPath, algorithm) {
-			var fnName = funcNameExtractor(convertForImportFromClassical);
+			var fnName = myName + '.convertForImportFromClassical';
 
 			var oHashedItemColl = new HashedItemsCollection(),
 				lines           = sContents ? sContents.split(/\n/) : [],
@@ -648,8 +613,9 @@
 				fullpath        = '';
 
 			for (var i = 0; i < lines.length; i++) {
+				// empty & comment lines
 				var line = lines[i].trim();
-				if (!line || line.indexOf(';') === 0) { continue } // comment lines - probably not needed
+				if (!line || line.indexOf(';') === 0) { continue }
 				// split line to hash & relpath parts
 				var lineParts = line.match(SHA1_MD5_SPLITTER);
 				if (!lineParts || lineParts.length !== 3) {
@@ -659,7 +625,7 @@
 				hash     = lineParts[1];
 				relpath  = lineParts[2];
 				fullpath = currentPath + relpath;
-				logger.verbose('Hash: ' + hash + '\tRelPath: ' + relpath + '\tFullPath: ' + fullpath);
+				logger.sverbose('%s -- Hash: %s, RelPath: %s, FullPath: %s', fnName, hash, relpath, fullpath);
 
 				var oItem = doh.fsu.GetItem(fullpath);
 				if (!FS.isValidPath(oItem.realpath)) {
@@ -668,7 +634,6 @@
 					oHashedItemColl.addItem(new HashedItem(oItem, relpath, false, false, hash, algorithm));
 				}
 			}
-
 			var outPOJO = new CommandResults(oHashedItemColl, currentPath, algorithm);
 			return outPOJO;
 		}
@@ -678,25 +643,19 @@
 		 * @returns {CommandResults}
 		 */
 		function convertForImportFromJSON(sContents) {
-			// TODO - currently there is no automatic path adjustment
-			// future release may implement smart path adjustment with the given path (currentPath)
-			// TODO - REVIEW
-
-			/** @type {CommandResults} */
-			var outPOJO;
+			var fnName = myName + '.convertForImportFromJSON';
 			try {
-				outPOJO = JSON.parse(sContents);
+				/** @type {CommandResults} */
+				var outPOJO = JSON.parse(sContents);
+				logger.snormal('%s -- outPOJO: %s', fnName, JSON.stringify(outPOJO, null, 4));
 			} catch (e) {
 				abortWithFatalError('Given file contents cannot be parsed as valid JSON');
 			}
-			logger.sforce('%s -- outPOJO: %s', 'fnName', JSON.stringify(outPOJO, null, 4));
-
-			if (
-				 !outPOJO.Root_Path || !FS.isValidPath(outPOJO.Root_Path) ||
-				  !isObject(outPOJO.items) ||
-				(outPOJO.error && typeof outPOJO.error.length !== 'number')
-			) {
-				abortWithFatalError('Given file contents do not match expected format');
+			if (!outPOJO.Root_Path || !isObject(outPOJO.items)) {
+				abortWithFatalError('Given file contents do not match expected format, must have Root_Path & items');
+			}
+			if (!FS.isValidPath(outPOJO.Root_Path)) {
+				abortWithFatalError('Given file contents is valid but Root Path does not exist: ' + outPOJO.Root_Path);
 			}
 			return outPOJO;
 		}
@@ -709,7 +668,7 @@
 		 * @returns {{filename: string, contents: string}}
 		 */
 		function prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
-			var fnName = 'ImportExportFormatters.exportTo';
+			var fnName = myName + '.prepareForExport';
 
 			var currentPath = doh.getCurrentPath(cmdData),
 				dialog      = doh.getDialog(cmdData),
@@ -743,9 +702,9 @@
 			var outContents = '';
 			switch(format.toUpperCase()) {
 				case VALID_FORMATS_AND_EXTS.MD5[0]:
-					outContents = convertForExportToMD5(oInternalJSONFormat); break;
+					outContents = convertForExportToClassical(oInternalJSONFormat, VALID_FORMATS_AND_EXTS.MD5[0].toLowerCase()); break;
 				case VALID_FORMATS_AND_EXTS.SHA1[0]:
-					outContents = convertForExportToSHA1(oInternalJSONFormat); break;
+					outContents = convertForExportToClassical(oInternalJSONFormat, VALID_FORMATS_AND_EXTS.SHA1[0].toLowerCase()); break;
 				case VALID_FORMATS_AND_EXTS.JSON[0]:
 					outContents = convertForExportToMTHJSON(oInternalJSONFormat); break;
 				default:
@@ -764,13 +723,13 @@
 		 * @returns {CommandResults}
 		 */
 		function prepareForImport(cmdData, format, filename) {
-			var fnName = 'ImportExportFormatters.importFrom';
+			var fnName = 'fileExchangeHandler.importFrom';
 
 			var currentPath = doh.getCurrentPath(cmdData),
 				dialog      = doh.getDialog(cmdData),
 				inFilename  = '';
 
-			var ext = format || CURRENT_ALGORITHM, // TODO
+			var ext = format || CURRENT_ALGORITHM,
 				detectedFormat;
 			if (filename) {
 				// validate given filename
@@ -805,19 +764,16 @@
 			if (!format) {
 				detectedFormat = detectFormatFromName(inFilename);
 				logger.snormal('%s -- Detected format: %s', fnName, detectedFormat);
-				if (detectedFormat) format = detectedFormat;
+				if (detectedFormat.isOK()) format = detectedFormat.ok;
 			}
 			// check if given format is valid
-			// TODO - very crappy at the moment
 			detectedFormat = detectFormatFromName(inFilename);
-			if (!detectedFormat) {
+			if (!detectedFormat.isOK()) {
 				abortWithFatalError('Unrecognized format: ' + format); return; // return is needed only for tsc
-			} else if (format.toLowerCase() !== detectedFormat.toLowerCase()) {
+			} else if (format.toLowerCase() !== detectedFormat.ok.toLowerCase()) {
 				abortWithFatalError('Given filename & format do not match\nGiven: ' + format + ', Detected: ' + detectedFormat);
 			}
-			logger.snormal('%s -- Using filename: %s, format: %s', fnName, inFilename, format);
-
-			if (detectedFormat.toUpperCase() !== CURRENT_ALGORITHM.toUpperCase()) {
+			if (detectedFormat.ok.toUpperCase() !== CURRENT_ALGORITHM.toUpperCase()) {
 				abortWithFatalError('Cannot import format ' + format + ',\ncurrent algorithm is ' + CURRENT_ALGORITHM.toUpperCase() + '.');
 			}
 			// read file
@@ -825,6 +781,8 @@
 			if (!inContents) {
 				abortWithFatalError('Cannot read file: ' + inFilename); return; // return is needed only for tsc
 			}
+
+			logger.snormal('%s -- Using filename: %s, format: %s', fnName, inFilename, format);
 			logger.sverbose('%s -- Input:\n%s', fnName, inContents);
 
 			// convert to internal format and fill in values
@@ -832,9 +790,9 @@
 			var outPOJO;
 			switch(format.toUpperCase()) {
 				case VALID_FORMATS_AND_EXTS.MD5[0]:
-					outPOJO = convertForImportFromMD5(inContents, currentPath); break;
+					outPOJO = convertForImportFromClassical(inContents, currentPath, VALID_FORMATS_AND_EXTS.MD5[0].toLowerCase()); break;
 				case VALID_FORMATS_AND_EXTS.SHA1[0]:
-					outPOJO = convertForImportFromSHA1(inContents, currentPath); break;
+					outPOJO = convertForImportFromClassical(inContents, currentPath, VALID_FORMATS_AND_EXTS.SHA1[0].toLowerCase()); break;
 				case VALID_FORMATS_AND_EXTS.JSON[0]:
 					outPOJO = convertForImportFromJSON(inContents); break;
 				default:
@@ -924,13 +882,14 @@
 		 	 * @param {string} filename given filename, or a calculated output file name
 			 * @param {CommandResults} oInternalJSONFormat
 			 * @param {boolean=} useForwardSlash
-			 * @returns {number|false} number of bytes written, false on error
+			 * @returns {Result} number of bytes written, false on error
 			 */
 			exportTo: function (cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
 				var fnName = 'fileExchangeHandler.exportTo';
-				var res = prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash);
-				if (!res) { return false; }
-				return FS.saveFile(res.filename, res.contents);
+				var res1 = prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash);
+				if (!res1) { return ResultError(); }
+				var res2 = FS.saveFile(res1.filename, res1.contents);
+				return res2 ? ResultSuccess(res2) : ResultError(res2);
 			},
 			isValidFormat: function (format) {
 				return (format && VALID_FORMATS_AND_EXTS.hasOwnProperty(format.toUpperCase()));
@@ -1010,7 +969,7 @@
 			if (!oADSData) { abortWithFatalError('Cannot read stream data for: ' + oHashedItem.fullpath); return; } // return needed for VSCode/TSC
 
 			// remove cache only fields if necessary
-			removeCacheFields(oADSData);
+			cacheMgr.removeCacheFields(oADSData);
 			// copy the 2 most important fields
 			oHashedItem.hash      = oADSData.hash;
 			oHashedItem.algorithm = oADSData.algorithm;
@@ -1057,7 +1016,8 @@
 
 		// get ADS object
 		var item_props = ADS.read(item);
-		if (item_props === false || typeof item_props === 'undefined' || !isObject(item_props)) {
+		// if (item_props === false || typeof item_props === 'undefined' || !isObject(item_props)) {
+		if (!item_props) {
 			// logger.normal(item.name + ': Metadata does not exist or INVALID: ' + item_props);
 			return;
 		}
@@ -1065,9 +1025,7 @@
 		// iterate over requested columns
 		for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
 			var key = e.item();
-
 			var outstr;
-
 			switch(key) {
 				case _getColumnNameFor('NeedsUpdate'):
 					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
@@ -1159,13 +1117,13 @@
 				busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
 				logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
 
-				addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+				// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+				addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
 
 				logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
 				busyIndicator.stop();
 				return;
 			}
-			// TODO - REACTIVATE?
 			// if some hashes are missing or dirty, show and quit
 			if (selectedFiltered.countSkipped && fnAction !== actions.PUBLIC.fnActionCalculateAndSaveToADS) {
 				showMessageDialog(doh.getDialog(cmdData), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.');
@@ -1195,9 +1153,7 @@
 
 		// INITIALIZE PROGRESS BAR
 		{
-
 			var unitMax      = selectedItemsSize.getUnit();
-
 			var formattedMax = selectedItemsSize.formatAsSize(unitMax);
 			var progbar      = initializeProgressBar(cmdData);
 		}
@@ -1205,8 +1161,7 @@
 
 		// INITIALIZE THREAD POOL
 		{
-			doh.sv.Set('TP', doh.dc.Map());
-			var tp = doh.sv.Get('TP');
+			var tp = cacheMgr.getThreadPoolAutoInit();
 		}
 
 
@@ -1245,10 +1200,8 @@
 					new_file('finalized')  = false; 				// @ts-ignore // if the file has been processed completely, can include timed out files
 					filesMap(oHashedItem.fullpath) = new_file;
 				}
-				// @ts-ignore // put this knapsack into thread pool
-				tp(ks.id) = filesMap;
-				// @ts-ignore
-				doh.sv.Set('TP') = tp;
+				// put this knapsack into thread pool
+				cacheMgr.setThreadPoolVar(ks.id, filesMap);
 				// logger.snormal('%s -- Worker command to run: %s', fnName, torun);
 				doh.cmd.RunCommand(torun);
 			}
@@ -1268,44 +1221,39 @@
 			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
 			var ts = now();
 			var finished_bytes_so_far = 0;
-			itercnt = 0;
-			itermax = 5000; // TODO DELETE
-			unfinished: while(++itercnt < itermax && now() - ts < command.maxwait && !selectedKnapsacked.allFinished()) {
-
+			unfinished: while(itercnt++ < itermax && now() - ts < command.maxwait && !selectedKnapsacked.allFinished()) {
 				doh.delay(sleepdur);
 				for (var kskey in selectedKnapsacked.unfinishedKS) {
 					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-					var ks = selectedKnapsacked.unfinishedKS[kskey];
-					var threadID               = ks.id;
-					var this_knapsack_finished = true;
-					var ksMap                  = tp(threadID);
+					var ks       = selectedKnapsacked.unfinishedKS[kskey],
+						threadID = ks.id,
+						ksMap    = cacheMgr.getThreadPoolVar(threadID);
 					// logger.forceSprintf('%s -- KS Thread ID: %s', fnName, threadID);
 					for (var e = new Enumerator(ksMap); !e.atEnd(); e.moveNext()) {
-						var ksItemKey = e.item();         // full path is the key, as we put it in the manager
-						var ksItemVal = ksMap(ksItemKey); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result
-						// logger.forceSprintf('%s -- ksItemVal("filename"): %s, finished: %b', fnName, ksItemVal('filename'), ksItemVal('finished'));
+						var ksItemPath  = e.item(),           // full path is the key, as we put it in the manager
+							ksItemAttrib = ksMap(ksItemPath); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result
+						// logger.forceSprintf('%s -- ksItemAttrib("filename"): %s, finished: %b', fnName, ksItemAttrib('filename'), ksItemAttrib('finished'));
 
 						// check for any unfinished files
-						if (!ksItemVal('finished')) {
+						if (!ksItemAttrib('finished')) {
 							// file not finished yet
-							// all_knapsacks_finished = false;
-							this_knapsack_finished = false;
 							continue;
-						} else if (ksItemVal('finalized')) {
+						} else if (ksItemAttrib('finalized')) {
+							// file already finalized
 							continue;
 						} else {
-							// @ts-ignore // file finished
-							ksItemVal('finalized') = true;
+							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
+							ksItemAttrib('finalized') = true;
 
 							// EXTREMELY IMPORTANT
 							// find this item in the knapsack items collection and mark it as finished
 							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsackCollection
 							// and that's how selectedKnapsacked.allFinished() above works!
-							ks.itemsColl.getByPath(ksItemVal('filepath')).markFinished();
+							ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
 
 							// UPDATE THE PROGRESS BAR not for each file
-							finished_bytes_so_far += ksItemVal('filesize');
-							userAborted = updateProgressBar(progbar, tsStart, ksItemVal('filename'), finished_bytes_so_far, selectedItemsSize, formattedMax, unitMax);
+							finished_bytes_so_far += ksItemAttrib('filesize');
+							userAborted = updateProgressBar(progbar, tsStart, ksItemAttrib('filename'), finished_bytes_so_far, selectedItemsSize, formattedMax, unitMax);
 							if (userAborted) { break unfinished; }
 						}
 					}
@@ -1504,74 +1452,69 @@
 
 	function __WORKER__(){ 0 }
 	// called by onDOpusCmdMTHManager - do not call directly
+	/**
+	 * called by onDOpusCmdMTHManager - do not call directly
+	 * @param {object} cmdData DOpus command data
+	 */
 	function onDOpusCmdMTHWorker(cmdData) {
 		var fnName = funcNameExtractor(onDOpusCmdMTHWorker);
 
-		var param = {};
-		param.threadID   = cmdData.func.args.THREADID;
-		param.maxwait    = cmdData.func.args.MAXWAIT;
-		param.actionfunc = cmdData.func.args.ACTIONFUNC;
-
+		var param = {
+			threadID   : cmdData.func.args.THREADID,
+			maxwait    : cmdData.func.args.MAXWAIT,
+			actionfunc : cmdData.func.args.ACTIONFUNC
+		}
 		logger.info(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, maxwait: %d, action: %s', param.threadID, param.maxwait, param.actionfunc) ));
 
 		// convert function name to function
-		param.actionfunc = actions.getFunc(param.actionfunc);
+		var fnActionFunc = actions.getFunc(param.actionfunc);
 
 		// check the thread pool
-		var tp = doh.sv.Get('TP');
-		if(!tp(param.threadID)) {
-			abortWithFatalError('The thread has not received a threadID!\nThis should never have happened!');
+		var ksMap = cacheMgr.getThreadPoolVar(param.threadID);
+		if(!ksMap) {
+			abortWithFatalError('The thread info was not received with given threadID!\nThis should never have happened!');
 		}
 
 		// variable to query if user has aborted via progress bar or not
 		var aborted = false;
 
-		var ksMap = tp(param.threadID);
-		filesloop: for (var cnt = 0, e = new Enumerator(ksMap); !e.atEnd(); ++cnt, e.moveNext()) {
-			var ksItemKey = e.item();         // full path is the key, as we put it in the manager
-			var ksItemVal = ksMap(ksItemKey); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result
-			logger.sverbose('%s -- ksItemKey: %s, ksItemVal.name: %s, ksItemVal.size: %10d', fnName, ksItemKey, ksItemVal('filename'), ksItemVal('filesize') );
+		filesloop: for (var filesCount = 0, e = new Enumerator(ksMap); !e.atEnd(); filesCount++, e.moveNext()) {
+			var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
+				ksItemAttrib = ksMap(ksItemPath); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result
+			logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
 
 			// if the manager sets the pause or abort status, honor it
 			while(getPauseStatus() === true) {
 				// already started hashing jobs won't be affected, obviously
-
 				doh.delay(500); // doesn't need to be too short, pause is pause
 			}
 			if (getAbortStatus() === true) {
+				aborted = true;
 				break filesloop;
 			}
 
 			// call the hash calculator
-			stopwatch.start(fnName + ksItemKey);
-			// logger.sforce('%s -- ksItemVal("filepath"): %s', fnName, ksItemVal('filepath'));
+			stopwatch.start(fnName + ksItemPath);
+			var oItem = doh.fsu.GetItem(ksItemAttrib('filepath'));
+			// EXTREMELY IMPORTANT: this is the heart of actions, uglier alternative: (param.actionfunc)(oItem, null);
+			/** @type {Result} */
+			var newHashResult = fnActionFunc.call(fnActionFunc, oItem, null);
+			var elapsed = stopwatch.stop(fnName + ksItemPath);
 
-			var oItem = doh.fsu.GetItem(ksItemVal('filepath'));
-			var newHashResult = new Result(); // needed so that VSCode can auto-complete
-			// newHashResult = (param.actionfunc)(oItem, null); // IMPORTANT: this is the heart of actions
-			newHashResult = param.actionfunc.call(param.actionfunc, oItem, null); // IMPORTANT: this is the heart of actions
-			var elapsed = stopwatch.stop(fnName + ksItemKey);
-
-			// put the results back to TP
+			// put the results back to map, and the map back to TP
 			// @ts-ignore
-			ksItemVal('finished') = true;
+			ksItemAttrib('finished') = true;
 			// @ts-ignore
-			ksItemVal('elapsed')  = elapsed;
-			if (newHashResult.isOK()) {
-				// @ts-ignore
-				ksItemVal('result') = newHashResult.ok;
-				// @ts-ignore
-				ksItemVal('error')  = false;
-			} else {
-				// @ts-ignore
-				ksItemVal('result') = false;
-				// @ts-ignore
-				ksItemVal('error')  = newHashResult.err;
-			}
+			ksItemAttrib('elapsed')  = elapsed;
 			// @ts-ignore
-			tp(param.threadID)(ksItemKey) = ksItemVal;
+			ksItemAttrib('result')   = newHashResult.isOK() ? newHashResult.ok : false;
+			// @ts-ignore
+			ksItemAttrib('error')    = newHashResult.isOK() ? false : newHashResult.err;
+			// @ts-ignore
+			ksMap(ksItemPath) = ksItemAttrib;
+			cacheMgr.setThreadPoolVar(param.threadID, ksMap);
 		}
-		logger.info(stopwatch.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, items: %s, aborted: %b', param.threadID, cnt, aborted)));
+		logger.normal(stopwatch.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, items: %s, aborted: %b', param.threadID, filesCount, aborted)));
 	}
 }
 
@@ -1628,7 +1571,7 @@
 					var fEnum = doh.fsu.ReadDir(selitem, (recurse && 'r'));
 					if (fEnum.error) abortWithFatalError('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
 					icnt = 0; // just as a precaution for while loop
-					while (!fEnum.complete && ++icnt < imax) {
+					while (!fEnum.complete && icnt++ < imax) {
 						var subitem = fEnum.next;
 						if (!doh.isFile(subitem)) continue;
 
@@ -1812,7 +1755,7 @@
 				// the Robin Hood algorithm!
 				var underfilledKS = -1;
 				var iter = 0, iterMax = maxNeeded;
-				while(underfilledKS === -1 && ++iter < iterMax) {
+				while(underfilledKS === -1 && iter++ < iterMax) {
 					// determine underfilled and overfilled as long as there are empty knapsacks
 					var overfilledKS = -1, currentMax = -1;
 					for (var i = 0; i < maxNeeded; i++) {
@@ -1830,15 +1773,12 @@
 						logger.sinfo('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
 
 						// move items from overfilled to underfilled
-						// ksArray[underfilledKS]['items'] = ksArray[overfilledKS]['items'].splice(0, Math.round(ksArray[overfilledKS].count / 2) );
 						var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
-
-						var i = 0, iMax = Math.floor(oOverfilledItems.keys().length / 2);
+						var i = 0, iMax = Math.floor(getObjKeys(oOverfilledItems).length / 2);
 						for (var key in oOverfilledItems) {
-							if (++i > iMax) break;
+							if (i++ > iMax) break;
 							if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
 							var oHashedItem = oOverfilledItems[key];
-							// logger.sforce('%s -- i: %d/%d, key: %s', fnName, i, iMax, key, oHashedItem.name);
 							ksArray[overfilledKS].delItem(oHashedItem);
 							ksArray[underfilledKS].addItem(oHashedItem);
 						}
@@ -2003,82 +1943,77 @@
 			TEXT_ENCODING: TEXT_ENCODING,
 			/**
 			 * reads requested file contents (incl. ADS streams)
-			 * @param {string} path file path to read
+			 * for format not all of "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be" do work
+			 * the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
+			 * @example
+			 * contents = FS.readFile("Y:\\MyDir\\myfile.txt", FS.TEXT_ENCODING.utf16);
+			 * contents = FS.readFile("Y:\\MyDir\\myfile.txt:SecondStream", FS.TEXT_ENCODING.utf8);
+			 * @param {string} path file path to read, e.g. "Y:\\Path\\file.txt" or "Y:\\Path\\file.txt:CustomMetaInfo" for ADS
 			 * @param {number=} format use one of {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
 			 * @returns {string|false} file contents, false on error
 			 * @see TEXT_ENCODING
 			 */
 			readFile: function (path, format) {
-				// path, use "Y:\\Path\\file.txt" or "Y:\\Path\\file.txt:CustomMetaInfo" for ADS
-				// format: "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be"
-				// the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
-				// use only one of encoding.utf8 or encoding.utf16
-				//
-				// res = ReadFile("Y:\\MediaInfo\\victim.txt:SecondStream", encoding.utf8);
-				// res = ReadFile("Y:\\MediaInfo\\victim.txt", encoding.utf16);
-				/** @type {string|false} */
-				var res = false;
+				var fnName = 'FS.readFile';
 
 				var decformat = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
-				if (!doh.fsu.Exists(path)) { return res; }
+				if (!this.isValidPath(path)) { return false; }
 
 				var fh = doh.fsu.OpenFile(path); // default read mode
 				if(fh.error !== 0) {
-					// if you enable this log level in the global options you will receive a lot of messages for missing streams of unprocessed files
-					logger.normal(path + ', error occurred while opening file: ' + fh.error);
-				} else {
-					try {
-						var blob = fh.Read(	);
-						logger.verbose('blob size: ' + blob.size + ', type: ' + typeof blob);
-						try {
-							res = doh.st.Decode(blob, decformat); // "utf-8" seems to be standard, "auto" does not work for me
-							// logger.verbose('blob -- type: ' + typeof res + ', size: ' + res.length + "\n" + res);
-						} catch(e) { logger.error(path + ', st.decode: ' + e.description); }
-						blob.Free();
-					} catch(e) { logger.error(path + ', fh.read: ' + e.description); }
+					logger.serror('%s -- OpenFile error, file exists but cannot be read - error: %s, file: %s', fnName, fh.error, path);
+					return false;
 				}
+				try {
+					var blob = fh.Read();
+					logger.sverbose('%s -- blob size: %s, type: %s', fnName, blob.size, typeof blob);
+					try {
+						var res = doh.st.Decode(blob, decformat); // "utf-8" seems to be standard, "auto" does not work for me
+					} catch(e) { logger.serror('%s -- StringTools.Decode() error: %s, file: %s', fnName, e.description, path); }
+					blob.Free();
+				} catch(e) { logger.serror('%s -- FSUtil.Read() error: %s, file: %s', fnName, e.description, path); }
 				fh.Close();
-				return res;
+				return res || false;
 			},
 			/**
 			 * saves given contents to file (incl. ADS streams)
+			 * for format not all of "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be" do work
+			 * the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
+			 * @example
+			 * numBytesWritten = FS.SaveFile("Y:\\MyDir\\myfile.txt", 'Hello World');
+			 * numBytesWritten = FS.SaveFile("Y:\\MyDir\\myfile.txt:CustomMetaInfo", encodeURI(new Date().getTime().toString()), FS.TEXT_ENCODING.utf16);
+			 * numBytesWritten = FS.SaveFile("Y:\\MyDir\\myfile.txt:CustomMetaInfo", encodeURI("{\"a\": 1}"), FS.TEXT_ENCODING.utf8);
 			 * @param {string} path file path to save
-			 * @param {*} contents contents
+			 * @param {string} contents contents
 			 * @param {number=} format use one of {TEXT_ENCODING.utf8} or {TEXT_ENCODING.utf16}
-			 * @returns {number|false} number of bytes written, false on error
+			 * @returns {number|false} number of bytes written on success, false on error
 			 * @see TEXT_ENCODING
 			 */
 			saveFile: function (path, contents, format) {
-				// path, use "Y:\\Path\\file.txt" or "Y:\\Path\\file.txt:CustomMetaInfo" for ADS
-				// contents: any string, e.g. new Date().getTime().toString()
-				// format: "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be"
-				// the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
-				// use only one of encoding.utf8 or encoding.utf16
-				//
-				// res = SaveFile("Y:\\Path\\file.txt:CustomMetaInfo", encodeURI(new Date().getTime().toString()), encoding.utf16);
-				// res = SaveFile("Y:\\Path\\file.txt:CustomMetaInfo", encodeURI("{\"a\": 1}"), encoding.utf8);
-				var copyformat, decformat;
+				var fnName = 'FS.saveFile';
 
-				copyformat = format === TEXT_ENCODING.utf16 ? '' : 'utf8';	// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
-				decformat  = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
+				// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
+				var copyformat = format === TEXT_ENCODING.utf16 ? '' : 'utf8';
+				var decformat  = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
-				var fh = doh.fsu.OpenFile(path, 'wa'); // wa: wa - create a new file, always. If the file already exists it will be overwritten. (This is the default.)
+				// wa: wa - create a new file, always. If the file already exists it will be overwritten. (This is the default.)
+				var fh = doh.fsu.OpenFile(path, 'wa');
 				if(fh.error !== 0) {
-					logger.error(path + ', error occurred while opening file: ' + fh.error); return false;
+					logger.serror('%s -- FSUtil.OpenFile() error: %s, file: %s', fnName, fh.error, path);
+					return false;
 				}
 				try {
-					logger.verbose('String to write to ' + path + ': ' + contents);
-					var blob = doh.dc.Blob;
-					blob.CopyFrom(contents, copyformat);	// seems to use implicitly utf-16, only available optional param is utf8
-					var res = doh.st.Decode(blob, decformat);
-					logger.verbose('blob -- type: ' + typeof blob + ', size: ' + blob.size + "\n" + res);
-					res = fh.Write(blob);
-					logger.verbose('Written bytes: ' + res);
-				} catch(e) { logger.error(path + ', fh.write: ' + e.description); return false; }
+					var blob = doh.dc.Blob; blob.CopyFrom(contents, copyformat); // seems to use implicitly utf-16, only available optional param is utf8
+					var decoded = doh.st.Decode(blob, decformat);                // TODO - Do I need this at all?
+					var numBytesWritten = fh.Write(blob);
+					logger.sverbose('%s -- String to write to %s: %s', fnName, path, contents);
+					logger.sverbose('%s -- blob -- type: %s, size: %d\n%s', fnName, typeof blob, blob.size, decoded);
+					logger.sverbose('%s -- Written bytes: %d', fnName, numBytesWritten);
+				} catch(e) { logger.serror('%s --  FSUtil.Write() error: %s, file: %s', fnName, e.description, path); }
 				blob.Free();
 				fh.Close();
-				return res;
+				return numBytesWritten || false;
 			},
 			/**
 			 * checks if given path is valid
@@ -2122,32 +2057,12 @@
 			return ''+oItem.realpath; // realpath returns a DOpus Path object and it does not work well with Map as an object, we need a simple string
 		}
 		/**
-		 * initializes a DOpus Map for DOpus.Vars cache
-		 * @returns nothing
-		 */
-		function initCacheIfNecessary() {
-			var fnName = 'ADS.initCacheIfNecessary';
-			if (!CACHE_ENABLED) {
-				logger.sverbose('%s -- Cache not enabled: %b', fnName, CACHE_ENABLED);
-				return;
-			}
-			if (doh.sv.Exists('cache')) {
-				logger.sverbose('%s -- Cache already initialized - Current count: %d', fnName, doh.sv.Get('cache').count);
-				return;
-			}
-			if (!doh.sv.Exists('cache') || !doh.sv.Get('cache') || typeof doh.sv.Get('cache') === 'undefined') {
-				clearCache();
-			}
-			logger.sforce('%s -- Cache initialized - Current count: %d', fnName, doh.sv.Get('cache').count);
-		};
-		/**
 		 * returns the hash stream name
 		 * WARNING: if you change this you will lose access to streams and they will become orphans
 		 * @param {string=} algorithm one of DOpus builtin algorithms: sha1, sha256, sha512, md5, etc.
 		 * @returns {string} the ADS stream name to use
 		 */
 		function getHashStreamName(algorithm) {
-			// TODO - REVIEW - might be converted to a config parameter?
 			if (typeof algorithm === 'undefined') algorithm = CURRENT_ALGORITHM;
 			return (STREAM_PREFIX + algorithm.toUpperCase());
 		}
@@ -2167,41 +2082,31 @@
 			},
 			/**
 			 * returns the stored ADS data as POJO
-			 *
 			 * uses cache if enabled and possible
 			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {CachedItem|false} POJO on success, false on error
+			 * @returns {CachedItem|false} CachedItem on success, false on error
 			 * @see FS.readFile()
-			 * @see initCacheIfNecessary()
 			 */
 			read: function (oItem) {
 				var fnName = 'ADS.read';
-				validateStreamNameAndItem(fnName, oItem);
-				var rp = ''+oItem.realpath; // realpath returns a DOpus Path object and it does not work well with Map as an object, we need a simple string
 
-				initCacheIfNecessary();
+				// initCacheIfNecessary();
+				var rp    = validateStreamNameAndItem(fnName, oItem),
+					cache = cacheMgr.getCacheAutoInit(),
+					res;
 
 				// check if cache is enabled and item is in cache
-				var res;
-				var cache = doh.sv.Get('cache');
-
 				if (CACHE_ENABLED && cache.exists(rp)) {
-					logger.verbose(oItem.name + ' found in cache');
+					logger.sverbose('%s found in cache', oItem.name);
 					res = cache(rp);
 				} else {
-					logger.verbose(oItem.name + ' reading from disk');
-
+					logger.sverbose('%s -- reading from disk: %s', fnName, oItem.name);
 					res = FS.readFile(rp + ':' + msn, FS.TEXT_ENCODING.utf8); // always string or false ion error
-					if (res === false) { return res; }
-					if (CACHE_ENABLED && typeof res === 'string' && !cache.exists(rp)) {
-						logger.verbose(oItem.name + ' was missing in cache, adding');
-						res = enrichWithCacheFields(res);
-						// @ts-ignore
-						doh.sv.Get('cache')(rp) = res;
-						// TODO - recheck, this should work somehow!
-						// doh.out('Putting: ' + res);
-						// doh.sv.Set(cache(rp), res);
-						// doh.out('After : ' + cache(rp));
+					if (!res || typeof res !== 'string') return false;
+					if (CACHE_ENABLED && !cache.exists(rp)) {
+						logger.sverbose('%s -- adding missing %s to cache', fnName, oItem.name);
+						res = cacheMgr.enrichWithCacheFields(res);
+						cacheMgr.setCacheVar(rp, res);
 					}
 				}
 				// convert to custom object
@@ -2210,65 +2115,56 @@
 			},
 			/**
 			 * saves given POJO as ADS data, calls SaveFile()
-			 *
 			 * populates/updates cache if enabled
 			 * @param {DOpusItem} oItem DOpus Item object
 			 * @param {CachedItem} oCachedItem
-			 * @returns {number|boolean} number of bytes written, false on error
+			 * @returns {number|false} number of bytes written on success, false on error
 			 * @see FS.saveFile()
-			 * @see initCacheIfNecessary()
 			 */
 			save: function (oItem, oCachedItem) {
 				var fnName = 'ADS.save';
-				validateStreamNameAndItem(fnName, oItem);
-				var rp = ''+oItem.realpath; // realpath returns a DOpus Path object, even if its 'default' is map(oItem.realpath) does not work well as key, we need a simple string
 
-				initCacheIfNecessary();
+				var rp          = validateStreamNameAndItem(fnName, oItem),
+					cache       = cacheMgr.getCacheAutoInit(),
+					targetPath  = rp + ':' + msn,
+					origModDate = DateToDOpusFormat(oItem.modify);
+				logger.sinfo('%s -- Saving %s to %s, with original modification date: %s', fnName, JSON.stringify(oCachedItem), targetPath, origModDate);
 
-				var orig_modify = DateToDOpusFormat(oItem.modify);
-
+				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
+				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath);
 				doh.cmd.ClearFiles();
 				doh.cmd.AddFile(oItem);
-
-				var res = FS.saveFile(rp + ':' + msn, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
-				logger.sinfo('%s -- Saving %s to %s', fnName, JSON.stringify(oCachedItem), rp+':'+msn);
-
-				logger.verbose(rp + ', resetting timestamp to: ' + orig_modify);
-				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + orig_modify + '"');
+				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + origModDate + '"');
 
 				// check if cache is enabled, add/update unconditionally
 				if (CACHE_ENABLED) {
-					// @ts-ignore
-					doh.sv.Get('cache')(rp) = enrichWithCacheFields(oCachedItem);
-					logger.verbose('SaveADS - Cache count: ' + doh.sv.Get('cache').count);
+					cacheMgr.setCacheVar(rp, cacheMgr.enrichWithCacheFields(oCachedItem));
+					logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCache().count);
 				}
-				return res;
+				return numBytesWritten;
 			},
 			/**
 			 * deletes ADS data, directly deletes "file:stream"
-			 *
 			 * removes item from cache if enabled
 			 * @param {DOpusItem} oItem DOpus Item object
 			 * @returns nothing
-			 * @see initCacheIfNecessary()
 			 */
 			remove: function (oItem) {
 				var fnName = 'ADS.delete';
-				validateStreamNameAndItem(fnName, oItem);
-				var rp = ''+oItem.realpath; // realpath returns a DOpus Path object, even if its 'default' is map(oItem.realpath) does not work well as key, we need a simple string
 
-				initCacheIfNecessary();
+				var rp          = validateStreamNameAndItem(fnName, oItem),
+					cache       = cacheMgr.getCacheAutoInit(),
+					targetPath  = oItem.realpath + ':' + msn,
+					origModDate = DateToDOpusFormat(oItem.modify);
 
-				var file_stream = oItem.realpath + ':' + msn;
-				var orig_modify = DateToDOpusFormat(oItem.modify);
-
+				logger.sverbose('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
 				doh.cmd.ClearFiles();
 				doh.cmd.AddFile(oItem);
-				doh.cmd.RunCommand('Delete /quiet /norecycle "' + file_stream + '"');
-				logger.verbose(oItem.realpath + ', resetting timestamp to: ' + orig_modify);
-				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + orig_modify + '"');
-				if (CACHE_ENABLED) {
-					doh.sv.Get('cache').erase(rp);
+				doh.cmd.RunCommand('Delete /quiet /norecycle "' + targetPath + '"');
+				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + origModDate + '"');
+
+				if (CACHE_ENABLED && cache.exists(rp)) {
+					cache.erase(rp);
 				}
 			}
 		}
@@ -2278,42 +2174,117 @@
 
 
 /*
-	 .d8888b.         d8888  .d8888b.  888    888 8888888888
-	d88P  Y88b       d88888 d88P  Y88b 888    888 888
-	888    888      d88P888 888    888 888    888 888
-	888            d88P 888 888        8888888888 8888888
-	888           d88P  888 888        888    888 888
-	888    888   d88P   888 888    888 888    888 888
-	Y88b  d88P  d8888888888 Y88b  d88P 888    888 888
-	 "Y8888P"  d88P     888  "Y8888P"  888    888 8888888888
+	 .d8888b.         d8888  .d8888b.  888    888 8888888888      .d8888b.         88888888888 888    888 8888888b.  8888888888        d8888 8888888b.      888b     d888  .d8888b.  8888888b.
+	d88P  Y88b       d88888 d88P  Y88b 888    888 888            d88P  "88b            888     888    888 888   Y88b 888              d88888 888  "Y88b     8888b   d8888 d88P  Y88b 888   Y88b
+	888    888      d88P888 888    888 888    888 888            Y88b. d88P            888     888    888 888    888 888             d88P888 888    888     88888b.d88888 888    888 888    888
+	888            d88P 888 888        8888888888 8888888         "Y8888P"             888     8888888888 888   d88P 8888888        d88P 888 888    888     888Y88888P888 888        888   d88P
+	888           d88P  888 888        888    888 888            .d88P88K.d88P         888     888    888 8888888P"  888           d88P  888 888    888     888 Y888P 888 888  88888 8888888P"
+	888    888   d88P   888 888    888 888    888 888            888"  Y888P"          888     888    888 888 T88b   888          d88P   888 888    888     888  Y8P  888 888    888 888 T88b
+	Y88b  d88P  d8888888888 Y88b  d88P 888    888 888            Y88b .d8888b          888     888    888 888  T88b  888         d8888888888 888  .d88P     888   "   888 Y88b  d88P 888  T88b
+	 "Y8888P"  d88P     888  "Y8888P"  888    888 8888888888      "Y8888P" Y88b        888     888    888 888   T88b 8888888888 d88P     888 8888888P"      888       888  "Y8888P88 888   T88b
 */
 {
+	var cacheMgr = (function(){
+		var myName = 'cacheMgr';
 
-	function clearCache() {
-		var fnName = funcNameExtractor(clearCache);
-		doh.sv.Set('cache', doh.dc.Map());
-		logger.sforce('%s -- Cache cleared', fnName);
-	}
-	/**
-	 * adds cache-only fields which are not and will not be stored in streams
-	 *
-	 * @param {object} oPOJO object to enrich with cache-only fields
-	 * @returns {string} enriched POJO with the fields added_to_cacheXXX as JSOnified string
-	 */
-	function enrichWithCacheFields(oPOJO) {
-		// add cache only parameters for tooltips, etc.
-		var res = oPOJO;
-		if (typeof oPOJO === 'string') {
-			res = JSON.parse(res);
+		return {
+			/**
+			 * initializes cache if necessary and returns it
+			 * @returns {object|false} cache object on success, false on error or if cache is disabled
+			 */
+			getCacheAutoInit: function() {
+				var fnName = 'ADS.initCacheIfNecessary';
+				if (!CACHE_ENABLED) {
+					logger.sverbose('%s -- Cache not enabled: %b', fnName, CACHE_ENABLED);
+					return false;
+				}
+				var cache = this.getCache();
+				if (cache) {
+					logger.sverbose('%s -- Cache already initialized - Current count: %d', fnName, cache.count);
+					return cache;
+				} else {
+					this.clearCache();
+					if (this.getCache().count !== 0) {
+						abortWithFatalError('This should have not happened');
+					}
+					return this.getCache();
+				}
+			},
+			/**
+			 * clears cache
+			 */
+			clearCache: function() {
+				var fnName = 'cache.clearCache()';
+				doh.sv.Set('cache', doh.dc.Map());
+				logger.sforce('%s -- Cache cleared', fnName);
+			},
+			/**
+			 * returns cache map
+			 * @returns {object|false} cache object on success, false on error
+			 */
+			getCache: function() {
+				return doh.sv.Exists('cache') ? doh.sv.Get('cache') : false;
+			},
+			/**
+			 * sets the value for the given map key
+			 * @param {any} key
+			 * @param {any} val
+			 */
+			setCacheVar: function(key, val) {
+				// @ts-ignore
+				doh.sv.Get('cache')(key) = val;
+			},
+			/**
+			 * returns the special thread pool map
+			 * @returns {object|false}
+			 */
+			getThreadPoolAutoInit: function() {
+				doh.sv.Set('TP', doh.dc.Map());
+				return doh.sv.Get('TP');
+			},
+			/**
+			 * returns a value from the special thread pool map
+			 * @param {any} threadID
+			 * @returns {object|false} object in thread pool on success, false on error
+			 */
+			getThreadPoolVar: function(threadID) {
+				// return doh.sv.Exists('TP') && doh.sv.Exists('TP')(threadID) ? doh.sv.Get('TP')(threadID) : false;
+				return doh.sv.Exists('TP') ? doh.sv.Get('TP')(threadID) : false;
+			},
+			/**
+			 * sets the value in the special thread pool map
+			 * @param {any} threadID
+			 * @param {any} val
+			 */
+			setThreadPoolVar: function(threadID, val) {
+				// @ts-ignore
+				doh.sv.Get('TP')(threadID) = val;
+			},
+			/**
+			 * adds cache-only fields which are not in and will not be stored in streams
+			 * @param {object|string} oPOJO object to enrich with cache-only fields
+			 * @returns {string} enriched POJO with the fields added_to_cacheXXX as JSOnified string
+			 */
+			enrichWithCacheFields: function(oPOJO) {
+				// add cache only parameters for tooltips, etc.
+				var res = oPOJO;
+				if (typeof oPOJO === 'string') {
+					res = JSON.parse(res);
+				}
+				res.added_to_cache          = new Date().getTime();
+				res.added_to_cache_friendly = res.added_to_cache.formatAsDateTimeCompact();
+				return JSON.stringify(res);
+			},
+			/**
+			 * removes cache-only fields
+			 * @param {object} oPOJO
+			 */
+			removeCacheFields: function(oPOJO) {
+				delete oPOJO.added_to_cache;
+				delete oPOJO.added_to_cache_friendly;
+			}
 		}
-		res.added_to_cache          = new Date().getTime();
-		res.added_to_cache_friendly = res.added_to_cache.formatAsDateTimeCompact();
-		return JSON.stringify(res);
-	}
-	function removeCacheFields(oPOJO) {
-		delete oPOJO.added_to_cache;
-		delete oPOJO.added_to_cache_friendly;
-	}
+	}());
 }
 
 
@@ -2364,14 +2335,12 @@
 		var fnName = 'calculateFileHashWithDOpus'
 		if (!doh.isValidDOItem(oItem)) { logger.serror('%s -- No file name received: ', fnName, oItem); return; }
 
-		var outObj = new Result();
 		logger.sverbose('\t\t%s -- Calculating %s hash, started @%s, file: %s', fnName, algo, now(), oItem);
-
 		try {
-			outObj = new Result(doh.fsu.Hash(oItem, algo), false, false);
+			var outObj = new Result(doh.fsu.Hash(oItem, algo), false, false);
 			logger.sinfo('\t\t%s -- Calculating %s hash, finished @%s, file: %s, result: %s', fnName, algo, now(), oItem, outObj['result']);
 		} catch (e) {
-			outObj = new Result(false, e.toString(), false);
+			var outObj = new Result(false, e.toString(), false);
 			logger.sforce('\t\t%s -- Error: %s, File: %s', fnName, e.toString(), oItem);
 		}
 		return outObj;
@@ -2469,22 +2438,32 @@
 	// valid actions for workers
 	var actions = (function (){
 		var myName = 'actions';
-		// function wrapResultAndError(result, error) {
-		// 	return { result: result, error: error };
-		// }
 		var PUBLIC = {
+			/**
+			 * @returns {Result}
+			 */
 			fnActionNull: function () {
 				// nothing
+				return new Result(true);
 			},
+			/**
+			 * @returns {Result}
+			 */
 			fn_NOT_IMPLEMENTED_YET: function () {
 				showMessageDialog(null, 'Not implemented yet', 'Placeholder');
+				return new Result(false, true, false);
 			},
+			/**
+			 * @returns {Result}
+			 */
 			fnActionCalculateOnly: function (oItem) {
 				var fnName = 'actions.fnActionCalculateOnly';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
-
 				return calculateHashProxy(oItem);
 			},
+			/**
+			 * @returns {Result}
+			 */
 			fnActionCalculateAndCompareToADS: function (oItem) {
 				var fnName = 'actions.fnActionCalculateAndCompareToADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
@@ -2500,21 +2479,25 @@
 				if (newHashResult.isOK() && newHashResult.ok === oldData.hash) {
 					return new Result('Stored hash is valid', false, false);
 				} else {
-					return new Result(false, 'Hashes differ! Stored: ' + oldData.hash + ', New: ' + newHashResult.ok);
+					return new Result(false, sprintf('Hashes differ! Stored: %s, New: %s', oldData.hash, newHashResult.ok), false);
 				}
 			},
+			/**
+			 * @returns {Result}
+			 */
 			fnActionCalculateAndSaveToADS: function (oItem) {
 				var fnName = 'actions.fnActionCalculateAndSaveToADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
 
 				var newHashResult = calculateHashProxy(oItem);
-
 				if (newHashResult.isOK()) {
-					// ADS.save(oItem, packageAsPOJO(oItem, newHashResult.ok));
 					ADS.save(oItem, new CachedItem(oItem, null, null, newHashResult.ok));
 				}
 				return newHashResult;
 			},
+			/**
+			 * @returns {Result}
+			 */
 			fnActionDeleteADS: function (oItem) {
 				var fnName = 'actions.fnActionDeleteADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
@@ -2697,7 +2680,6 @@
 {
 
 	function __PROGRESS_BAR__(){ 0 }
-	// TODO - convert these methods to its own object
 	function initializeProgressBar(cmdData) {
 		// INITIALIZE PROGRESS BAR
 		if (!USE_PROGRESS_BAR) return;
@@ -2720,7 +2702,6 @@
 		// progbar.AddFiles(selected_items_cnt, selected_bytes_cnt); // doesn't work
 		return progbar;
 	}
-	// TODO - review parameters list
 	function updateProgressBar(progbar, tsStart, filename, finished_bytes_so_far, selected_bytes_cnt, formattedMax, unitMax) {
 		var userAborted = false;
 
@@ -2883,7 +2864,7 @@
 	 * @param {number} decimal
 	 */
 	Number.prototype.formatAsSize = function (unit, decimal) {
-		if (this == 0) { // must be == (not ===) because this is a Number object!
+		if (this.valueOf() === 0) {
 			return '0 bytes';
 		}
 		if (typeof unit === 'undefined' || !unit.length) {
@@ -2996,16 +2977,23 @@
 		return Object.prototype.toString.call(obj) === '[object Object]';
 	};
 
-	Object.prototype.keys = function () {
-		// WARNING: be careful after activating this!
-		// for (var k in myObject) for ANY object will include this function by default
-		// if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
+	// Object.prototype.keys = function () {
+	// 	// WARNING: be careful after activating this!
+	// 	// for (var k in myObject) for ANY object will include this function by default
+	// 	// if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
+	// 	var out = [];
+	// 	for (var k in this) {
+	// 		if (this.hasOwnProperty(k)) out.push(k);
+	// 	}
+	// 	return out;
+	// };
+	function getObjKeys(obj) {
 		var out = [];
-		for (var k in this) {
-			if (this.hasOwnProperty(k)) out.push(k);
+		for (var k in obj) {
+			if (obj.hasOwnProperty(k)) out.push(k);
 		}
 		return out;
-	};
+	}
 	String.prototype.trim = function () {
 		return this.replace(/^\s+|\s+$/g, ''); // not even trim() JScript??
 	}
@@ -3560,19 +3548,43 @@
 	{
 		/**
 		 * Generic Result object
-		 * @param {any} oOKValue value on success
-		 * @param {any} oErrValue value on error
-		 * @param {any} oSkipValue value on skip (neither success, nor error, e.g. due to filtering)
+		 * @param {any=} oOKValue value on success
+		 * @param {any=} oFailValue value on error/failure
+		 * @param {any=} oSkipValue value on skip (neither success, nor error, e.g. due to filtering)
 		 */
-		function Result(oOKValue, oErrValue, oSkipValue) {
+		function Result(oOKValue, oFailValue, oSkipValue) {
 			this.ok        = oOKValue;
-			this.err       = oErrValue;
+			this.err       = oFailValue;
 			this.skip      = oSkipValue;
 		}
 		Result.prototype.isOK      = function () { return this.ok && !this.err && !this.skip }
 		Result.prototype.isErr     = function () { return this.err ? true : false }
 		Result.prototype.isSkipped = function () { return this.skip ? true : false }
 		Result.prototype.toString  = function () { return JSON.stringify(this, null, 4) }
+		/**
+		 * wrapper for Result
+		 * @param {any=} oOKValue
+		 * @returns {Result}
+		 */
+		function ResultSuccess(oOKValue) {
+			return new Result(oOKValue||true, false, false);
+		}
+		/**
+		 * wrapper for Result
+		 * @param {any=} oFailValue
+		 * @returns {Result}
+		 */
+		function ResultError(oFailValue) {
+			return new Result(false, oFailValue||true, false);
+		}
+		/**
+		 * wrapper for Result
+		 * @param {any=} oSkipValue
+		 * @returns {Result}
+		 */
+		function ResultSkipped(oSkipValue) {
+			return new Result(false, false, oSkipValue||true);
+		}
 	}
 
 
@@ -4010,8 +4022,8 @@
 					// convert DOpus Map to JS
 					var oResultFile = new MTActionResultFile(fileAttribs);
 					elapsedThread += oResultFile.elapsed;
-					if (!userAborted && !oResultFile.finished) ++unfinishedCnt;
-					if (oResultFile.timeout)                   ++timeoutsCnt;
+					if (!userAborted && !oResultFile.finished) unfinishedCnt++;
+					if (oResultFile.timeout)                   timeoutsCnt++;
 					if (oResultFile.error)                     filesWithErrors.push(fileFullpath);
 					this.items[fileFullpath] = oResultFile;
 
@@ -4512,6 +4524,30 @@
 	// TODO
 	{
 		/*
+			+ review startTS, stopTS... etc. and replace with stopwatch?
+			+ review ReadADS, SaveADS, DeleteADS outputs
+			+ IMPORT: if 1 file is selected, try to use it?
+			+ simplify applyFilterToSelectedItems()
+			+ fix largest/smallest/earliest/latest stats
+			  	SAME: Fix HashedItemsCollection.getEarliestItem, HashedItemsCollection.getLatestItem, HashedItemsCollection.getSmallestItem, HashedItemsCollection.getLargestItem
+			+ Migrate all of {results|false} stuff to Result object except File Access methods
+			+ turn cache access to a CacheMgr singleton
+			+ review ReadADS, SaveADS, DeleteADS outputs - 2nd pass
+
+			- EXPORT: implement on-the-fly calculation and direct export
+			- IMPORT: automatic path adjustment in fileExchangeHandler.convertForImportFromJSON(),
+			  	i.e. if full paths are stored in the file but the current does not match the rootpath stored in the JSON file
+			  	we migth use the full path and ignore the relative paths
+			  	ADVANTAGE: one can put the JSON file anywhere and import it
+			  	DISADVANTAGE: I'm not sure if it wouldn't be too confusing or error-prone?
+			- IMPORT: better format detection in fileExchangeHandler.prepareForImport()?
+			- review progress bar and switch to 'full' - 1 bar for files, 1 bar for bytes
+			- convert progress bar methods to its own object
+			- review logger levels for all outputs
+			- fix MAXWAIT for MANAGER again! - The wait is working but not the timeout counts in the summary
+			- review all @ts-ignore - especially DOpus map access stuff - convert cache to singleton if ncessary
+			- updateProgressBar() - review parameters list, it's too long
+
 
 			METHODS WHICH REQUIRE CUSTOM OBJECT REFACTORING:
 			+ knapsackItems()
@@ -4529,25 +4565,6 @@
 			+ fileExchangeHandler.prepareForImport()
 			+ fileExchangeHandler.convertForImportFromSHA1()
 			+ fileExchangeHandler.convertForImportFromJSON()
-
-
-
-			TODO:
-			+ review startTS, stopTS... etc. and replace with stopwatch?
-			+ review ReadADS, SaveADS, DeleteADS outputs
-			+ IMPORT: if 1 file is selected, try to use it?
-			+ simplify applyFilterToSelectedItems()
-			+ fix largest/smallest/earliest/latest stats
-			  SAME: Fix HashedItemsCollection.getEarliestItem, HashedItemsCollection.getLatestItem, HashedItemsCollection.getSmallestItem, HashedItemsCollection.getLargestItem
-
-			- EXPORT: implement on-the-fly calculation and direct export
-			- IMPORT: automatic path adjustment in fileExchangeHandler.convertForImportFromJSON()
-			- IMPORT: better format detection in fileExchangeHandler.prepareForImport()?
-			- review progress bar and switch to 'full' - 1 bar for files, 1 bar for bytes
-			- review logger levels for all output
-			- fix MAXWAIT for MANAGER again! - The wait is working but not the timeout counts in the summary
-			- Migrate all of {results|false} stuff to Result
-
 		*/
 	}
 	// FORMATS used by ExactFile (https://www.exactfile.com/)

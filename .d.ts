@@ -38,14 +38,14 @@ interface Number {
 	formatAsDateDOpus(): string;
 }
 
-interface Object {
-    /**
-     * WARNING: be careful after activating this!
-     * for (var k in myObject) for ANY object will include this function by default
-     * if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
-     */
-    keys(): Array<string>;
-}
+// interface Object {
+//     /**
+//      * WARNING: be careful after activating this!
+//      * for (var k in myObject) for ANY object will include this function by default
+//      * if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
+//      */
+//     keys(): Array<string>;
+// }
 
 interface String {
     /**
