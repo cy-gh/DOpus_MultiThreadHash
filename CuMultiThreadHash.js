@@ -1,4 +1,6 @@
-﻿/*
+﻿///<reference path="./CuMultiThreadHash.d.ts" />
+
+/*
 	 .d8888b.  888       .d88888b.  888888b.          d8888 888
 	d88P  Y88b 888      d88P" "Y88b 888  "88b        d88888 888
 	888    888 888      888     888 888  .88P       d88P888 888
@@ -148,7 +150,7 @@
 		Global.SCRIPT_NAME_SHORT  = 'MTH'; // WARNING: if you change this after initial use you have to rename all methods!
 		Global.SCRIPT_VERSION     = '0.9';
 		Global.SCRIPT_COPYRIGHT   = '© 2021 cuneytyilmaz.com';
-		Global.SCRIPT_URL         = 'https://github.com/cy-gh/DOpus_CuMultiThreadHash/';
+		Global.SCRIPT_URL         = 'https://github.com/cy-gh/DOpus_MultiThreadHash/';
 		Global.SCRIPT_DESC        = 'Multi-Threaded hashing of selected files ';
 		Global.SCRIPT_MIN_VERSION = '12.0';
 		Global.SCRIPT_DATE        = '20210115';
@@ -214,6 +216,7 @@
 		var WORKER_COMMAND = 'MTHWorker';
 
 		// collection names for find commands & files which reported an error
+		var COLLECTION_FOR_VALID         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
 		var COLLECTION_FOR_DIRTY         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
 		var COLLECTION_FOR_MISSING       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
 		var COLLECTION_FOR_ERRORS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
@@ -243,8 +246,10 @@
 		var IMPORT_USE_SELECTED_FILE_AS_SOURCE = true;
 
 		// try to determine disk type where selected files reside, i.e. HDD or SSD
-		var AUTO_DETECT_DISK_TYPE = true;
+		// if you are using no HDDs at all, e.g. on a laptop, no external disks, etc. there is no need to activate this
+		var AUTO_DETECT_DISK_TYPE = false;
 		// reduce the number of threads automatically when using an HDD
+		// used only if the above is active
 		var REDUCE_THREADS_ON_HDD_TO = 1;
 
 		// self-explanatory
@@ -1140,7 +1145,7 @@
 		// benchmarking, runaway stoppers for while loops, progress bar abort
 		var tsStart     = now(),
 			itercnt     = 0,
-			itermax     = Math.round(2 * command.maxwait / (sleepdur||1)),
+			itermax     = Math.round(1.01 * command.maxwait / (sleepdur||1)),
 			userAborted = false;
 
 
@@ -1205,28 +1210,30 @@
 		// DISK TYPE DETECTION
 		{
 			if (AUTO_DETECT_DISK_TYPE) {
+				logger.snormal(stopwatch.startAndPrint(fnName, 'Drive Type Deteection'));
 				for (var driveLetter in selectedFiltered.driveLetters) {
 					if (!selectedFiltered.driveLetters.hasOwnProperty(driveLetter)) continue; // skip prototype functions, etc.
 					var tempPSOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
 					var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
-					logger.sforce('%s -- cmd: %s', fnName, cmd);
+					logger.sverbose('%s -- Running: %s', fnName, cmd);
 					util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
 					var sContents = FS.readFile(tempPSOutFile, FS.TEXT_ENCODING.utf16);
 					doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempPSOutFile + '"');
 					if (!sContents) {
 						logger.snormal('%s -- Could not determine disk type of %s, assuming SSD', fnName, driveLetter);
 					} else {
+						// @ts-ignore - sContents is string! wth are you talking about tsc?
 						var driveType = sContents.replace(/.+\{MediaType=([^}]+)\}.+/mg, '$1').trim();
-						logger.snormal('%s -- Detemined disk type for %s: %s', fnName, driveLetter, driveType);
+						logger.sverbose('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
 						if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
 							var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
 							var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
-							doh.out('result: ' + result);
 							if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
 						}
 					}
 				}
-				logger.sforce('%s -- Number of threads to use: %d', fnName, command.maxcount);
+				logger.snormal(stopwatch.stopAndPrint(fnName, 'Drive Type Deteection'));
+				logger.snormal('%s -- Number of threads to use: %d', fnName, command.maxcount);
 			}
 		}
 
@@ -1248,6 +1255,8 @@
 		// INITIALIZE THREAD POOL
 		{
 			var tp = cacheMgr.getThreadPoolAutoInit();
+			setPauseStatus(false);
+			setAbortStatus(false);
 		}
 
 
@@ -1298,6 +1307,7 @@
 
 		// ALL THREADS STARTED - NOW MONITOR THEM
 		{
+			var timedoutOverall = false;
 			logger.sforce('');
 			logger.sforce('');
 			logger.sforce('');
@@ -1330,14 +1340,18 @@
 							// file already finalized
 							continue;
 						} else {
-							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
-							ksItemAttrib('finalized') = true;
-
 							// EXTREMELY IMPORTANT
 							// find this item in the knapsack items collection and mark it as finished
 							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsackCollection
 							// and that's how selectedKnapsacked.allFinished() above works!
-							ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
+							// ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
+							ks.itemsColl.getByPath(ksItemPath).markFinished();
+
+							logger.sverbose('%s -- %-100s -- AllFinished: %s, KS Finished: %s, KS: %s', fnName, ksItemAttrib('filename'), selectedKnapsacked.allFinished(), ks.isFinished(), kskey);
+
+
+							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
+							ksItemAttrib('finalized') = true;
 
 							// UPDATE THE PROGRESS BAR not for each file
 							finished_bytes_so_far += ksItemAttrib('filesize');
@@ -1347,8 +1361,22 @@
 					}
 				}
 			}
-
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
+			// if (itercnt >= itermax && !selectedKnapsacked.allFinished()) {
+			if (!selectedKnapsacked.allFinished() && (itercnt >= itermax || now() - ts >= command.maxwait)) {
+				timedoutOverall = true;
+				logger.sforce('');
+				logger.sforce('%s -- Max Wait Reached! (itercnt/itermax: %d/%d, maxwait/elapsed: %d/%d)', fnName, itercnt, itermax, command.maxwait, now() - ts);
+			}
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
 			logger.force(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
+
+
 		}
 
 
@@ -1371,44 +1399,66 @@
 		// results ready, all threads finished/timed out
 		// put everything neatly into an object
 		// var actionResults = buildActionResultsObject(fnName, selectedKnapsacked, tp, userAborted, tsStart, tsFinish, selectedItemsCount, selectedItemsSize);
-		var actionResults = new MTActionResults(fnName, selectedKnapsacked, tp, userAborted, tsStart, tsFinish, selectedItemsCount, selectedItemsSize);
+		var actionResults = new MTActionResults(fnName, selectedKnapsacked, tp, userAborted, timedoutOverall, tsStart, tsFinish, selectedItemsCount, selectedItemsSize);
 		if (actionResults.errors.length) {
 			addFilesToCollection(actionResults.errors, COLLECTION_FOR_ERRORS);
 		}
 
 
+		// SUCCESS & ERROR COLLECTIONS
+		{
+			logger.sforce('%s -- actionResults.items: %s', fnName, getObjKeys(actionResults.items).length);
 
-		doh.clear();
-		logger.sforce('%s -- command.fileName: %s', fnName, command.fileName);
-		if (command.fileName || command.fileFormat) {
-			// copy the MTActionResults object to a new HashedItemCollection and save
-			// these 2 objects are normally not directly compatible
-			// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
-			// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
-			var oHashedItemsColl = new HashedItemsCollection(),
-				currentPath      = doh.getCurrentPath(cmdData),
-				oFinishedKS      = selectedKnapsacked.finishedKS;
-			knapsacks: for (var kskey in oFinishedKS) {
-				if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-				var ksMap = tp(oFinishedKS[kskey].id);
-				// each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
-				files: for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
-					var fileFullpath = eKS.item(),
-						fileAttribs  = ksMap(fileFullpath),
-						oItem        = doh.getItem(fileFullpath);
-					// oHashedItemsColl.addItem(new HashedItem(oItem, (''+oItem.realpath).replace(currentPath, '').replace(oItem.name, ''), false, false, fileAttribs('result'), CURRENT_ALGORITHM));
-					// logger.sforce('%s -- getRelativePathOfFile: %', fnName, getRelativePathOfFile(oItem));
-					// getRelativePath(oItem, currentPath);
-					var relativeToCurrentPathInclName = (''+oItem.realpath).replace(currentPath, '');
-					var relativePathOnly = relativeToCurrentPathInclName.slice(0, relativeToCurrentPathInclName.lastIndexOf(''+oItem.name));
-					oHashedItemsColl.addItem(new HashedItem(oItem, relativePathOnly, false, false, fileAttribs('result'), CURRENT_ALGORITHM));
+			if (COLLECTION_FOR_VALID || COLLECTION_FOR_ERRORS) {
+				var aValid = [], aError = [];
+				for (var f in actionResults.items) {
+					if (!actionResults.items.hasOwnProperty(f)) continue;
+					/** @type {MTActionResultFile} */
+					var el = actionResults.items[f];
+					if (el.result) {
+						aValid.push(el.filepath);
+					} else if (el.error) {
+						aError.push(el.filepath);
+					}
 				}
-			}
-			var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, new CommandResults(oHashedItemsColl, currentPath, CURRENT_ALGORITHM), false);
-			if (!saveResult.isOK()) {
-				showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + saveResult.err, 'Save Error');
+				if (COLLECTION_FOR_VALID && aValid.length)  addFilesToCollection(aValid, COLLECTION_FOR_VALID);
+				if (COLLECTION_FOR_ERRORS && aError.length) addFilesToCollection(aError, COLLECTION_FOR_ERRORS);
 			}
 		}
+
+
+		// doh.clear();
+		// ON-THE-FLY EXPORT AND ALIKE
+		{
+			if (command.fileName || command.fileFormat) {
+				// copy the MTActionResults object to a new HashedItemCollection and save
+				// these 2 objects are normally not directly compatible
+				// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
+				// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
+				var oHashedItemsColl = new HashedItemsCollection(),
+					currentPath      = doh.getCurrentPath(cmdData),
+					oFinishedKS      = selectedKnapsacked.finishedKS;
+				for (var kskey in oFinishedKS) {
+					if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
+					var ksMap = tp(oFinishedKS[kskey].id);
+					// each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
+					for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
+						var fileFullpath = eKS.item(),
+							fileAttribs  = ksMap(fileFullpath),
+							oItem        = doh.getItem(fileFullpath);
+						var relativePathAndFileName = (''+oItem.realpath).replace(currentPath, ''),
+							relativePathOnly        = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oItem.name));
+						oHashedItemsColl.addItem(new HashedItem(oItem, relativePathOnly, false, false, fileAttribs('result'), CURRENT_ALGORITHM));
+					}
+				}
+				var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, new CommandResults(oHashedItemsColl, currentPath, CURRENT_ALGORITHM), false);
+				if (!saveResult.isOK()) {
+					showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + saveResult.err, 'Save Error');
+				}
+			}
+		}
+
+
 
 
 
@@ -1493,6 +1543,7 @@
 		var summaryText = sprintf(
 			'\n====  %s SUMMARY  ====\n%s\nStart: %s\nFinish: %s\n'
 			+ '%s' // show aborted only if necessary
+			+ '%s' // show user timeout only if necessary
 			+ 'Timeouts: %d\nUnfinished: %d\nErrors: %d\n'
 			+ 'Max Elapsed/Thread: %d ms (%s s)\nMax Elapsed/File: %d ms (%s s)\n'
 			+ 'Max Elapsed for File Name: %s\nMax Elapsed for File Size: %d (%s)\n'
@@ -1501,7 +1552,8 @@
 			(actionResultsObject.summary.errors ? '\nSOME ERRORS OCCURRED\n' : ''),
 			actionResultsObject.summary.tsstart.formatAsHms(),
 			actionResultsObject.summary.tsfinish.formatAsHms(),
-			actionResultsObject.summary.aborted ? 'Aborted: Yes\n' : '',
+			actionResultsObject.summary.aborted ? '\nUSER ABORTED!\n\n' : '',
+			actionResultsObject.summary.usertimeout ? '\nMAX WAIT REACHED!\n\n' : '',
 			actionResultsObject.summary.timeouts,
 			actionResultsObject.summary.unfinished,
 			actionResultsObject.summary.errors,
@@ -1600,20 +1652,25 @@
 
 		// variable to query if user has aborted via progress bar or not
 		var aborted = false;
+		var filesCount = 0;
 
-		filesloop: for (var filesCount = 0, e = new Enumerator(ksMap); !e.atEnd(); filesCount++, e.moveNext()) {
+		filesloop: for (var e = new Enumerator(ksMap); !aborted && !e.atEnd(); e.moveNext()) {
 			var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
 				ksItemAttrib = ksMap(ksItemPath); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result, externalAlgo, externalHash
 			logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
 
 			// if the manager sets the pause or abort status, honor it
-			while(getPauseStatus() === true) {
-				// already started hashing jobs won't be affected, obviously
-				doh.delay(500); // doesn't need to be too short, pause is pause
-			}
-			if (getAbortStatus() === true) {
-				aborted = true;
-				break filesloop;
+			while(getPausedOrAborted() === true) {
+				while(getPauseStatus() === true) {
+					// already started hashing jobs won't be affected, obviously
+					doh.delay(500); // doesn't need to be too short, pause is pause
+					doh.out('Waiting...');
+				}
+				if (getAbortStatus() === true) {
+					logger.sforce('%s -- Aborting...', fnName);
+					aborted = true;
+					break filesloop;
+				}
 			}
 
 			// call the hash calculator
@@ -1623,6 +1680,7 @@
 			/** @type {Result} */
 			var newHashResult = fnActionFunc.call(fnActionFunc, oItem, ksItemAttrib('externalHash'), ksItemAttrib('externalAlgo'));
 			var elapsed = stopwatch.stop(fnName + ksItemPath);
+			logger.sverbose('%s       -- %-100s', fnName, ksItemAttrib('filename'));
 
 			// put the results back to map, and the map back to TP
 			// @ts-ignore
@@ -1636,6 +1694,8 @@
 			// @ts-ignore
 			ksMap(ksItemPath) = ksItemAttrib;
 			cacheMgr.setThreadPoolVar(param.threadID, ksMap);
+
+			filesCount++;
 		}
 		logger.normal(stopwatch.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, items: %s, aborted: %b', param.threadID, filesCount, aborted)));
 	}
@@ -2858,13 +2918,16 @@
 
 		switch (progbar.GetAbortState()) {
 			case 'a':
+				setAbortStatus(true);
 				userAborted = true;
 				break;
 			case 'p':
 				while (progbar.GetAbortState() !== '') {
 					setPauseStatus(true);
-					if (sleepdur) doh.delay(sleepdur);
+					// if (sleepdur) doh.delay(sleepdur);
+					doh.delay(500);
 					if (progbar.GetAbortState() === 'a') {
+						setAbortStatus(true);
 						userAborted = true;
 						break;
 					}
@@ -2900,17 +2963,32 @@
 		// doh.delay(10);
 		progbar.Hide();
 	}
+	function getPausedOrAborted() {
+		return (
+			(doh.sv.Exists('paused') && doh.sv.Get('paused'))
+			||
+			(doh.sv.Exists('aborted') && doh.sv.Get('aborted'))
+		);
+	}
 	function setPauseStatus(status) {
 		// true: paused, false: unpaused/unknown
+// TODO REMOVE
+// logger.sforce('%s -- Setting pause status to: %s', 'setPauseStatus()', status);
 		doh.sv.Set('paused', !!status);
 	}
 	function getPauseStatus() {
 		return doh.sv.Exists('paused') ? doh.sv.Get('paused') : false;
 	}
 	function setAbortStatus(status) {
+// TODO REMOVE
+// logger.sforce('%s -- Setting abort status to: %s, (real: %s)', 'setAbortStatus()', status, !!status);
 		doh.sv.Set('aborted', !!status);
 	}
 	function getAbortStatus() {
+// TODO REMOVE
+// var exists = doh.sv.Exists('aborted');
+// var val = doh.sv.Get('aborted');
+// logger.sforce('%s -- exists: %b, val: %s', 'getAbortStatus()', exists, val);
 		return doh.sv.Exists('aborted') ? doh.sv.Get('aborted') : false;
 	}
 }
@@ -4143,7 +4221,7 @@
 		 * @param {number} selectedItemsSize selected items size
 		 * @constructor
 		 */
-		function MTActionResults(fnCallerName, selectedKnapsacked, tp, userAborted, tsStart, tsFinish, selectedItemsCount, selectedItemsSize) {
+		function MTActionResults(fnCallerName, selectedKnapsacked, tp, userAborted, timedoutOverall, tsStart, tsFinish, selectedItemsCount, selectedItemsSize) {
 			var fnName = funcNameExtractor(MTActionResults);
 
 			logger.normal(stopwatch.startAndPrint(fnName, 'Output preparation'));
@@ -4204,6 +4282,7 @@
 				tsstart         : tsStart,
 				tsfinish        : tsFinish,
 				aborted         : userAborted,
+				usertimeout     : timedoutOverall,
 				totalelapsed    : tsFinish - tsStart,
 				maxelapsedfile  : maxElapsedFile,
 				maxelapsedthread: maxElapsedThread,
