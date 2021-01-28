@@ -1,4 +1,7 @@
-﻿///<reference path="./CuMultiThreadHash.d.ts" />
+﻿// RECOMMENDED for VSCode/VSCodium: activate 'JS/TS › Implicit Project Config: Check JS' in user settings
+///<reference path="./CuMultiThreadHash.d.ts" />
+// @ts-check
+
 
 /*
 	 .d8888b.  888       .d88888b.  888888b.          d8888 888
@@ -13,138 +16,7 @@
 {
 	{
 		// the gigantic ASCII figlets are just for VSCode minimap :) - by https://textart.io/figlet
-
-		/**
-		 *
-		 * Why ADS? Why not classical checksum files?
-		 *
-		 * When you create hash checksum files of large folders with typical programs
-		 * these files contain all the files, just as you requested, and their hashes.
-		 * These files act as a snapshot.
-		 *
-		 * If you are not planning to make any changes in this folder, everything's fine,
-		 * you can use the checksum file over and over.
-		 * You can still use this script, as it includes full support for external checksum files and more, too.
-		 *
-		 * However, if or when you add or remove files from these folders, these files slowly
-		 * become obsolete and deviate from the checksum you have created.
-		 * If you use the old checksum file over and over, you will get increasing number of errors.
-		 * If you create a new checksum file after each change in the folder,
-		 * you will lose track of which files might have been corrupted.
-		 *
-		 * If you use ADS, however, you can attach the hash checksum to each file; the overhead is incredibly small.
-		 * Now you can quickly identify changed files and still validate the rest, unchanged files,
-		 * since each hash is directly attached to the file, instead of in static snapshots.
-		 * And you can select and verify any number of files, you do not need a checksum file containing each of these files.
-		 *
-		 * Another benefit is, the file's last modification timestamp & last known size is stored in ADS.
-		 * This helps to quickly identify changed files, since you have last updated the ADS hashes
-		 * WITHOUT re-checking every single file, simply activate one of 'Dirty' or 'Dirty Verbose' columns and you will see.
-		 * If the file size or date changes, it is almost impossible that the hash will not change,
-		 * so these files can be quickly identified in isolation, incl. what is changed: date, size or both.
-		 * If you export ADS hashes, the script will warn you automatically that some files have no or outdates hashes.
-		 * It also means, if somebody maliciously changes a file keeping its size and modification date exactly as before,
-		 * it will not be identified as Dirty, but this flag is just a helper and you can always validate the files.
-		 *
-		 * You can also import existing .shaXXX, .md5 or this script's own .json format checksum files
-		 * into ADS and remove the dependency to external files. The imported checksums will not be verified during import,
-		 * but the script will ask you to verify all files which could be matched from the imported file.
-		 *
-		 * Yet another benefit is, apart from the extraordinarily fast multi-threading (fast af, if I may say so; second to CHK),
-		 * if you are often synchronizing large amounts of files between computers,
-		 * you can easily export the existing ADS data without re-calculation, and easily verify on the other computer,
-		 * with this script or any other typical checksum programs, .md5 and .sha1 formats are fully supported.
-		 *
-		 * Although currently only 1 single algorithm at a time is supported in the script (I see no benefit in using multiple),
-		 * the ADS streams for multiple streams are completely independent of each other,
-		 * i.e. SHA1 hashes are stored in a different stream than SHA256, MD5, etc. hashes.
-		 * Use whichever algorithm suits your needs best.
-		 *
-		 * Once you get used to the integration of extremely fast hashing and an excellent file manager,
-		 * you will not miss classical hashing programs ;)
-		 *
-		 *
-		 * NOTES:
-		 * - Generated files are UTF8 without BOM by default
-		 *   If you use DOpus text viewer plugin, activate 'Assume UTF-8 without BOM' in its settings to view non-ASCII chars correctly
-		 * - Activating the DOpus option 'File Operations -> Copy Attributes -> Copy all NTFS data streams' is highly recommended.
-		 * - If you are using WinRAR you can activate 'Advanced -> Save file streams' in archiving dialog
-		 *   and save it in your default profile as well. This will carry ADS hashes around.
-		 *   Unfortunately 7-Zip or DOpus created archives do NOT support this.
-		 *
-		 * - DO NOT USE EXACTFILE! EVER!
-		 *
-		 *   To my HORROR I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only)
-		 *   it does only sporadically, which makes the situation even worse imo.
-		 *   When ExactFile hashes completely identical files in multi-threading
-		 *   the generated checksum file states: this 1 file has a different hash than the others,
-		 *   and when you repeat the hashing it shows the computes the correct hash again.
-		 *   Completely unreliable!
-		 *
-		 *
-		 *
-		 * ADS OVERHEAD:
-		 * For SHA1 hashes the amount of data is typically around 150-160 bytes.
-		 * This information is NOT allocated in a separate cluster than the main file's own,
-		 * i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192.
-		 *
-		 *
-		 *
-		 *
-		 * DESIGN PRINCIPLES OF THIS SCRIPT
-		 *
-		 * - Wherever relevant, file size is preferred over file count
-		 * - Original files are never ever touched, not even by mistake, only its ADS streams
-		 * - Tries to replace existing hashing programs, by integrating the functionality into a full-fledged file manager
-		 *   but it can easily be extended with external apps to utilize non-DOpus hashing algorithms, too
-		 * - Speed! Speed! Speed! Tries to maximize of CPU usage if possible, not to let it sit idly
-		 * - Prefers NTFS ADS over external filelists with hashes, because such files become easily outdated
-		 *   but external checksum files are fully supported as well, without using any ADS at all if you like
-		 *
-		 *
-		 * When you look at the code, you will see some non-typical, i.e. not state-of-the-art JavaScript.
-		 * This has 2 reasons:
-		 * 1. I'm an ok but not the most seasoned JS programmer
-		 * 2. This not ES5 or newer, but JScript!
-		 * 3. This is not a browser environment and due to only available method to us for multi-threading,
-		 *    i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
-		 *    DOpus variables only.
-		 *
-		 *
-		 * PLANNED FEATURES
-		 *
-		 * all info is stored in/checked against ADS
-		 * each algorithm will use its own separate stream to simplify implementation and usage
-		 *
-		 * - Checkmark / Verify hashes: calculate anew and check against ADS value if exists
-		 * - Sync / smart update: update ADS if files are changed (date or size), skip if not
-		 * - Pending / find dirty: check ADS modified date & size against current file modified date & size
-		 * - Looking Glass / find missing: call hash exists for all selected files
-		 *
-		 * Very clear:
-		 *
-		 * - NO ICON! - Query / hash exists: (Internal method/Column) simply check if ADS for selected hash for selected file exists
-		 * - NO ICON! - Dirty / ADS differs: (Internal method/Column) check ADS modified date & size against current file modified date & size
-		 *
-		 * - Attach / create hashes: hard-update ADS, ignore any existing ADS
-		 * - Trash / delete hashes: delete all existing ADS
-		 * - Clipboard / copy hashes: copy existing hashes of selected files into clipboard; option to check if dirty/updated files exist
-		 * - Export/Download / create hash file: create output file from existing hashes of selected files; option to check if dirty/updated files exist
-		 * - Import/Upload / import hash file: select an external file and write directly to ADS of corresponding files
-		 * - Text Snippet / use external file: use hashes in external file and compare existing ADS if not dirty, or calculate new if dirty
-		 *
-		 *
-		 * how to enumerate NTFS streams?
-		 *
-		 * from https://microsoft.public.scripting.vbscript.narkive.com/xGdxzTQu/using-user32-dll-function-from-vbscript-wsh
-		 * DO NOT RUN THIS!!!!!!
-		 * 		WshShell.Run "%windir%\System32\RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters", 1, False
-		 */
-
-
-
 		function __GLOBAL__(){ 0 }
-
 		var Global = {};
 		Global.SCRIPT_NAME        = 'CuMultiThreadHash'; // WARNING: if you change this after initial use you have to reconfigure your columns, infotips, rename scripts...
 		Global.SCRIPT_NAME_SHORT  = 'MTH'; // WARNING: if you change this after initial use you have to rename all methods!
@@ -158,11 +30,9 @@
 		Global.SCRIPT_PREFIX      = Global.SCRIPT_NAME_SHORT; // prefix for field checks, log outputs, progress windows, etc. - do not touch
 		Global.SCRIPT_LICENSE     = 'Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)';
 
-
 		var util = {};
 		util.shell   = new ActiveXObject('WScript.shell');
 		util.dopusrt = 'dopusrt /acmd';
-
 
 		var sleepdur = 1; // in millisecs, used as wait between checking available # of threads & still running threads checks
 
@@ -171,44 +41,26 @@
 		// TRUE is highly recommended
 		var CACHE_ENABLED = true;
 
-		// currently there will be only 1 algorithm: SHA1.
-		// DOpus' internal "sha256" & "sha512" seem to have a bug and both calculate wrong results
-		// that leaves: "md5", "sha1", "crc32", "crc32_php", and "crc32_php_rev"
-		// and I decided to go with SHA1 as a compromise  *temporarily*  because it's reasonably fast & secure
-		// between fast and insecure MD5 and slow and secure SHA256/SHA512 (currently insecure for files >=512 MB in DOpus' case!)
-		// https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6
-		//
-		// before you start "but SHA1 is broken..."
-		// No, it is not broken, at least not for any practical purpose or for purposes of this script
-		// yes, SHA1 is known to have collisions but that requires malicious & very time-consuming preparation of tampered data
-		// which is never ever the case for files on your disk and even 1 bit corruption in a file will result in a different hash
-		// even if you use MD5!
-		// the goal here is to quickly verify file integrity of your own files
-		// not build military grade infrastructure or use these algorithms for web site security, etc.
-		// if you are concerned that the files under your control might be tampered with by external agents
-		// and could have the same hash checksum as previously, then this script is not what you're looking for
-		// but as soon as DOpus fixes the bug mentioned above, you can anyway switch to SHA-256/512 if you like
-		//
-		// you can read more about it here:
-		// https://security.stackexchange.com/a/87377
+		// var DEFAULT_ALGORITHM = 'blake3';
 		var DEFAULT_ALGORITHM = 'sha1';
 		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM; // TODO - might be converted to a config parameter or command parameter
 
-		// false usually increases the speed up to 25% for mixed groups of files
+		// hashing bigger files first usually increases the speed up to 25% for mixed groups of files
 		// but makes little difference if file sizes are close to each other (usually few big files)
-		var PROCESS_BIGGEST_FILES_FIRST = false;
-
-		// makes very little, < 3%, difference to overall performance
-		var USE_PROGRESS_BAR = true;
+		var PROCESS_LARGEST_FILES_FIRST  = true;
+		var PROCESS_SMALLEST_FILES_FIRST = false; // guaranteed to be slowe, only added because it was easy :)
 
 		// avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack because of other overly large files
 		var AVOID_OVERFILLED_KNAPSACKS = true;
+
+		// makes very little, < 3%, difference to overall performance
+		var USE_PROGRESS_BAR = true;
 
 		// %NUMBER_OF_PROCESSORS% gives the logical number of processors, i.e. hyperthreaded ones
 		// for physical core count use:
 		// > WMIC CPU Get DeviceID,NumberOfCores,NumberOfLogicalProcessors
 		// DeviceID  NumberOfCores  NumberOfLogicalProcessors
-		// CPU0      12             24
+		// CPU0          12                  24
 		var MAX_AVAILABLE_CORE_COUNT = util.shell.ExpandEnvironmentStrings("%NUMBER_OF_PROCESSORS%");
 
 		// this must be NOT the function name but the COMMAND name!
@@ -216,6 +68,7 @@
 		var WORKER_COMMAND = 'MTHWorker';
 
 		// collection names for find commands & files which reported an error
+		var COLLECTIONS_ENABLED          = false;
 		var COLLECTION_FOR_VALID         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
 		var COLLECTION_FOR_DIRTY         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
 		var COLLECTION_FOR_MISSING       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
@@ -297,6 +150,7 @@
 
 	// internal method called by OnInit() directly or indirectly
 	function _getColumnLabelFor(name) {
+		return '#' + name;
 		return Global.SCRIPT_NAME_SHORT + ' ' + name;
 	}
 	// internal method called by OnInit() directly or indirectly
@@ -368,10 +222,11 @@
 			onDOpusCmdMTHManagerStart,
 			initData,
 			// 'MAXCOUNT/N,MAXWAIT/N,RECURSE/S,COMMAND/K',
-			'MAXCOUNT/N,MAXWAIT/N,RECURSE/S,' +
-			'CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S,' +
-			'FIND_DIRTY/S,FIND_MISSING/S,' +
-			'VERIFY_FROM/S,FILE/O,FORMAT/O'
+			'MAXCOUNT/N,MAXWAIT/N,RECURSE/S'
+			+ ',CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S'
+			+ ',FIND_DIRTY/S,FIND_MISSING/S'
+			+ ',VERIFY_FROM/S,FILE/O,FORMAT/O'
+			+ ',BENCHMARK/S,BENCHMARK_SIZE/O,BENCHMARK_COUNT/O'
 			,
 			'Add',
 			'MTH Manager',
@@ -450,14 +305,14 @@
 		_addColumn('NeedsUpdate',
 			onDOpusColMultiCol,
 			initData,
-			'Dirty',
-			'left', false, true, true);
+			'Dirty (Simple)',
+			'right', false, true, true);
 
 		_addColumn('NeedsUpdateVerbose',
 			onDOpusColMultiCol,
 			initData,
-			'Dirty (Verbose)',
-			'left', false, true, true);
+			'Dirty',
+			'right', false, true, true);
 
 		_addColumn('ADSDataFormatted',
 			onDOpusColMultiCol,
@@ -553,6 +408,8 @@
 {
 	var fileExchangeHandler = (function (){
 		var myName = 'fileExchangeHandler';
+		// TODO refactor this!
+		/** @enum {Array} */
 		var VALID_FORMATS_AND_EXTS = {
 			MD5     : ['MD5',  '.md5'],
 			SHA1    : ['SHA1', '.sha1'],
@@ -1043,7 +900,8 @@
 {
 	function onDOpusColHasStream(scriptColData){
 		var item = scriptColData.item;
-		if (!doh.isFile(item)) return;
+		if (!doh.isValidDOItem(item) || !doh.isFile(item) || !FS.isValidPath(item.realpath)) return;
+		// logger.sforce('%s -- item.name: %s - exists: %b', 'onDOpusColHasStream', item.name, FS.isValidPath(item.realpath));
 		var res = ADS.hasHashStream(item);
 		scriptColData.value = res ? 'Yes' : 'No';
 		scriptColData.group = 'Has Metadata: ' + scriptColData.value;
@@ -1074,7 +932,7 @@
 					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
 						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
 
-					outstr = differentModifDate || differentSize ? 1 : 0;
+					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
 					scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
 					scriptColData.columns(key).value = outstr;
 					break;
@@ -1082,7 +940,7 @@
 				case _getColumnNameFor('NeedsUpdateVerbose'):
 					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
 						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
-					outstr = differentModifDate || differentSize ? '1' : '0';
+					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
 					if (differentModifDate && differentSize) {
 						outstr += ' (date & size)';
 					} else if (differentModifDate) {
@@ -1153,7 +1011,17 @@
 		{
 			busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName));
 			// if (command.command === 'VERIFY_FROM' ) {
-			if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
+			if (fnAction === actions.PUBLIC.fnActionBenchmark) {
+				hashPerformanceTest(command.benchSize, command.benchCount, command.maxcount);
+				return;
+				// // create temp files
+				// var aGeneratedFiles = createTempFileWithSize(command.benchSize, command.benchCount, util.shell.ExpandEnvironmentStrings(TEMPDIR));
+				// var selectedFiltered = new HashedItemsCollection();
+				// for (var i = 0; i < aGeneratedFiles.length; i++) {
+				// 	selectedFiltered.addItem(new HashedItem(doh.getItem(aGeneratedFiles[i])));
+				// }
+				// logger.sforce('%s -- selectedFiltered: %s', fnName, JSON.stringify(selectedFiltered, null, 4));
+			} else if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
 				// get the given file or user-selected file contents in internal format
 				var extFileAsPOJO = fileExchangeHandler.verifyFrom(cmdData, '', command.fileName);
 				if (!extFileAsPOJO.items) {
@@ -1206,7 +1074,6 @@
 			}
 		}
 
-
 		// DISK TYPE DETECTION
 		{
 			if (AUTO_DETECT_DISK_TYPE) {
@@ -1242,6 +1109,9 @@
 		{
 			var selectedKnapsacked = knapsackItems(selectedFiltered, command.maxcount);
 		}
+
+
+// return; // TODO - DELETE
 
 
 		// INITIALIZE PROGRESS BAR
@@ -1459,7 +1329,12 @@
 		}
 
 
-
+		// // CLEANUP BENCHMARK FILES
+		// if(fnAction === actions.PUBLIC.fnActionBenchmark && aGeneratedFiles) {
+		// 	for (var i = 0; i < aGeneratedFiles.length; i++) {
+		// 		doh.cmd.RunCommand('Delete /quiet /norecycle "' + aGeneratedFiles[i] + '"');
+		// 	}
+		// }
 
 
 		// FROM THIS POINT ON, DO WHAT YOU WANT...
@@ -1487,12 +1362,15 @@
 
 		// maxwait will not be needed for this script at all
 		// but if I use this script for webpage fetch or alike it will come handy
-		var cargs    = cmdData.func.args;
-		var recurse  = cargs.got_arg.RECURSE || true;              // if dirs are selected process children files
-		var maxcount = cargs.MAXCOUNT || MAX_AVAILABLE_CORE_COUNT; // maxiumum number of threads, default: all available
-		var maxwait  = cargs.MAXWAIT || 60*60*1000;                // maximum wait in millisecs for a thread to finish, default: 1 hour in millisecs
-		var file     = cargs.FILE || false;                        // file to use for on-the-fly export & verify
-		var format   = cargs.FORMAT || false;                      // file format to use for on-the-fly export (but not verify)
+		var cargs     = cmdData.func.args;
+		var recurse   = cargs.got_arg.RECURSE || true;              // if dirs are selected process children files
+		var maxcount  = cargs.MAXCOUNT || MAX_AVAILABLE_CORE_COUNT; // maxiumum number of threads, default: all available
+		var maxwait   = cargs.MAXWAIT || 60*60*1000;                // maximum wait in millisecs for a thread to finish, default: 1 hour in millisecs
+		var file      = cargs.FILE || false;                        // file to use for on-the-fly export & verify
+		var format    = cargs.FORMAT || false;                      // file format to use for on-the-fly export (but not verify)
+		var benchsize = cargs.BENCHMARK_SIZE || Math.pow(2, 16);    // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
+		var benchcount= cargs.BENCHMARK_COUNT || 500;                // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
+
 
 		var VALID_SWITCHES = {
 			'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateOnly },
@@ -1503,14 +1381,17 @@
 			'FIND_DIRTY'             : { filter: filters.PUBLIC.fnFilterAcceptDirtyOnly,           action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_DIRTY},
 			'FIND_MISSING'           : { filter: filters.PUBLIC.fnFilterRejectWithHashes,          action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_MISSING},
 			// 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnFilterRejectAnyFile,             action: actions.PUBLIC.fn_NOT_IMPLEMENTED_YET },
-			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnCompareAgainstHash             }
+			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnCompareAgainstHash             },
+			'BENCHMARK'              : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionBenchmark                }
 		};
 
 		for (var sw in VALID_SWITCHES) {
 			if (cargs.got_arg[sw]) {
 				var ma = new ManagerCommand(sw, recurse, maxcount, maxwait, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
-				if (file)   ma.fileName   = file;   // do not add filename unless given
-				if (format) ma.fileFormat = format; // do not add format unless given
+				if (file)       ma.fileName   = file;   // do not add filename unless given
+				if (format)     ma.fileFormat = format; // do not add format unless given
+				if (benchsize)  ma.benchSize  = benchsize;
+				if (benchcount) ma.benchCount = benchcount;
 				logger.snormal('%s -- Selected Action: %s, Using Filter: %s, Action: %s, Collection: %s, Filename: %s, Format: %s', fnName, sw, ma.filterName, ma.actionName, ma.collName, ma.fileName, ma.fileFormat);
 				return ma;
 			}
@@ -1524,6 +1405,8 @@
 	 * @param {string} collectionName collection name to add to
 	 */
 	function addFilesToCollection(filepathsArray, collectionName) {
+		if (!COLLECTIONS_ENABLED) return;
+
 		if (!collectionName) abortWithFatalError('No collection name is supplied, check script');
 		doh.cmd.RunCommand('Delete FORCE QUIET "coll://' + collectionName + '"');
 		doh.cmd.RunCommand('CreateFolder "coll://' + collectionName + '"');
@@ -1822,8 +1705,6 @@
 
 		numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
 		// SPLIT FILES INTO KNAPSACKS
-
-		logger.normal(stopwatch.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
 		{
 			// now that we all file paths & sizes
 			// we will distribute the files by their sizes
@@ -1868,13 +1749,88 @@
 			for (var i = 0; i < maxNeeded; i++) {
 				ksArray.push(new Knapsack(getNewThreadID()));
 			}
+		}
 
 
-			// start allocating files to knapsacks
-			var oAllItems = oHashedItemsCollection.getSuccessItems();
-			knapsackAllocLoop: for (var key in oAllItems) {
-				if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-				var oHashedItem = oAllItems[key];
+
+		// start allocating files to knapsacks
+		var oAllItems = oHashedItemsCollection.getSuccessItems();
+
+		/** @type {Array.<HashedItem>} */
+		var aAllItemsSorted = [];
+		for (var key in oAllItems) {
+			if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+			aAllItemsSorted.push(oAllItems[key]);
+		}
+
+		if (PROCESS_LARGEST_FILES_FIRST||PROCESS_SMALLEST_FILES_FIRST) {
+
+
+			// NEW LOGIC - SORTED BY SIZE
+			// NOT SURE THIS IS ANY FASTER THAN OLD ONE
+
+			aAllItemsSorted.sort(function(oHI1, oHI2){
+				if (PROCESS_SMALLEST_FILES_FIRST) return oHI1.size - oHI2.size; // smallest first
+				if (PROCESS_LARGEST_FILES_FIRST)  return oHI2.size - oHI1.size; // largest first
+			});
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+
+
+			var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
+			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
+				var oHashedItem = aAllItemsSorted[kal];
+
+				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
+				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
+				// that means:
+				// 1. the higher knapsacks (with lower index) will always get the largest files
+				// 2. if the bottom knapsacks have all free capacity for incoming files
+				//    the ones with lower index among them will always get the incoming file
+				//    so it is perfectly possible that some knapsacks will be empty at the end
+				// ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
+				//
+				// under certain conditions the knapsacks could be filled very unevenly
+				// at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
+				// and the rest of smaller files will end up, crammed into the other half of knapsacks
+				// but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
+				// not even multi-threading will help you when you have to at the very least wait for the longest running thread
+				// ...now you know
+				//
+
+				var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
+				var ks = ksArray[nextKS];
+				// logger.sforce('%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
+
+				ks.addItem(oHashedItem);
+				ksPointerUnderCapacity++;
+				if (ks.size >= idealKnapsackSize) {
+					// logger.sforce('%s -- This one [%d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size, ks.size-oHashedItem.size, (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size);
+					logger.sforce('%s -- This one [%2d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
+					ksNextStartingPoint = nextKS + 1;
+					// logger.sforce('\t%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
+				}
+				ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
+				if (ksPointerUnderCapacity < ksNextStartingPoint) {
+					ksPointerUnderCapacity = ksNextStartingPoint;
+				}
+
+			}
+
+
+		} else {
+
+			// OLD LOGIC - RANDOMLY SORTED INPUTS
+			logger.normal(stopwatch.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
+
+			// knapsackAllocLoop: for (var key in oAllItems) {
+			// 	if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+			// 	var oHashedItem = oAllItems[key];
+			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
+				var oHashedItem = aAllItemsSorted[kal];
 
 				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
 				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
@@ -1918,72 +1874,73 @@
 					abortWithFatalError(msg);
 				}
 			}
-		}
-		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
+			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
 
-
-		// OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
-
-		logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
-		{
-			if (AVOID_OVERFILLED_KNAPSACKS) {
-				// optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
-				// this does not reduce the file size in this knapsack much, but the file count noticably
-				// and might help reduce the file access time overhead in this thread
-				// the Robin Hood algorithm!
-				var underfilledKS = -1;
-				var iter = 0, iterMax = maxNeeded;
-				while(underfilledKS === -1 && iter++ < iterMax) {
-					// determine underfilled and overfilled as long as there are empty knapsacks
-					var overfilledKS = -1, currentMax = -1;
-					for (var i = 0; i < maxNeeded; i++) {
-						var ks = ksArray[i];
-						if (currentMax < ks.count && ks.size <= idealKnapsackSize ) {
-							currentMax = ks.count;
-							overfilledKS = i;
+			// OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
+			logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
+			{
+				if (AVOID_OVERFILLED_KNAPSACKS) {
+					// optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
+					// this does not reduce the file size in this knapsack much, but the file count noticably
+					// and might help reduce the file access time overhead in this thread
+					// the Robin Hood algorithm!
+					var underfilledKS = -1;
+					var iter = 0, iterMax = maxNeeded;
+					while(underfilledKS === -1 && iter++ < iterMax) {
+						// determine underfilled and overfilled as long as there are empty knapsacks
+						var overfilledKS = -1, currentMax = -1;
+						for (var i = 0; i < maxNeeded; i++) {
+							var ks = ksArray[i];
+							if (currentMax < ks.count && ks.size <= idealKnapsackSize ) {
+								currentMax = ks.count;
+								overfilledKS = i;
+							}
+							if (ks.count === 0) {
+								underfilledKS = i;
+							}
 						}
-						if (ks.count === 0) {
-							underfilledKS = i;
-						}
-					}
-					// there are still underfilled & overfilled knapsacks
-					if (overfilledKS !== -1 && underfilledKS !== -1) {
-						logger.sinfo('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
+						// there are still underfilled & overfilled knapsacks
+						if (overfilledKS !== -1 && underfilledKS !== -1) {
+							logger.sinfo('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
 
-						// move items from overfilled to underfilled
-						var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
-						var i = 0, iMax = Math.floor(getObjKeys(oOverfilledItems).length / 2);
-						for (var key in oOverfilledItems) {
-							if (i++ > iMax) break;
-							if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-							var oHashedItem = oOverfilledItems[key];
-							ksArray[overfilledKS].delItem(oHashedItem);
-							ksArray[underfilledKS].addItem(oHashedItem);
+							// move items from overfilled to underfilled
+							var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
+							var i = 0, iMax = Math.floor(getObjKeys(oOverfilledItems).length / 2);
+							for (var key in oOverfilledItems) {
+								if (i++ > iMax) break;
+								if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+								var oHashedItem = oOverfilledItems[key];
+								ksArray[overfilledKS].delItem(oHashedItem);
+								ksArray[underfilledKS].addItem(oHashedItem);
+							}
+							logger.sinfo('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
 						}
-						logger.sinfo('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-					}
-					underfilledKS = 0;
-					for (var i = 0; i < maxNeeded; i++) {
-						var ks = ksArray[i];
-						if (ks.count === 0) {
-							underfilledKS = -1;
+						underfilledKS = 0;
+						for (var i = 0; i < maxNeeded; i++) {
+							var ks = ksArray[i];
+							if (ks.count === 0) {
+								underfilledKS = -1;
+							}
 						}
 					}
 				}
 			}
+			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 2nd Stage'));
 		}
-		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 2nd Stage'));
+
+
 
 
 		logger.normal(stopwatch.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
 		var ksColl = new KnapsackCollection(now().toString());
 		for (var i = 0; i < ksArray.length; i++) {
 			var ks = ksArray[i];
-			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d (ideal %+15d)', fnName, i, ks.id, ks.count, ks.size, (ks.size - idealKnapsackSize));
+			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
 			ksColl.addKnapsack(ksArray[i]);
 		}
 		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 3rd Stage'));
 
+		// FS.saveFile('Y:\\ksColl.json', JSON.stringify(ksColl, null, 4));
 
 		// SANITY CHECK - NO FILE GETS LEFT BEHIND!
 		{
@@ -2017,6 +1974,7 @@
 
 	function __LOGGER__(){ 0 }
 	var logger = (function () {
+		/** @enum {number} */
 		var VALID_LEVELS = {
 			NONE:    0,
 			ERROR:   1,
@@ -2115,12 +2073,17 @@
 	function __FILE_ACCESS__(){ 0 }
 	var FS = (function (){
 		var myName = 'FS';
+		/** @enum {number} */
 		var TEXT_ENCODING = { utf8: 1, utf16: 2 };
 		return {
 			name: myName,
 			TEXT_ENCODING: TEXT_ENCODING,
 			/**
 			 * reads requested file contents (incl. ADS streams)
+			 * is compatible with extremely long paths, incl. > 255 chars
+			 *
+			 * DO NOT PASS QUOTES, SINGLE OR DOUBLE - they will be automatically added
+			 *
 			 * for format not all of "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be" do work
 			 * the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
 			 * @example
@@ -2156,6 +2119,10 @@
 			},
 			/**
 			 * saves given contents to file (incl. ADS streams)
+			 * is compatible with extremely long paths, incl. > 255 chars
+			 *
+			 * DO NOT PASS QUOTES, SINGLE OR DOUBLE - they will be automatically added
+			 *
 			 * for format not all of "base64", "quoted", "auto"=not supplied, "utf-8", "utf-16", "utf-16-le", "utf-16-be" do work
 			 * the only ones which worked reliably in my tests are utf-8 & utf-16, since they're the only ones Blob.CopyFrom() supports
 			 * @example
@@ -2170,6 +2137,10 @@
 			 */
 			saveFile: function (path, contents, format) {
 				var fnName = 'FS.saveFile';
+
+				// if (path && path.length > 230) {
+				// 	path = '\\\\?\\' + path;
+				// }
 
 				// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
 				var copyformat = format === TEXT_ENCODING.utf16 ? '' : 'utf8';
@@ -2302,23 +2273,27 @@
 			save: function (oItem, oCachedItem) {
 				var fnName = 'ADS.save';
 
-				var rp          = validateStreamNameAndItem(fnName, oItem),
-					cache       = cacheMgr.getCacheAutoInit(),
-					targetPath  = rp + ':' + msn,
+				var filePath    = validateStreamNameAndItem(fnName, oItem),
+					targetPath  = filePath + ':' + msn,
 					origModDate = DateToDOpusFormat(oItem.modify);
 				logger.sinfo('%s -- Saving %s to %s, with original modification date: %s', fnName, JSON.stringify(oCachedItem), targetPath, origModDate);
 
-				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
-				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath);
-				doh.cmd.ClearFiles();
-				doh.cmd.AddFile(oItem);
-				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + origModDate + '"');
-
 				// check if cache is enabled, add/update unconditionally
 				if (CACHE_ENABLED) {
-					cacheMgr.setCacheVar(rp, cacheMgr.enrichWithCacheFields(oCachedItem));
-					logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCache().count);
+					cacheMgr.setCacheVar(filePath, cacheMgr.enrichWithCacheFields(oCachedItem));
+					logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCount());
 				}
+
+				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
+				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath);
+
+				if (filePath.length > 240 ) {
+					filePath   = '\\\\?\\' + filePath;
+					targetPath = '\\\\?\\' + targetPath;
+				}
+				logger.sverbose('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
+				doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
+
 				return numBytesWritten;
 			},
 			/**
@@ -2330,20 +2305,24 @@
 			remove: function (oItem) {
 				var fnName = 'ADS.delete';
 
-				var rp          = validateStreamNameAndItem(fnName, oItem),
-					cache       = cacheMgr.getCacheAutoInit(),
-					targetPath  = oItem.realpath + ':' + msn,
+				var filePath    = validateStreamNameAndItem(fnName, oItem),
+					targetPath  = filePath + ':' + msn,
 					origModDate = DateToDOpusFormat(oItem.modify);
+				logger.sinfo('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
 
-				logger.sverbose('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
-				doh.cmd.ClearFiles();
-				doh.cmd.AddFile(oItem);
-				doh.cmd.RunCommand('Delete /quiet /norecycle "' + targetPath + '"');
-				doh.cmd.RunCommand('SetAttr META "lastmodifieddate:' + origModDate + '"');
-
-				if (CACHE_ENABLED && cache.exists(rp)) {
-					cache.erase(rp);
+				if (CACHE_ENABLED) {
+					cacheMgr.deleteCacheVar(filePath);
 				}
+
+				if (filePath.length > 240 ) {
+					filePath   = '\\\\?\\' + filePath;
+					targetPath = '\\\\?\\' + targetPath;
+				}
+				logger.sverbose('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
+				doh.cmd.RunCommand('Delete /quiet /norecycle "' + targetPath + '"');
+				doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
+
+
 			}
 		}
 	}());
@@ -2397,6 +2376,12 @@
 				logger.sforce('%s -- Cache cleared', fnName);
 			},
 			/**
+			 * @returns {number} number of items in the cache
+			 */
+			getCount: function() {
+				return doh.sv.Get('cache').count;
+			},
+			/**
 			 * returns cache map
 			 * @returns {object|false} cache object on success, false on error
 			 */
@@ -2411,6 +2396,14 @@
 			setCacheVar: function(key, val) {
 				// @ts-ignore
 				doh.sv.Get('cache')(key) = val;
+			},
+			/**
+			 * deletes the key and its value
+			 * @param {any} key
+			 */
+			deleteCacheVar: function(key) {
+				// doh.sv.Get('cache') && doh.sv.Get('cache').exists(key) && doh.sv.Get('cache').erase(key);
+				doh.sv.Get('cache') && doh.sv.Get('cache').erase(key);
 			},
 			/**
 			 * returns the special thread pool map
@@ -2489,6 +2482,8 @@
 	function calculateHashProxy(oItem, algo) {
 		algo = algo || CURRENT_ALGORITHM;
 		switch(algo.toUpperCase()) {
+			case 'BLAKE3':
+				return calculateFileHashWithExtBlake(oItem);
 			case 'SHA1':
 			case 'MD5':
 			case 'CRC32':
@@ -2522,6 +2517,34 @@
 			logger.sforce('\t\t%s -- Error: %s, File: %s', fnName, e.toString(), oItem);
 		}
 		return outObj;
+	}
+
+	/**
+	 * internal method to calculate hash with given algorithm
+	 * @param {DOpusItem} oItem DOpus Item
+	 * @returns {Result} result object
+	 * @see CURRENT_ALGORITHM
+	 */
+	function calculateFileHashWithExtBlake(oItem) {
+		var fnName = funcNameExtractor(calculateFileHashWithExtBlake);
+
+		var tempOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '-' + oItem.name + '-' + now() + '.tmp.txt';
+		// var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
+		var cmd = 'cmd.exe /c Y:\\b3sum.exe --no-names "' + oItem.realpath + '" > "' + tempOutFile + '"';
+		logger.sverbose('%s -- Running: %s', fnName, cmd);
+		// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+		util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+		var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
+		doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
+		if (!sContents) {
+			logger.error('Could not get the hash results from temp file: ' + tempOutFile);
+			return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
+		} else {
+			logger.sforce('%s -- sContents: %s', fnName, sContents);
+			// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
+			sContents = sContents.trim();
+			return new Result(sContents);
+		}
 	}
 }
 
@@ -2636,6 +2659,15 @@
 			 */
 			fnActionCalculateOnly: function (oItem) {
 				var fnName = 'actions.fnActionCalculateOnly';
+				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
+				return calculateHashProxy(oItem);
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @returns {Result}
+			 */
+			fnActionBenchmark: function (oItem) {
+				var fnName = 'actions.fnActionBenchmark';
 				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
 				return calculateHashProxy(oItem);
 			},
@@ -2946,7 +2978,7 @@
 			var bytesPerSec      = Math.round( finished_bytes_so_far / elapsed||1 );
 			var timeRemaining    = elapsed < 3 ? '....' : Math.round( elapsed * ( (selected_bytes_cnt/finished_bytes_so_far) - 1) ) + 's';
 
-			progbar.SetStatus(sprintf('Time Remaining (rough): %4s, Average Speed: %7s/s', timeRemaining, bytesPerSec.formatAsSize()));
+			progbar.SetStatus(sprintf('Est. Time Remaining: %4s, Average Speed: %7s/s', timeRemaining, bytesPerSec.formatAsSize()));
 		}
 		progbar.SetName(filename);
 		progbar.SetType('file');
@@ -3067,6 +3099,8 @@
 	 * @returns {[string, number]}
 	 */
 	Number.prototype.getUnit = (function () {
+		// TODO refactor this!
+		/** @enum {Array} */
 		var units = {
 			B : [ 'B', 0],
 			KB: [ 'KB', Math.pow(2, 10)],
@@ -3076,11 +3110,11 @@
 			PB: [ 'PB', Math.pow(2, 50)] // if somebody manages to see this, I will buy you a beer!
 		};
 		return function () {
-			if      (this >= units.PB[1]) return units.PB;
-			else if (this >= units.TB[1]) return units.TB;
-			else if (this >= units.GB[1]) return units.GB;
-			else if (this >= units.MB[1]) return units.MB;
-			else if (this >= units.KB[1]) return units.KB;
+			if      (Math.abs(this) >= units.PB[1]) return units.PB;
+			else if (Math.abs(this) >= units.TB[1]) return units.TB;
+			else if (Math.abs(this) >= units.GB[1]) return units.GB;
+			else if (Math.abs(this) >= units.MB[1]) return units.MB;
+			else if (Math.abs(this) >= units.KB[1]) return units.KB;
 			else                          return units.B;
 		}
 	}());
@@ -3099,7 +3133,11 @@
 		if (typeof decimal !== 'number') {
 			decimal = 2;
 		}
-		return (this.valueOf() / unit[1]).toFixed(decimal) + ' ' + unit[0];
+		if (unit[1] === 0) {
+			return this.valueOf() + ' ' + unit[0];
+		} else {
+			return (this.valueOf() / unit[1]).toFixed(decimal) + ' ' + unit[0];
+		}
 	};
 	// turns milliseconds to rounded seconds
 	Number.prototype.formatAsDuration = function () {
@@ -3187,8 +3225,8 @@
 		var _nowMD5 = doh.fsu.Hash(blob, 'md5');
 		return 't_' + _now + '_' + _nowMD5;
 		// without some computation, the line below is not reliable enough
-		// I occasionally get duplicate IDs: same TS & same random number!  O.O
-		doh.delay(1);
+		// I occasionally get duplicate IDs: same TS & same random number for different threads!  O.O
+		// doh.delay(1); // delay(1) seems to wait longer than 1 ms
 		return 't_' + now() + '_' + Math.floor(1000 + Math.random() * 8999);
 	}
 	function getResVar(tid) {
@@ -3224,36 +3262,94 @@
 		return this.replace(/^\s+|\s+$/g, ''); // not even trim() JScript??
 	}
 
-	// hashPerformanceTest(Math.pow(2, 20), 5000); return;
-	function hashPerformanceTest(size, count) {
-		var algorithms = [ 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'crc32_php', 'crc32_php_rev' ];
 
+	function createTempFileWithSize(size, count, outDir) {
 		var instr = '';
-		for (var i = 0; i < size; i++) {
-			instr += Math.floor(Math.random() * 10);
+
+		while (instr.length < size) {
+			instr += Math.floor(10000000 + Math.random() * 89999999);
 		}
+		instr = instr.slice(0, size);
 
 		var blob = doh.dc.Blob;
 		blob.CopyFrom(instr);
 		logger.sforce('instr: %s', instr);
-		logger.sforce('');
-		logger.sforce('Testing all hashing algorithms %d times, with a randomly generated input string of size: %d / %d', count, size, instr.length);
-		logger.sforce('  -- single-thread only --');
-		logger.sforce('');
+		if (size !== instr.length) {
+			abortWithFatalError('Could not generate requested test sample size');
+		}
+		var aFilenames = [];
+		for (var i = 0; i < count; i++) {
+			var filename = outDir + '\\' + Global.SCRIPT_NAME + '-benchmark-' + sprintf('%03d', i+1) + '.tmp.txt';
+			var numBytesWritten = FS.saveFile(filename, instr);
+			if (numBytesWritten !== size) {
+				abortWithFatalError('Number of bytes written does not match given input size for ' + filename);
+			}
+			aFilenames.push(filename);
+		}
+		return aFilenames;
+	}
+
+	// hashPerformanceTest(Math.pow(2, 20), 5000); return;
+	function hashPerformanceTest(size, count, maxcount) {
+		var algorithms = [ 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'crc32_php', 'crc32_php_rev' ];
+
+		var instr = '';
+		// for (var i = 0; i < size; i++) {
+		// 	instr += Math.floor(Math.random() * 10);
+		// }
+		logger.sforce(stopwatch.startAndPrint('Random Data Generation'));
+		while (instr.length < size) {
+			instr += Math.floor(10000000 + Math.random() * 89999999);
+		}
+		instr = instr.slice(0, size);
+		logger.sforce(stopwatch.stopAndPrint('Random Data Generation'));
+
+		var blob = doh.dc.Blob;
+		blob.CopyFrom(instr);
+		logger.sforce('instr: %s', instr);
+		if (size !== instr.length) {
+			abortWithFatalError('Could not generate requested test sample size');
+		}
+
+		var outstr = '', line = '';
+		function addAndPrint(line) {
+			outstr += line + '\n'; logger.sforce(line);
+		}
+		addAndPrint('');
+		addAndPrint(sprintf('  -- %s Benchmark --', Global.SCRIPT_NAME));
+		addAndPrint('');
+		addAndPrint(sprintf('Testing all algorithms with a randomly generated input string in memory, in SINGLE THREAD ONLY.'));
+		addAndPrint('');
+		addAndPrint(sprintf('This is the best ever your CPU can do using DOpus & this script, when file access overhead is eliminated.'));
+		addAndPrint('');
+		addAndPrint(sprintf('Repetitions: %d', count));
+		addAndPrint(sprintf('Input Size: %s',size.formatAsSize()));
+		addAndPrint('');
+		addAndPrint(sprintf('  -- Theoretical MT/%dx Limit --', maxcount));
+		addAndPrint('');
+		addAndPrint('The speed you would reach if:');
+		addAndPrint(' - All your CPU cores run at the same clock (likely)');
+		addAndPrint(' - There is no file access overhead at all (impossible, but can be reduced using an SSD, NVMe or RAMDisk)');
+		addAndPrint(sprintf(' - All selected files can be perfectly split among threads, i.e. they are of equal size and total number is an integer multiple of %d (highly unlikely)', maxcount));
+		addAndPrint('');
 
 		for (var i = 0; i < algorithms.length; i++) {
 			var algo = algorithms[i];
 			var id = sprintf('%20s', algo);
 
-			logger.sforce(stopwatch.startAndPrint(id, 'Testing algorithm: ' + algo));
+			addAndPrint(sprintf('Testing algorithm: ' + algo.toUpperCase()));
+			stopwatch.start(id);
 			for (var j = 0; j < count; j++) {
-
-				var res = doh.fsu.Hash(blob, algo);
+				var dummy = doh.fsu.Hash(blob, algo);
 			}
-
-			logger.sforce(stopwatch.stopAndPrint(id));
-			logger.sforce('');
+			var elapsed = stopwatch.getElapsed(id);
+			var avgSpeed = size * count * 1000 / elapsed;
+			stopwatch.stop(id);
+			addAndPrint(sprintf('Average ST/1x speed     : %s/sec', avgSpeed.formatAsSize()));
+			addAndPrint(sprintf('Theoretical MT/%dx Limit: %s/sec', maxcount, (avgSpeed * maxcount).formatAsSize() ));
+			addAndPrint('');
 		}
+		showMessageDialog(null, outstr, 'CPU Benchmark Results');
 	}
 }
 
@@ -3750,11 +3846,13 @@
 		 * @param {string} collectionName collection name to use for results
 		 * @param {string=} fileName file name to use for results
 		 * @param {string=} fileFormat file format to use for results
+		 * @param {number=} benchSize benchmark input size
+		 * @param {number=} benchCount benchmark iterations count
 		 * @constructor
 		 * @see filters.PUBLIC
 		 * @see actions.PUBLIC
 		 */
-		function ManagerCommand(command, recurse, maxcount, maxwait, fnFilter, fnAction, collectionName, fileName, fileFormat) {
+		function ManagerCommand(command, recurse, maxcount, maxwait, fnFilter, fnAction, collectionName, fileName, fileFormat, benchSize, benchCount) {
 			if (typeof fnFilter !== 'function' || typeof fnAction !== 'function') {
 				abortWithFatalError('Given filter or action is not a function:\n' + fnFilter + '\n' + fnAction);
 			}
@@ -3767,6 +3865,8 @@
 			this.collName    = collectionName;
 			this.fileName    = fileName;
 			this.fileFormat  = fileFormat;
+			this.benchSize   = benchSize;
+			this.benchCount  = benchCount;
 			this.filterName  = filters.getName(this.filter);
 			this.actionName  = actions.getName(this.action);
 		}
@@ -3884,7 +3984,7 @@
 			}
 			this.item      = oItem;
 			this.fullpath  = ''+oItem.realpath || '';
-			this.size      = parseInt(oItem.size, 10) || 0;
+			this.size      = parseInt(0+oItem.size, 10) || 0;
 			this.mod_ts    = new Date(oItem.modify).getTime() || 0;
 			this.mod_date  = this.mod_ts.formatAsDateTimeCompact();
 			this.relpath   = ''+relpath || '';
@@ -4035,6 +4135,7 @@
 			} else {
 				this.sizeSuccess -= oHashedItem.size;  this.countSuccess--;
 			}
+
 			delete this._myItems[oHashedItem.fullpath];
 			var driveLet = oHashedItem.fullpath.slice(0,2);
 			this.driveLetters[driveLet]--;
@@ -4128,7 +4229,7 @@
 				oSmallestItem = oHashedItemsColl.getSmallestItem(),
 				oLargestItem  = oHashedItemsColl.getLargestItem();
 
-			this.ExtInfo                                 = {
+			this.ExtInfo = {
 				Snapshot_DateTime_Timestamp     : ts,
 				Snapshot_DateTime_DOpus         : ts.formatAsDateDOpus(),
 				Snapshot_DateTime_ISO           : ts.formatAsDateISO(),
@@ -4787,6 +4888,8 @@
 			- review all @ts-ignore - especially DOpus map access stuff - convert cache to singleton if ncessary
 			- updateProgressBar() - review parameters list, it's too long
 			- Improve FileFormat & FileName dependency and detection
+			- Convert buildSummaryAndErrorTexts() & MTActionResults/MTActionResultFile to TYPEDEFs?
+
 
 
 			METHODS WHICH REQUIRE CUSTOM OBJECT REFACTORING:
@@ -4805,6 +4908,12 @@
 			+ fileExchangeHandler.prepareForImport()
 			+ fileExchangeHandler.convertForImportFromSHA1()
 			+ fileExchangeHandler.convertForImportFromJSON()
+
+
+			how to enumerate NTFS streams?
+			from https://microsoft.public.scripting.vbscript.narkive.com/xGdxzTQu/using-user32-dll-function-from-vbscript-wsh
+			DO NOT RUN THIS!!!!!!
+				WshShell.Run "%windir%\System32\RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters", 1, False
 		*/
 	}
 	// FORMATS used by ExactFile (https://www.exactfile.com/)
@@ -4860,4 +4969,159 @@
 				; 1 files hashed.
 		*/
 	}
+}
+
+
+
+/*
+	8888888b.  8888888888        d8888 8888888b.  888b     d888 8888888888     888b     d888 8888888b.
+	888   Y88b 888              d88888 888  "Y88b 8888b   d8888 888            8888b   d8888 888  "Y88b
+	888    888 888             d88P888 888    888 88888b.d88888 888            88888b.d88888 888    888
+	888   d88P 8888888        d88P 888 888    888 888Y88888P888 8888888        888Y88888P888 888    888
+	8888888P"  888           d88P  888 888    888 888 Y888P 888 888            888 Y888P 888 888    888
+	888 T88b   888          d88P   888 888    888 888  Y8P  888 888            888  Y8P  888 888    888
+	888  T88b  888         d8888888888 888  .d88P 888   "   888 888        d8b 888   "   888 888  .d88P
+	888   T88b 8888888888 d88P     888 8888888P"  888       888 8888888888 Y8P 888       888 8888888P"
+*/
+{
+
+	function __README_MD__(){ 0 }
+	/*
+
+
+		# Cü's MultiThreadHash
+		CuMTH or simply MTH is a user script for multi-threaded hashing for the brilliant, very powerful file manager [Directory Opus](https://gpsoft.com.au/) (often called DOpus or DO from here on), using its builtin hashing methods &amp; NTFS ADS.
+
+
+
+
+		## FEATURES:
+
+		* **Multi-threaded hashing**, defaults to all available cores on your machine.
+		* **Seamless integration into DOpus**:
+		* Any number of files and folders can be selected and then hashed, verified, exported, etc.
+		* File modification date is kept as before when you add/remove ADS data.
+		* Action results, e.g. verification errors, files with missing or dirty (outdated) ADS, etc. are put into separate collections for further review.
+		* Caching of ADS data in memory.
+		* Progress bar with Pause & Abort support.
+		* 15 pre-created buttons with multiple examples and nice-looking icons.
+		* 5 helper columns/script fields: *Available*, *Dirty* (showing what has changed: date and/or size), *Dirty* (simple), *Formatted ADS* data to use in Infotips, *Raw ADS* data.
+		* Unicode characters are not corrupted when exported from or imported into ADS.
+		* Configurable number of threads and maximum wait time.
+		* Auto-detection of checksum files if only 1 file is selected and one of the import/verify buttons is used.
+		* NTFS **ADS integration**, through and through.
+		* **External checksum files support** for .md5 & .sha1, incl. on-the-fly export & verification without using ADS. Another JSON-based, specific to this script is also supported, which contains very detailed information.
+		* **Long filename & path support** (> 255 chars).
+		* Simple CPU **benchmarking**.
+		* **Automatic HDD drive detection** (vs SSD, NVMe...) - CuMTH can reduce number of threads to avoid disk thrashing.
+		* **Extremely fast**, in fact faster than most native hashing programs, even all of the few multi-threaded programs except one [*]. Although this JScript, the heavy work is done by DOpus, this script simply optimizes how it is done.
+		* **Less CPU usage** than single- or multi-threaded programs.
+		* Is not limited to the (currently 7) hashing algorithms supported by DOpus. **Extensible via external CLI hashing programs**, e.g. fsum, rhash, fastsum, fciv, blake3, etc. I included a few as example, incl. blake3, rhash.
+		* **Detailed file information** in exported checksum files, e.g. number of total, successful, skipped or failed files and their sizes, earliest/latest file dates, smallest/largest files, snapshot date&time in multiple formats. Exported filenames can be generated with the latest file's timestamp. These can be suppressed but are computed anyway.
+
+
+
+		[*] [CHK by Ilya Muravyov](http://compressme.net/) is a real piece of art when it comes to speed. It is the fastest hasher out there, bar none. Beats this script from 10% up to 40%, and other programs by at least 300, 400%. Excellent, excellent job Ilya! ...But unfortunately its speed advantage is overshadowed by its very spartan UI and usability. It is not automation-capable, e.g. with CLI parameters. It's not even possible to abort an operation. And good luck with re-verifying your files with the checksum files you just created. Yes, it can hash a directory but not verify it again (tested with latest v3.21). If you're fine with its UI and care only for the highest hashing speed possible, use CHK instead.
+
+		Speed-wise other multi-threaded programs like [ExactFile/exf](https://www.exactfile.com/), let alone single-threaded programs are nowhere near of CuMTH. With many CPU cores and fast SSD/NVMe, you can easily reach hashing-speeds upwards of 1.5 GB/sec; on a RAMDisk I achieved 4.8 GB/sec under near-perfect conditions. You can test the capabilities of your CPU using the incl. benchmark command.
+
+
+
+		## Why is SHA1 the default?
+
+		**The goal is file integrity check, first and foremost.**
+
+		Currently there will be only 1 algorithm: SHA1. DOpus' internal "sha256" & "sha512" seem to have [a bug and both calculate wrong results for files >=512 MB](https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6), that leaves: "md5", "sha1", "crc32", "crc32_php", and "crc32_php_rev" and I decided to go with SHA1 as a compromise *temporarily* because it's very fast & reasonably secure, between fast and insecure MD5 and slow and secure SHA256/SHA512.
+
+		Before you start "*but SHA1 is broken...*" No, it is not broken, at least not for any practical purpose or for purposes of this script. Yes, SHA1 is known to have collisions but an attack requires malicious & very time-consuming preparation of tampered data, which is never ever the case for files on your disk, even 1 bit corruption in a file will result in a different hash even if you use MD5.
+
+		The goal here is to quickly verify file integrity of your own files, not build military grade infrastructure or use these algorithms for web site security, etc. If you are concerned that the files under your control might be tampered with by external agents and could have the same hash checksum as previously, then this script is not what you're looking for.
+
+		As soon as DOpus fixes the bug mentioned above, you can anyway switch to SHA-256/512 if you like.
+
+
+
+		## Why ADS? Why not classical checksum files?
+
+		*Short answer: Because they're static, become quickly obsolete and have a large overhead.*
+
+		When you create hash checksum files of large folders with typical programs these files contain all the files, just as you requested, and their hashes. These files act as a snapshot. If you are not planning to make any changes in this folder, you can use the checksum file over and over. You can still use this script, as it includes full support for external checksum files and more, too.
+
+		However, if or when you add or remove files from these folders, these files slowly become obsolete and deviate from the checksum you have created. If you use the old checksum file over and over, you will get increasing number of errors. If you create a new checksum file after each change in the folder, you will lose track of which files might have been corrupted.
+
+		You might think "But why would I want to add/remove files from a secure 'archive' directory?" Say, you have a partition or an external disk where you keep copies of your projects, pictures, install files, whatever. If you're planning to use a single checksum file in the root folder or put a separate checksum file in each folder, be my guest.
+
+		If you use ADS, however, you can **attach the hash checksum to each file**; the overhead is very small, only ~150 bytes per file. **The stored information is file's last known modification date & size and its hash value.** Different algorithms are kept separate from each other via ADS name, e.g. SHA1 in <filename>:MTH_SHA1,  MD5 in <filename>:MTH_MD5 and so on. Some programs try to achieve this putting hashes into the filenames, but that's a crude & ugly method. With ADS you can quickly identify changed files and still validate the unchanged files, since each hash is directly attached to the file and contains its size and date at the time of hashing, instead of in static snapshots. And you can select and verify any number of files, you do not need a checksum file containing each of these files. **That's where the real power of this script and integration into a file manager starts to shine.** Where's the catch? ADS work only in NTFS. If you are still not convinced, you can always use checksum files; in fact, once you have the hashes in ADS, you can export a checksum file in almost zero time to a checksum file, too.
+
+		Another benefit is, the file's last modification timestamp & last known size is stored in ADS at the time of hashing. This helps to quickly identify changed files, since you have last updated the ADS hashes WITHOUT re-checking every single file, simply activate one of 'Dirty' or 'Dirty Verbose' columns and you will see. If the file size or date changes, it is almost impossible that the hash will not change unless some super genius agent manipulates your files and/or manipulates the ADS as well. So these files can be quickly identified in isolation, incl. what is changed: date, size or both. If you export ADS hashes, the script will warn you automatically that some files have no or outdates hashes.
+
+		You can also import existing .sha1, .md5 or this script's own .json format checksum files into ADS and remove the dependency to external files. The imported checksums will not be verified during import, but you can verify them very easily and compare freshly calculated data vs the data you just imported.
+
+		Yet another benefit is, apart from the extraordinarily fast multi-threading (fast af, if I may say so), if you are often synchronizing large amounts of files between computers, you can easily export the existing ADS data without re-calculation, and easily verify on the other computer, with this script or any other typical checksum programs, .md5 and .sha1 formats are fully supported. Verifying the hashes on the target machine will be usually much faster than binary comparison over network.
+
+		Although currently **only 1 single algorithm at a time** is supported in the script (I see no benefit in using multiple), the ADS streams for multiple streams are completely independent of each other, i.e. SHA1 hashes are stored in a different stream than SHA256, MD5, etc. hashes. Use whichever algorithm suits your needs best. I might implement multiple algorithms if enough interest is there.
+
+		**Bottom line is:**
+		Once you get used to the integration of extremely fast hashing and an excellent file manager, you will not miss classical hashing programs ;)
+
+		### ADS Overhead:
+
+		For SHA1 hashes the amount of data is typically around 150-160 bytes. This information is NOT allocated in a separate cluster than the main file's own, i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192.
+
+		### Recommended:
+
+		- Generated files are UTF8 without BOM by default
+		If you use DOpus text viewer plugin, activate '***Assume UTF-8 without BOM***' in its settings to view non-ASCII chars correctly.
+		- Activating the DOpus option '***File Operations -> Copy Attributes -> Copy all NTFS data streams***' is highly recommended.
+		- If you are using WinRAR you can activate '***Advanced -> Save file streams***' in archiving dialog and save it in your default profile as well. This will carry ADS hashes around.
+		Unfortunately 7-Zip or DOpus created archives do NOT support this.
+		- DO NOT USE EXACTFILE, EVER!
+		To my **absolute HORROR** I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only), because I was using it a lot. it does so only sporadically, which makes the situation even worse imo. When ExactFile hashes completely identical files in multi-threading the generated checksum file states: this 1 file has a different hash than the others, and when you repeat the hashing it shows the computes the correct hash again.
+		Completely unacceptable!
+
+
+
+		## Design Principles of This Script
+
+		- Wherever relevant, file size is preferred over file count.
+		- Original files are never ever touched, only its ADS streams.
+		- Tries to replace existing hashing programs, by integrating the functionality into a full-fledged file manager but it can easily be extended with external apps to utilize non-DOpus hashing algorithms, too
+		- Speed! Speed! Speed! Tries to maximize of CPU usage if possible, not to let it sit idly.
+		- Prefers NTFS ADS over external filelists with hashes, but external checksum files are fully supported as well.
+
+
+		When you look at the code, you will see some non-typical, i.e. not state-of-the-art JavaScript. This has 2 reasons:
+		1. I'm an ok but not the most seasoned JS programmer, JS is not my primary language.
+		2. This not ES5 or newer, but JScript, which roughly [corresponds to JS 1.5/ES3](https://johnresig.com/blog/versions-of-javascript/)!
+		3. This is not a browser environment and due to only available method to us for multi-threading,
+		i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
+		DOpus variables only.
+		4. Debugging of user scripts without an IDE or browser support is a major PITA. DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all.
+
+
+
+		## Screenshots
+
+		Buttons
+
+		![./Screenshots/01.png](./Screenshots/01.png)
+
+
+
+		Benchmark results on an AMD 3900x (12 cores, 24 threads
+
+		![./Screenshots/02.png](./Screenshots/02.png)
+
+		Hashing Progress
+
+		![./Screenshots/03.png](./Screenshots/03.png)
+
+		Summary
+
+		![./Screenshots/04.png](./Screenshots/04.png)
+
+		...more to come
+
+		*/
+
 }
