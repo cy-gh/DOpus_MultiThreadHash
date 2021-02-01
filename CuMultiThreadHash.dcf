@@ -1,0 +1,191 @@
+<?xml version="1.0"?>
+<button backcol="none" display="icon" dropdown_glyph="yes" label_pos="right" textcol="none" type="menu">
+	<label>MTH</label>
+	<tip>Multi-Threaded Hasher</tip>
+	<icon1>#MTHasher:Main</icon1>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Smart Update ADS</label>
+		<tip>Updates only files with dirty or missing hash ADS</tip>
+		<icon1>#MTHasher:Green_SmartUpdate</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 SMART_UPDATE_ADS</instruction>
+			<instruction>MTHManagerStart SMART_UPDATE_ADS</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Verify from ADS</label>
+		<tip>Verifies only files with existing hash ADS</tip>
+		<icon1>#MTHasher:Green_VerifyFromADS</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 VERIFY_FROM_ADS</instruction>
+			<instruction>MTHManagerStart VERIFY_FROM_ADS</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Find Missing</label>
+		<icon1>#MTHasher:Green_FindMissing</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 FIND_MISSING </instruction>
+			<instruction>MTHManagerStart FIND_MISSING </instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+		<label>Find Dirty</label>
+		<icon1>#MTHasher:Green_FindDirty</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 FIND_DIRTY</instruction>
+			<instruction>MTHManagerStart FIND_DIRTY </instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Clear Cache</label>
+		<tip>Clear Cache</tip>
+		<icon1>#MTHasher:Red_ClearCache</icon1>
+		<function type="normal">
+			<instruction>MTHClearCache</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Hard Update ADS</label>
+		<tip>WARNING: Unconditionally update ADS - Avoid if possible; &apos;Verify from ADS&apos; then &apos;Smart Update&apos; is much, much faster because it prevents unnecessary overwriting of already valid hashes</tip>
+		<icon1>#MTHasher:Red_HardUpdateADS</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>@confirm Are you sure you want to perform a &apos;Hard Update&apos;? &apos;Verify from ADS&apos; then &apos;Smart Update&apos; is much, much faster because it prevents unnecessary overwriting of already valid hashes</instruction>
+			<instruction />
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 HARD_UPDATE_ADS</instruction>
+			<instruction>MTHManagerStart HARD_UPDATE_ADS </instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+		<label>Delete ADS</label>
+		<tip>Delete existing hash ADS</tip>
+		<icon1>#MTHasher:Red_DeleteADS</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 DELETE_ADS</instruction>
+			<instruction>MTHManagerStart DELETE_ADS</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Calculation Simulation</label>
+		<tip>Only calculates hashes, does not write ADS - Can be used for performance benchmarks on selected files</tip>
+		<icon1>#MTHasher:Blue_CalculateOnly</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>@confirm This is only for simulation/benchmarking purposes, use Smart Update ADS or other commands to update hashes in ADS|I Understand</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 CALCULATE_ONLY</instruction>
+			<instruction>MTHManagerStart CALCULATE_ONLY </instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+		<label>Benchmark</label>
+		<tip>Performs a CPU/DOpus hashing benchmark using a single-thread</tip>
+		<icon1>#MTHasher:Blue_Benchmark</icon1>
+		<function type="normal">
+			<instruction>MTHManagerStart BENCHMARK</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Copy ADS to Clipboard</label>
+		<icon1>#MTHasher:Orange_CopyFromADSToClipboard</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// MTHCopyToClipboard SKIP_PRECHECK </instruction>
+			<instruction>MTHCopyToClipboard SKIP_PRECHECK</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Export from ADS</label>
+		<tip>Exports stored ADS hashes of selected objects to a file; if filename is supplied and file exists it will be overwritten</tip>
+		<icon1>#MTHasher:Orange_ExportFromADS</icon1>
+		<function type="normal">
+			<instruction>@nodeselect</instruction>
+			<instruction>// this is better suited for single files</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=sha1 FILE=&quot;{file$|noext}.sha1&quot;</instruction>
+			<instruction />
+			<instruction>// this is better suited for folders</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=sha1 FILE=&quot;{sourcepath$}\checksums.sha1&quot;</instruction>
+			<instruction />
+			<instruction>// if no file name is supplied one will be automatically generated</instruction>
+			<instruction>MTHADSExportFrom FORMAT=sha1 </instruction>
+			<instruction />
+			<instruction>// other examples</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=md5 USE_FORWARD_SLASH</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=sha1 USE_FORWARD_SLASH</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=md5</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=sha1</instruction>
+			<instruction>// MTHADSExportFrom FORMAT=mthjson</instruction>
+			<instruction />
+			<instruction>// do not use unless you do not want to be informed about files with missing or outdated hashes</instruction>
+			<instruction>// your output file will be incomplete!</instruction>
+			<instruction>// MTHADSExportFrom SKIP_PRECHECK</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Import into ADS</label>
+		<tip>Imports hashes from selected file to ADS for all matched files by name; the current lister tab path is used to resolve relative paths</tip>
+		<icon1>#MTHasher:Orange_ImportIntoADS</icon1>
+		<function type="normal">
+			<instruction>// MTHADSImportInto FILE=MyStandardFile.sha1 FORMAT=SHA1</instruction>
+			<instruction>// MTHADSImportInto FILE=MyStandardFile.sha1</instruction>
+			<instruction>// MTHADSImportInto FORMAT=sha1</instruction>
+			<instruction>// MTHADSImportInto</instruction>
+			<instruction />
+			<instruction>// MTHADSImportInto file=24_Identical_Files_24_HT_cores.sha1</instruction>
+			<instruction>MTHADSImportInto</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+		<label>Compare External to ADS</label>
+		<tip>Verifies hashes in external file against all matched files by relative path &amp; name; the current lister tab path is used to resolve relative paths</tip>
+		<icon1>#MTHasher:Orange_OntheflyCompareExternalFileToADS</icon1>
+		<function type="normal">
+			<instruction>// MTHOnTheFlyVerifyFromFile</instruction>
+			<instruction>@confirm Not implemented yet|OK</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Calculate &amp;&amp; Export</label>
+		<tip>Calculates hashes anew without using ADS; if filename is supplied and file exists it will be overwritten</tip>
+		<icon1>#MTHasher:Orange_OntheflyCalculateAndExport</icon1>
+		<function type="normal">
+			<instruction>// If you do not specify a format, the current algorithm&apos;s standard will be used, e.g. .sha1 for SHA1</instruction>
+			<instruction>//</instruction>
+			<instruction>// If you specify FILE without a value, you will be prompted a name</instruction>
+			<instruction>// and the suggested value will be calculated based on your settings (e.g. append latest filename&apos;s timestamp, etc.)</instruction>
+			<instruction>//</instruction>
+			<instruction>// Careful with relative paths!</instruction>
+			<instruction>// If you do supply a name but without a full path the files will be stored in DOpus directory.</instruction>
+			<instruction>//</instruction>
+			<instruction>// Samples:</instruction>
+			<instruction>// Use an auto-generated name</instruction>
+			<instruction>// MTHManagerStart CALCULATE_ONLY FILE=&quot;{sourcepath$}\{date|yyyyMMdd}-{time|HHmmss}.sha1&quot;</instruction>
+			<instruction>//</instruction>
+			<instruction>// Use JSON format</instruction>
+			<instruction>// MTHManagerStart CALCULATE_ONLY FORMAT=json FILE=&quot;{sourcepath$}\{date|yyyyMMdd}-{time|HHmmss}.json&quot; </instruction>
+			<instruction>//</instruction>
+			<instruction>MTHManagerStart CALCULATE_ONLY FILE=&quot;{sourcepath$}\{date|yyyyMMdd}-{time|HHmmss}.sha1&quot;</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
+		<label>Compare with External File</label>
+		<tip>Verifies hashes in external file against all matched files by relative path &amp; name; the current lister tab path is used to resolve relative paths</tip>
+		<icon1>#MTHasher:Orange_OntheflyCompareExternalFileToNewCalculation</icon1>
+		<function type="normal">
+			<instruction>// MTHOnTheFlyVerifyFromFile</instruction>
+			<instruction>MTHManagerStart VERIFY_FROM</instruction>
+		</function>
+	</button>
+</button>

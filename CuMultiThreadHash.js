@@ -3,6 +3,7 @@
 // @ts-check
 
 
+
 /*
 	 .d8888b.  888       .d88888b.  888888b.          d8888 888
 	d88P  Y88b 888      d88P" "Y88b 888  "88b        d88888 888
@@ -29,6 +30,9 @@
 		Global.SCRIPT_GROUP       = 'cuneytyilmaz.com';
 		Global.SCRIPT_PREFIX      = Global.SCRIPT_NAME_SHORT; // prefix for field checks, log outputs, progress windows, etc. - do not touch
 		Global.SCRIPT_LICENSE     = 'Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)';
+		Global.SCRIPT_FULLPATH    = '';
+		Global.SCRIPT_PATH        = '';
+		Global.SCRIPT_IS_OSP      = false;
 
 		var util = {};
 		util.shell   = new ActiveXObject('WScript.shell');
@@ -68,8 +72,8 @@
 		var WORKER_COMMAND = 'MTHWorker';
 
 		// collection names for find commands & files which reported an error
-		var COLLECTIONS_ENABLED          = false;
-		var COLLECTION_FOR_VALID         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
+		var COLLECTIONS_ENABLED          = true;
+		var COLLECTION_FOR_SUCCESS       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
 		var COLLECTION_FOR_DIRTY         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
 		var COLLECTION_FOR_MISSING       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
 		var COLLECTION_FOR_ERRORS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
@@ -105,13 +109,16 @@
 		// used only if the above is active
 		var REDUCE_THREADS_ON_HDD_TO = 1;
 
+		// ignore read-only attribute for saving ADS data
+		var IGNORE_READONLY_FLAG = true;
+		// ignore system attribute for saving ADS data
+		var IGNORE_SYSTEM_FLAG = true;
+
 		// self-explanatory
 		// not used for anything at the moment
 		var TEMPDIR = '%TEMP%';
 	}
 }
-
-
 
 
 
@@ -141,13 +148,65 @@
 		initData.log_prefix     = Global.SCRIPT_PREFIX;
 		initData.default_enable = true;
 
+
+		// return;
+		// cacheMgr.clearCache();
+		/*
+			How to initialize:
+
+			'////////////////////////////////////////////////
+			' The following options are user configurable via the Configure button under the scripts listing in Prefs
+			'////////////////////////////////////////////////
+			' Set DEBUG flag to True in order to enable logging messages to the Opus Output Window
+			initData.config.DEBUG = False
+			'////////////////////////////////////////////////
+			' Set DEBUG_CLEAR flag to True in order to clear log messages from the Opus Output Window between script runs
+			initData.config.DEBUG_CLEAR = False
+			'////////////////////////////////////////////////
+			' Set descriptions for all script options
+			initData.config_desc = DOpus.NewMap("DEBUG", "Set this option to True to enable logging to the Opus script log.", _
+												"DEBUG_CLEAR", "Set this option to True clear messages logged to the Opus script log between script runs.")
+
+
+			How to use:
+
+			If ((Script.config.DEBUG) Or (SCRIPT_DEBUG)) And (Script.config.DEBUG_CLEAR) Then DOpus.ClearOutput
+		*/
+
 		doh.clear();
+		// put the script path, etc. into DOpus Global Vars,
+		// Unfortunately initData cannot be accessed later by methods
+		// even if they are put into Script.Vars, because they get cleared once the script is unloaded from memory
+		// so the only safe location is not Script.Vars but DOpus.Vars
+		_setScriptPathVars(initData);
+		playFeedbackSound('Success'); // TODO REMOVE
+
+
 
 		_initializeCommands(initData);
 		_initializeColumns(initData);
 		return false;
 	}
 
+	/**
+	 * @param {object} initData DOpus InitData
+	 */
+	function _setScriptPathVars(initData) {
+		var oItem = doh.fsu.GetItem(initData.file);
+		doh.setGlobalVar('Global.SCRIPT_ITEM', oItem);
+	}
+	/**
+	 * @returns {{fullpath: string, path: string, isOSP: boolean}}
+	 */
+	function _getScriptPathVars() {
+		var oItem = doh.getGlobalVar('Global.SCRIPT_ITEM');
+		return {
+			fullpath: ''+oItem.realpath,
+			path    : (''+oItem.path).normalizeTrailingBackslashes(),
+			// isOSP   : (''+doh.fsu.Resolve(oItem.realpath).ext).toLowerCase() === '.osp'
+			isOSP   : (''+oItem.ext).toLowerCase() === '.osp'
+		}
+	}
 	// internal method called by OnInit() directly or indirectly
 	function _getColumnLabelFor(name) {
 		return '#' + name;
@@ -163,9 +222,10 @@
 
 		var oPath = doh.fsu.Resolve(scriptPath);
 		var isOSP = oPath.ext === 'osp';
+
 		return ( isOSP
-				? ('#MTHasher:' + iconName)
-				: (oPath.pathpart + '\\icons\\ME_32_' + iconName + '.png')
+				? ('#MTHasher:' + iconName) // #MTHasher is defined in the Icons.XML file
+				: (oPath.pathpart + '\\icons\\MTH_32_' + iconName + '.png')
 			);
 	}
 	// internal method called by OnInit() directly or indirectly
@@ -221,22 +281,21 @@
 		_addCommand('ManagerStart',
 			onDOpusCmdMTHManagerStart,
 			initData,
-			// 'MAXCOUNT/N,MAXWAIT/N,RECURSE/S,COMMAND/K',
-			'MAXCOUNT/N,MAXWAIT/N,RECURSE/S'
+			'MAXCOUNT/N,RECURSE/S'
 			+ ',CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S'
 			+ ',FIND_DIRTY/S,FIND_MISSING/S'
 			+ ',VERIFY_FROM/S,FILE/O,FORMAT/O'
 			+ ',BENCHMARK/S,BENCHMARK_SIZE/O,BENCHMARK_COUNT/O'
 			,
-			'Add',
+			'Green_SmartUpdate',
 			'MTH Manager',
 			'Calculates hashes of selected objects and performs an action.\nObjects can be files and folders (with RECURSE)\nUse one of the parameters to specify action.'
 			);
 		_addCommand('Worker',
 			onDOpusCmdMTHWorker,
 			initData,
-			'THREADID/K,MAXWAIT/N,ACTIONFUNC/K,FILE/K',
-			'Warning',
+			'THREADID/K,ACTIONFUNC/K,FILE/K',
+			'StatusDirty',
 			'MTH Worker (do not call directly!)',
 			null,
 			true // hide from script commands list
@@ -245,7 +304,7 @@
 			onDOpusCmdMHTClearCache,
 			initData,
 			'',
-			'Delete',
+			'Red_DeleteADS',
 			'MTH Clear Cache',
 			'Clears internal cache'
 			);
@@ -253,7 +312,7 @@
 			onDOpusCopyToClipboard,
 			initData,
 			'SKIP_PRECHECK/S',
-			'CopyToClipboard',
+			'Orange_CopyFromADSToClipboard',
 			'MTH Copy ADS to Clipboard',
 			'Copy stored ADS hashes of selected objects to clipboard'
 			);
@@ -261,7 +320,7 @@
 			onDOpusADSExportFrom,
 			initData,
 			'SKIP_PRECHECK/S,FORMAT/K,USE_FORWARD_SLASH/S,FILE/O',
-			'FileExport-Download',
+			'Orange_ExportFromADS',
 			'MTH Export from ADS',
 			'Exports stored ADS hashes of selected objects to a file; if filename is supplied and file exists it will be overwritten'
 			);
@@ -269,7 +328,7 @@
 			onDOpusADSImportInto,
 			initData,
 			'FORMAT/K,FILE/O',
-			'FileImport-Upload',
+			'Orange_ImportIntoADS',
 			'MTH Import into ADS',
 			'Imports hashes from selected file to ADS for all matched files by name; the current lister tab path is used to resolve relative paths'
 			);
@@ -277,7 +336,7 @@
 			onDOpusOnTheFlyCalculateAndExport,
 			initData,
 			'FORMAT/K,FILE/O',
-			'FileExport-Download2',
+			'Orange_OntheflyCalculateAndExport',
 			'MTH On-The-Fly Calculate && Export',
 			'Calculates hashes anew without using ADS; if filename is supplied and file exists it will be overwritten'
 			);
@@ -285,7 +344,7 @@
 			onDOpusOnTheFlyVerifyFromFile,
 			initData,
 			'FORMAT/K,FILE/O',
-			'FileImport-Upload2',
+			'Orange_OntheflyCompareExternalFileToADS',
 			'MTH On-The-Fly Verify (no ADS import)',
 			'Verifies hashes in external file against all matched files by relative path & name; the current lister tab path is used to resolve relative paths'
 			);
@@ -331,7 +390,6 @@
 
 
 
-
 /*
 	 .d8888b.   .d88888b.  888b     d888 888b     d888        d8888 888b    888 8888888b.   .d8888b.
 	d88P  Y88b d88P" "Y88b 8888b   d8888 8888b   d8888       d88888 8888b   888 888  "Y88b d88P  Y88b
@@ -351,7 +409,7 @@
 	}
 	function onDOpusCopyToClipboard(cmdData) {
 		var fnName = funcNameExtractor(onDOpusCopyToClipboard);
-		var res = _getHashesOfAllSelectedFiles(cmdData);
+		var res = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
 		if (!res) { return; }
 		doh.cmd.RunCommand('Clipboard SET ' + JSON.stringify(res, null, 4));
 	}
@@ -365,7 +423,7 @@
 			abortWithFatalError('No or invalid format supplied for FORMAT parameter,\nvalid formats are:\n' + fileExchangeHandler.getValidFormats());
 		}
 		// get the hashes
-		var res1 = _getHashesOfAllSelectedFiles(cmdData);
+		var res1 = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
 		if (!res1) { return; }
 		var res2 = fileExchangeHandler.exportTo(cmdData, format, filename, res1, useForwardSlash);
 		if (!res2.isOK()) {
@@ -494,11 +552,12 @@
 		function convertForImportFromClassical(sContents, currentPath, algorithm) {
 			var fnName = myName + '.convertForImportFromClassical';
 
-			var oHashedItemColl = new HashedItemsCollection(),
-				lines           = sContents ? sContents.split(/\n/) : [],
-				hash            = '',
-				relpath         = '',
-				fullpath        = '';
+			var oHashedItemsColl = new HashedItemsCollection(),
+				lines            = sContents ? sContents.split(/\n/) : [],
+				hash             = '',
+				relpath          = '',
+				fullpath         = '',
+				tsStart          = now();
 
 			for (var i = 0; i < lines.length; i++) {
 				// empty & comment lines
@@ -520,12 +579,12 @@
 					abortWithFatalError('Cannot get DOpus Item for: ' + fullpath);
 				}
 				if (!FS.isValidPath(''+oItem.realpath)) {
-					oHashedItemColl.addItem(new HashedItem(oItem, relpath, false, 'Not found: ' + oItem.realpath, hash, algorithm));
+					oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm, false, 'Not found: ' + oItem.realpath)); // skipped
 				} else {
-					oHashedItemColl.addItem(new HashedItem(oItem, relpath, false, false, hash, algorithm));
+					oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm));
 				}
 			}
-			var outPOJO = new CommandResults(oHashedItemColl, currentPath, algorithm);
+			var outPOJO = new CommandResults(oHashedItemsColl, currentPath, algorithm, tsStart, now());
 			return outPOJO;
 		}
 		/**
@@ -735,10 +794,7 @@
 					logger.snormal('%s -- User cancelled: %b ...exiting', fnName, !res);
 					return; // user cancelled
 				}
-				// // copy the files with errors into clipboard
-				// if (inPOJO.error.length) {
-				// 	doh.cmd.RunCommand('Clipboard SET ' + JSON.stringify(inPOJO.error, null, 4));
-				// }
+
 				var importErrors = [];
 				for (var filepath in inPOJO.items) {
 					if (!inPOJO.items.hasOwnProperty(filepath)) continue;
@@ -813,12 +869,14 @@
 
 	/**
 	 * @param {object} cmdData DOpus CommandData
+	 * @param {string} algorithm
 	 * @returns {CommandResults}
 	 */
-	function _getHashesOfAllSelectedFiles(cmdData) {
+	function _getHashesOfAllSelectedFiles(cmdData, algorithm) {
 		var fnName = funcNameExtractor(_getHashesOfAllSelectedFiles);
 
-		var skipCheck = cmdData.func.args.got_arg.SKIP_PRECHECK || false;
+		var skipCheck = cmdData.func.args.got_arg.SKIP_PRECHECK || false,
+			tsStart   = now();
 
 		// check if tab is up-to-date
 		if (doh.isTabDirty(cmdData)) {
@@ -879,7 +937,7 @@
 		}
 
 		// calculate the command results and return
-		var oCR = new CommandResults(itemsFiltered, doh.getCurrentPath(cmdData));
+		var oCR = new CommandResults(itemsFiltered, doh.getCurrentPath(cmdData), algorithm, tsStart, now());
 		logger.sverbose('%s -- oCR:\n%s', fnName, JSON.stringify(oCR, null, 4));
 		return oCR;
 	}
@@ -1003,8 +1061,9 @@
 		// benchmarking, runaway stoppers for while loops, progress bar abort
 		var tsStart     = now(),
 			itercnt     = 0,
-			itermax     = Math.round(1.01 * command.maxwait / (sleepdur||1)),
-			userAborted = false;
+			itermax     = Math.round(60 * 60 * 1000 / (sleepdur||1)),
+			userAborted = false,
+			rootPath    = doh.getCurrentPath(cmdData);
 
 
 		// SELECTION & FILTERING
@@ -1032,7 +1091,7 @@
 				for (var itemPath in extFileAsPOJO.items) {
 					if (!extFileAsPOJO.items.hasOwnProperty(itemPath)) continue; // skip prototype functions, etc.
 					var item = extFileAsPOJO.items[itemPath];
-					selectedFiltered.addItem(new HashedItem(doh.getItem(itemPath), '', false, false, item.hash, extFileAsPOJO.Algorithm));
+					selectedFiltered.addItem(new HashedItem(doh.getItem(itemPath), '', item.hash, extFileAsPOJO.Algorithm));
 				}
 				logger.sverbose('%s -- hic:\n%s', fnName, JSON.stringify(selectedFiltered, null, 4));
 			} else {
@@ -1077,29 +1136,16 @@
 		// DISK TYPE DETECTION
 		{
 			if (AUTO_DETECT_DISK_TYPE) {
-				logger.snormal(stopwatch.startAndPrint(fnName, 'Drive Type Deteection'));
-				for (var driveLetter in selectedFiltered.driveLetters) {
-					if (!selectedFiltered.driveLetters.hasOwnProperty(driveLetter)) continue; // skip prototype functions, etc.
-					var tempPSOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
-					var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
-					logger.sverbose('%s -- Running: %s', fnName, cmd);
-					util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-					var sContents = FS.readFile(tempPSOutFile, FS.TEXT_ENCODING.utf16);
-					doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempPSOutFile + '"');
-					if (!sContents) {
-						logger.snormal('%s -- Could not determine disk type of %s, assuming SSD', fnName, driveLetter);
-					} else {
-						// @ts-ignore - sContents is string! wth are you talking about tsc?
-						var driveType = sContents.replace(/.+\{MediaType=([^}]+)\}.+/mg, '$1').trim();
-						logger.sverbose('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
-						if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
-							var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
-							var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
-							if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
-						}
+				var driveType = detectDriveType(selectedFiltered.driveLetters);
+				if (!driveType) {
+					// assume SSD and continue
+				} else {
+					if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
+						var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+						var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
+						if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
 					}
 				}
-				logger.snormal(stopwatch.stopAndPrint(fnName, 'Drive Type Deteection'));
 				logger.snormal('%s -- Number of threads to use: %d', fnName, command.maxcount);
 			}
 		}
@@ -1109,9 +1155,6 @@
 		{
 			var selectedKnapsacked = knapsackItems(selectedFiltered, command.maxcount);
 		}
-
-
-// return; // TODO - DELETE
 
 
 		// INITIALIZE PROGRESS BAR
@@ -1137,7 +1180,7 @@
 				var ks = selectedKnapsacked.unfinishedKS[kskey];
 
 				// prepare the variables for this knapsack's worker
-				var torun = sprintf('%s %s THREADID="%s" MAXWAIT=%s ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, command.maxwait, fnActionName);
+				var torun = sprintf('%s %s THREADID="%s" ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, fnActionName);
 				// logger.sforce('%s -- torun: %s', fnName, torun);
 				// continue;
 
@@ -1153,13 +1196,11 @@
 
 					// create a new DOpus map for this file
 					var new_file             = doh.dc.Map();	        // @ts-ignore
-					new_file('maxwait')      = command.maxwait;			// @ts-ignore
 					new_file('filename')     = oHashedItem.name;		// @ts-ignore
 					new_file('filepath')     = oHashedItem.fullpath;	// @ts-ignore
 					new_file('filesize')     = oHashedItem.size;		// @ts-ignore
 					new_file('finished')     = false; 					// @ts-ignore // if it timed out or was unfinished for any reason
 					new_file('elapsed')      = 0;						// @ts-ignore
-					new_file('timeout')      = false;					// @ts-ignore
 					new_file('error')        = false;					// @ts-ignore
 					new_file('hash')         = false;					// @ts-ignore
 					new_file('finalized')    = false; 					// @ts-ignore // if the file has been processed completely, can include timed out files
@@ -1177,7 +1218,6 @@
 
 		// ALL THREADS STARTED - NOW MONITOR THEM
 		{
-			var timedoutOverall = false;
 			logger.sforce('');
 			logger.sforce('');
 			logger.sforce('');
@@ -1189,7 +1229,7 @@
 			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
 			var ts = now();
 			var finished_bytes_so_far = 0;
-			unfinished: while(itercnt++ < itermax && now() - ts < command.maxwait && !selectedKnapsacked.allFinished()) {
+			unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
 				doh.delay(sleepdur);
 				for (var kskey in selectedKnapsacked.unfinishedKS) {
 					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
@@ -1199,7 +1239,7 @@
 					// logger.forceSprintf('%s -- KS Thread ID: %s', fnName, threadID);
 					for (var e = new Enumerator(ksMap); !e.atEnd(); e.moveNext()) {
 						var ksItemPath  = e.item(),           // full path is the key, as we put it in the manager
-							ksItemAttrib = ksMap(ksItemPath); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result
+							ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result
 						// logger.forceSprintf('%s -- ksItemAttrib("filename"): %s, finished: %b', fnName, ksItemAttrib('filename'), ksItemAttrib('finished'));
 
 						// check for any unfinished files
@@ -1212,13 +1252,12 @@
 						} else {
 							// EXTREMELY IMPORTANT
 							// find this item in the knapsack items collection and mark it as finished
-							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsackCollection
+							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsacksCollection
 							// and that's how selectedKnapsacked.allFinished() above works!
 							// ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
 							ks.itemsColl.getByPath(ksItemPath).markFinished();
 
 							logger.sverbose('%s -- %-100s -- AllFinished: %s, KS Finished: %s, KS: %s', fnName, ksItemAttrib('filename'), selectedKnapsacked.allFinished(), ks.isFinished(), kskey);
-
 
 							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
 							ksItemAttrib('finalized') = true;
@@ -1236,10 +1275,9 @@
 			logger.sforce('');
 			logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
 			// if (itercnt >= itermax && !selectedKnapsacked.allFinished()) {
-			if (!selectedKnapsacked.allFinished() && (itercnt >= itermax || now() - ts >= command.maxwait)) {
-				timedoutOverall = true;
+			if (!selectedKnapsacked.allFinished() && itercnt >= itermax) {
 				logger.sforce('');
-				logger.sforce('%s -- Max Wait Reached! (itercnt/itermax: %d/%d, maxwait/elapsed: %d/%d)', fnName, itercnt, itermax, command.maxwait, now() - ts);
+				logger.sforce('%s -- Max Wait Reached! (itercnt/itermax: %d/%d)', fnName, itercnt, itermax);
 			}
 			logger.sforce('');
 			logger.sforce('');
@@ -1267,32 +1305,18 @@
 
 		// PREPARE RESULTS OBJECT
 		// results ready, all threads finished/timed out
-		// put everything neatly into an object
-		// var actionResults = buildActionResultsObject(fnName, selectedKnapsacked, tp, userAborted, tsStart, tsFinish, selectedItemsCount, selectedItemsSize);
-		var actionResults = new MTActionResults(fnName, selectedKnapsacked, tp, userAborted, timedoutOverall, tsStart, tsFinish, selectedItemsCount, selectedItemsSize);
-		if (actionResults.errors.length) {
-			addFilesToCollection(actionResults.errors, COLLECTION_FOR_ERRORS);
-		}
+		// convert the KnapsacksCollection object to a new CommandResults object
+		// these 2 objects are normally not directly compatible
+		// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
+		// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
+		var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tp, tsStart, tsFinish)
 
 
 		// SUCCESS & ERROR COLLECTIONS
 		{
-			logger.sforce('%s -- actionResults.items: %s', fnName, getObjKeys(actionResults.items).length);
-
-			if (COLLECTION_FOR_VALID || COLLECTION_FOR_ERRORS) {
-				var aValid = [], aError = [];
-				for (var f in actionResults.items) {
-					if (!actionResults.items.hasOwnProperty(f)) continue;
-					/** @type {MTActionResultFile} */
-					var el = actionResults.items[f];
-					if (el.result) {
-						aValid.push(el.filepath);
-					} else if (el.error) {
-						aError.push(el.filepath);
-					}
-				}
-				if (COLLECTION_FOR_VALID && aValid.length)  addFilesToCollection(aValid, COLLECTION_FOR_VALID);
-				if (COLLECTION_FOR_ERRORS && aError.length) addFilesToCollection(aError, COLLECTION_FOR_ERRORS);
+			if (COLLECTION_FOR_SUCCESS || COLLECTION_FOR_ERRORS) {
+				if (COLLECTION_FOR_SUCCESS && oCommandResults.ExtInfo.Valid_Count)  addFilesToCollection(getObjKeys(oCommandResults.items), COLLECTION_FOR_SUCCESS);
+				if (COLLECTION_FOR_ERRORS && oCommandResults.ExtInfo.Invalid_Count) addFilesToCollection(getObjKeys(oCommandResults.error), COLLECTION_FOR_ERRORS);
 			}
 		}
 
@@ -1301,27 +1325,7 @@
 		// ON-THE-FLY EXPORT AND ALIKE
 		{
 			if (command.fileName || command.fileFormat) {
-				// copy the MTActionResults object to a new HashedItemCollection and save
-				// these 2 objects are normally not directly compatible
-				// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
-				// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
-				var oHashedItemsColl = new HashedItemsCollection(),
-					currentPath      = doh.getCurrentPath(cmdData),
-					oFinishedKS      = selectedKnapsacked.finishedKS;
-				for (var kskey in oFinishedKS) {
-					if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-					var ksMap = tp(oFinishedKS[kskey].id);
-					// each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
-					for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
-						var fileFullpath = eKS.item(),
-							fileAttribs  = ksMap(fileFullpath),
-							oItem        = doh.getItem(fileFullpath);
-						var relativePathAndFileName = (''+oItem.realpath).replace(currentPath, ''),
-							relativePathOnly        = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oItem.name));
-						oHashedItemsColl.addItem(new HashedItem(oItem, relativePathOnly, false, false, fileAttribs('result'), CURRENT_ALGORITHM));
-					}
-				}
-				var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, new CommandResults(oHashedItemsColl, currentPath, CURRENT_ALGORITHM), false);
+				var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, oCommandResults, false);
 				if (!saveResult.isOK()) {
 					showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + saveResult.err, 'Save Error');
 				}
@@ -1329,43 +1333,60 @@
 		}
 
 
-		// // CLEANUP BENCHMARK FILES
-		// if(fnAction === actions.PUBLIC.fnActionBenchmark && aGeneratedFiles) {
-		// 	for (var i = 0; i < aGeneratedFiles.length; i++) {
-		// 		doh.cmd.RunCommand('Delete /quiet /norecycle "' + aGeneratedFiles[i] + '"');
-		// 	}
-		// }
+		// a not so fortunate experiment - I did not like how it looks and seems to be over-complicating things
+		// TODO maybe I'll come back to this later
+		/*
+			doh.loadResources(SCRIPT_RESOURCES.SummaryDialog);
+			var dlg = doh.getDialog(cmdData);
+			dlg.window   = cmdData.func.sourcetab;
+			dlg.template = 'SummaryDialog';
+			dlg.detach   = true;
+			dlg.Show();
 
+			dlg.Control('txtOperation').value                 = command.command;
+			dlg.Control('txtStart').value                     = actionResults.summary.tsstart.formatAsHms();
+			dlg.Control('txtFinish').value                    = actionResults.summary.tsfinish.formatAsHms();
+			dlg.Control('txtSuccess').value                   = '???';
+			dlg.Control('txtErrors').value                    = actionResults.summary.errors;
+			dlg.Control('txtSkipped').value                   = actionResults.summary.unfinished;
+
+			dlg.Control('txtMaxElapsedPerThreadSize').value   = actionResults.summary.maxelapsedthread + ' ms (' + actionResults.summary.maxelapsedthread.formatAsDuration() + ' s)';
+			dlg.Control('txtMaxElapsedPerFileName').value     = actionResults.summary.longestfilename;
+			dlg.Control('txtMaxElapsedPerFileSize').value     = actionResults.summary.longestfilesize + ' B (' + actionResults.summary.longestfilesize.formatAsSize() + ')';
+			dlg.Control('txtMaxElapsedPerFileDuration').value = actionResults.summary.maxelapsedfile + ' s (' + actionResults.summary.maxelapsedfile.formatAsDuration() + ' s)';
+			dlg.Control('txtTotalFilesAfterFiltering').value  = actionResults.summary.totalfiles;
+			dlg.Control('txtTotalSizeAfterFiltering').value   = actionResults.summary.totalsize + ' B (' + actionResults.summary.totalsize.formatAsSize() + ')';
+			dlg.Control('txtTotalElapsed').value              = actionResults.summary.totalelapsed + ' ms (' + actionResults.summary.totalelapsed.formatAsDuration() + ' s)';
+			dlg.Control('txtAverageSpeed').value              = actionResults.summary.avgspeed.formatAsSize() + '/s';
+		*/
 
 		// FROM THIS POINT ON, DO WHAT YOU WANT...
 		{
-			if (DUMP_DETAILED_RESULTS) dumpDetailedResultsToDOPusOutput(actionResults);
-			var summaryAndErrorTexts = buildSummaryAndErrorTexts(actionResults);
-			logger.force(summaryAndErrorTexts.summaryText);
-			logger.force(summaryAndErrorTexts.errorsText);
+			var oSummaries = oCommandResults.getSummaries(fnName, userAborted, DUMP_DETAILED_RESULTS);
+			logger.force(oSummaries.successSummary);
+			logger.force(oSummaries.errorsSummary);
 			if (SHOW_SUMMARY_DIALOG) {
 				// show an overall summary message as dialog if you like
 				showMessageDialog(
 					doh.getDialog(cmdData),
-					summaryAndErrorTexts.summaryText.replace(/,\s+/mg, '\n').replace(fnName + ' ', ''),
+					oSummaries.successSummary.replace(/,\s+/mg, '\n').replace(fnName + ' ', ''),
 					Global.SCRIPT_NAME + ' - Results');
+			} else {
+				playFeedbackSound('Success');
 			}
 		}
 
 	}
 	/**
 	 * @param {object} cmdData DOpus command data
-	 * @returns {ManagerCommand} manager command with attribs: maxcount, maxwait, recurse, command, filter, action...
+	 * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
 	 */
 	function getManagerCommand(cmdData) {
 		var fnName = funcNameExtractor(getManagerCommand);
 
-		// maxwait will not be needed for this script at all
-		// but if I use this script for webpage fetch or alike it will come handy
 		var cargs     = cmdData.func.args;
 		var recurse   = cargs.got_arg.RECURSE || true;              // if dirs are selected process children files
 		var maxcount  = cargs.MAXCOUNT || MAX_AVAILABLE_CORE_COUNT; // maxiumum number of threads, default: all available
-		var maxwait   = cargs.MAXWAIT || 60*60*1000;                // maximum wait in millisecs for a thread to finish, default: 1 hour in millisecs
 		var file      = cargs.FILE || false;                        // file to use for on-the-fly export & verify
 		var format    = cargs.FORMAT || false;                      // file format to use for on-the-fly export (but not verify)
 		var benchsize = cargs.BENCHMARK_SIZE || Math.pow(2, 16);    // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
@@ -1387,7 +1408,7 @@
 
 		for (var sw in VALID_SWITCHES) {
 			if (cargs.got_arg[sw]) {
-				var ma = new ManagerCommand(sw, recurse, maxcount, maxwait, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
+				var ma = new ManagerCommand(sw, recurse, maxcount, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
 				if (file)       ma.fileName   = file;   // do not add filename unless given
 				if (format)     ma.fileFormat = format; // do not add format unless given
 				if (benchsize)  ma.benchSize  = benchsize;
@@ -1398,8 +1419,6 @@
 		}
 		abortWithFatalError(sprintf('%s -- No valid command is given', fnName));
 	}
-
-
 	/**
 	 * @param {string[]} filepathsArray JS array, line item objects must be file paths
 	 * @param {string} collectionName collection name to add to
@@ -1416,81 +1435,6 @@
 		}
 		doh.cmd.RunCommand('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
 		doh.cmd.RunCommand('Go "coll://' + collectionName + '" NEWTAB=findexisting');
-	}
-
-	/**
-	 * @param {MTActionResults} actionResultsObject action results object
-	 * @returns {{summaryText: string, errorsText: string}} object with attribs: summaryText & errorsText
-	 */
-	function buildSummaryAndErrorTexts(actionResultsObject) {
-		var summaryText = sprintf(
-			'\n====  %s SUMMARY  ====\n%s\nStart: %s\nFinish: %s\n'
-			+ '%s' // show aborted only if necessary
-			+ '%s' // show user timeout only if necessary
-			+ 'Timeouts: %d\nUnfinished: %d\nErrors: %d\n'
-			+ 'Max Elapsed/Thread: %d ms (%s s)\nMax Elapsed/File: %d ms (%s s)\n'
-			+ 'Max Elapsed for File Name: %s\nMax Elapsed for File Size: %d (%s)\n'
-			+ '\n\nTotal Files after Filtering: %d\n\nTotal Size after Filtering: %s bytes (%s)\n\nTotal Elapsed: %d ms (%s s)\n\nAverage Speed: %s/s',
-			actionResultsObject.summary.myname,
-			(actionResultsObject.summary.errors ? '\nSOME ERRORS OCCURRED\n' : ''),
-			actionResultsObject.summary.tsstart.formatAsHms(),
-			actionResultsObject.summary.tsfinish.formatAsHms(),
-			actionResultsObject.summary.aborted ? '\nUSER ABORTED!\n\n' : '',
-			actionResultsObject.summary.usertimeout ? '\nMAX WAIT REACHED!\n\n' : '',
-			actionResultsObject.summary.timeouts,
-			actionResultsObject.summary.unfinished,
-			actionResultsObject.summary.errors,
-			actionResultsObject.summary.maxelapsedthread,
-			actionResultsObject.summary.maxelapsedthread.formatAsDuration(),
-			actionResultsObject.summary.maxelapsedfile,
-			actionResultsObject.summary.maxelapsedfile.formatAsDuration(),
-			actionResultsObject.summary.longestfilename,
-			actionResultsObject.summary.longestfilesize,
-			actionResultsObject.summary.longestfilesize.formatAsSize(),
-			actionResultsObject.summary.totalfiles,
-			actionResultsObject.summary.totalsize,
-			actionResultsObject.summary.totalsize.formatAsSize(),
-			actionResultsObject.summary.totalelapsed,
-			actionResultsObject.summary.totalelapsed.formatAsDuration(),
-			actionResultsObject.summary.avgspeed.formatAsSize()
-		);
-		if (actionResultsObject.errors.length) {
-			var errorsText = '\nFiles with errors:\n';
-			for (var i = 0; i < actionResultsObject.errors.length; i++) {
-				errorsText += '\t' + actionResultsObject.errors[i] + '\n';
-			}
-			errorsText += '\n\n';
-		}
-		return { summaryText: summaryText, errorsText: errorsText||'' };
-	}
-
-	/**
-	 * @param {MTActionResults} actionResultsObject action results object
-	 * @returns nothing
-	 */
-	function dumpDetailedResultsToDOPusOutput(actionResultsObject) {
-		var fnName = funcNameExtractor(dumpDetailedResultsToDOPusOutput);
-		for (var f in actionResultsObject.items) {
-			if (!actionResultsObject.items.hasOwnProperty(f)) continue;
-			/** @type {MTActionResultFile} */
-			var el = actionResultsObject.items[f];
-			var itemSummaryMsg = sprintf(
-				'%s -- Worker finished: %s, timeout: %s, size: %10d, elapsed: %7d ms, file: %s, %s',
-				fnName,
-				el.finished,
-				el.timeout,
-				el.filesize,
-				el.elapsed,
-				el.filepath,
-				el.result ? 'Result: ' + el.result : 'Error: ' + el.error
-			);
-			logger.normal(itemSummaryMsg);
-		}
-		logger.normal('');
-		logger.normal('');
-		logger.normal('');
-		logger.normal('');
-		logger.normal('');
 	}
 }
 
@@ -1519,10 +1463,9 @@
 
 		var param = {
 			threadID   : cmdData.func.args.THREADID,
-			maxwait    : cmdData.func.args.MAXWAIT,
 			actionfunc : cmdData.func.args.ACTIONFUNC
 		}
-		logger.info(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, maxwait: %d, action: %s', param.threadID, param.maxwait, param.actionfunc) ));
+		logger.info(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, action: %s', param.threadID, param.actionfunc) ));
 
 		// convert function name to function
 		var fnActionFunc = actions.getFunc(param.actionfunc);
@@ -1539,7 +1482,7 @@
 
 		filesloop: for (var e = new Enumerator(ksMap); !aborted && !e.atEnd(); e.moveNext()) {
 			var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
-				ksItemAttrib = ksMap(ksItemPath); // map with: maxwait, filename, filepath, filesize, finished, elapsed, timeout, error, result, externalAlgo, externalHash
+				ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result, externalAlgo, externalHash
 			logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
 
 			// if the manager sets the pause or abort status, honor it
@@ -1650,7 +1593,6 @@
 			logger.normal(stopwatch.stopAndPrint(fnName, 'File Selection'));
 		}
 
-
 		// COLLECT FILES USING GIVEN FILTER
 		// WARNING: fnItemFilter runs after all files are selected, not during the determination of files
 		{
@@ -1696,7 +1638,7 @@
 	 *
 	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
 	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
-	 * @returns {KnapsackCollection} knapsacked items
+	 * @returns {KnapsacksCollection} knapsacked items
 	 */
 	function knapsackItems(oHashedItemsCollection, numThreads) {
 		var fnName = funcNameExtractor(knapsackItems);
@@ -1720,7 +1662,7 @@
 			var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
 
 			// create the collection
-			var outObj = new KnapsackCollection(now().toString());
+			var outObj = new KnapsacksCollection(now().toString());
 
 			// we will not use a knapsack algorithm in the classical sense per se
 			// since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
@@ -1932,7 +1874,7 @@
 
 
 		logger.normal(stopwatch.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
-		var ksColl = new KnapsackCollection(now().toString());
+		var ksColl = new KnapsacksCollection(now().toString());
 		for (var i = 0; i < ksArray.length; i++) {
 			var ks = ksArray[i];
 			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
@@ -2138,8 +2080,8 @@
 			saveFile: function (path, contents, format) {
 				var fnName = 'FS.saveFile';
 
-				// if (path && path.length > 230) {
-				// 	path = '\\\\?\\' + path;
+				// if (path.length > 240 && path.indexOf('\\\\?\\') === -1) {
+				// 	path   = '\\\\?\\' + path;
 				// }
 
 				// unlike ST.Encode()/Decode(), Blob.CopyFrom() uses 'utf8', not 'utf-8'
@@ -2215,6 +2157,48 @@
 			if (typeof algorithm === 'undefined') algorithm = CURRENT_ALGORITHM;
 			return (STREAM_PREFIX + algorithm.toUpperCase());
 		}
+		/**
+		 * @param {DOpusItem} oItem
+		 * @returns {{readonly: boolean, system: boolean}}
+		 */
+		function getFileAttributes(oItem) {
+			var fnName = 'ADS.checkFileAttributes';
+			// check the file attributes: Read-Only & System
+			var resetAttribReadOnly = false,
+				resetAttribSystem   = false,
+				oFile               = oItem.Open('m');
+			if (oItem.fileattr.readonly) {
+				if (IGNORE_READONLY_FLAG) {
+					oFile.SetAttr('-r');
+					resetAttribReadOnly = true;
+				} else {
+					// TODO show warning message or skip
+					logger.sforce('%s -- unignored READONLY file found: %s', fnName, oItem.name);
+					playFeedbackSound('Warn');
+				}
+			}
+			if (oItem.fileattr.system) {
+				if (IGNORE_SYSTEM_FLAG) {
+					oFile.SetAttr('-s');
+					resetAttribSystem = true;
+				} else {
+					// TODO show warning message or skip
+					logger.sforce('%s -- unignored SYSTEM file found: %s', fnName, oItem.name);
+					playFeedbackSound('Warn');
+				}
+			}
+			return {readonly: resetAttribReadOnly, system: resetAttribSystem};
+		}
+		/**
+		 * @param {DOpusItem} oItem
+		 * @param {{readonly: boolean, system: boolean}} oFileAttrib
+		 */
+		function resetFileAttributes(oItem, oFileAttrib) {
+			var oFile = oItem.Open('m');
+			oFileAttrib.readonly && oFile.SetAttr('+r');
+			oFileAttrib.system   && oFile.SetAttr('+s');
+		}
+
 		return {
 			name: myName,
 			/**
@@ -2284,15 +2268,22 @@
 					logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCount());
 				}
 
-				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
-				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath);
+				// check the file attributes: Read-Only & System
+				var oFileAttrib = getFileAttributes(oItem);
 
 				if (filePath.length > 240 ) {
 					filePath   = '\\\\?\\' + filePath;
 					targetPath = '\\\\?\\' + targetPath;
 				}
+
+				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
+				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath + ', # bytes written: ' + numBytesWritten);
+
 				logger.sverbose('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
 				doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
+
+				// reset the file attributes if necessary: Read-Only & System
+				resetFileAttributes(oItem, oFileAttrib);
 
 				return numBytesWritten;
 			},
@@ -2387,6 +2378,15 @@
 			 */
 			getCache: function() {
 				return doh.sv.Exists('cache') ? doh.sv.Get('cache') : false;
+			},
+			/**
+			 * sets the value for the given map key
+			 * @param {any} key
+			 * @param {any} val
+			 */
+			getCacheVar: function(key) {
+				// @ts-ignore
+				return doh.sv.Get('cache')(key);
 			},
 			/**
 			 * sets the value for the given map key
@@ -3048,6 +3048,28 @@
 		var ret = dlgConfirm.show;
 		return ret;
 	}
+	/**
+	 * @param {string} soundFile
+	 */
+	function playFeedbackSound(soundFile) {
+		var fnName = funcNameExtractor(playFeedbackSound);
+
+		var myProps   = _getScriptPathVars(),
+			soundsDir = myProps.path + Global.SCRIPT_NAME + 'Sounds\\',
+			cmd       = '';
+
+		// if the sounds directory does not exist
+		// extract the OSP and delete everything else in the extracted dir except *.wav (usually .js, .ts & Icons Directory)
+		if (!FS.isValidPath(soundsDir) && myProps.isOSP && myProps.fullpath) {
+			logger.sforce('%s -- Cannot find Sounds Directory', fnName, soundsDir);
+			cmd = sprintf('Copy FILE "%s" EXTRACT TO "%s"', myProps.fullpath, soundsDir); logger.normal(cmd); doh.cmd.AddLine(cmd);
+			cmd = sprintf('Delete QUIET "%s~(*.wav)"', soundsDir);                        logger.normal(cmd); doh.cmd.AddLine(cmd);
+			doh.cmd.Run();
+		}
+		soundFile = soundsDir + Global.SCRIPT_NAME + '_' + soundFile + '.wav';
+		logger.sverbose('%s -- soundFilePath: %s', 'playFeedbackSound', soundFile);
+		doh.cmd.RunCommand('Play QUIET "' + soundFile + '"');
+	}
 	function abortWithFatalError(msg) {
 		var err = 'Fatal error occurred:\n\n' + msg;
 		doh.out('');
@@ -3351,6 +3373,61 @@
 		}
 		showMessageDialog(null, outstr, 'CPU Benchmark Results');
 	}
+
+	/**
+	 * @param {Object} driveLetters object which maps driveLetter, e.g. Y: to the number of files found under it (this function ignores it)
+	 * @returns {string|false} drive type, e.g. HDD, SDD on success, false on error
+	 */
+	function detectDriveType(driveLetters) {
+		var fnName = funcNameExtractor(detectDriveType);
+
+
+		var ts = now();
+		var cmd = 'wmic logicaldisk get deviceid,volumeserialnumber > Y:\\test.txt';
+		logger.sverbose('Running: %s', cmd);
+		util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+		doh.out('WMIC Partition Query Duration: ' + (now() - ts) + ' ms');
+		/**
+		 * First time:
+		 * - run wmic and get all drive letters and volume serial numbers
+		 * - run powershell and detect HDD/SSDs
+		 * - if any HDDs detected or some letters cannot be detected, ask user if the detection is correct
+		 * - put everything into a DOpus.Vars variable
+		 *
+		 * At every run:
+		 * - run wmic and get all drive letters and volume serial numbers
+		 * - check if the volume serial number is known for the target partitions
+		 * - if known use the previously detected drive type (without running powershell)
+		 * - if unknown, run powershell again for the drive letter
+		 * - if an HDD is detected or it cannot be detected, ask user if the detection is correct
+		 */
+
+		logger.snormal(stopwatch.startAndPrint(fnName, 'Drive Type Detection'));
+		for (var driveLetter in driveLetters) {
+			if (!driveLetters.hasOwnProperty(driveLetter)) continue; // skip prototype functions, etc.
+			var tempPSOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
+			var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
+			logger.sverbose('%s -- Running: %s', fnName, cmd);
+			util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+			var sContents = FS.readFile(tempPSOutFile, FS.TEXT_ENCODING.utf16);
+			doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempPSOutFile + '"');
+			if (!sContents) {
+				logger.snormal('%s -- Could not determine disk type of %s, assuming SSD', fnName, driveLetter);
+			} else {
+				// @ts-ignore - sContents is string! wth are you talking about tsc?
+				var driveType = sContents.replace(/.+\{MediaType=([^}]+)\}.+/mg, '$1').trim();
+				logger.sverbose('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
+				// if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
+				// 	var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+				// 	var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
+				// 	if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
+				// }
+			}
+		}
+		logger.snormal(stopwatch.stopAndPrint(fnName, 'Drive Type Detection'));
+		return driveType || false;
+	}
+
 }
 
 
@@ -3445,6 +3522,17 @@
 		this.size = '';
 		/** @property {function} InGroup Tests the file for membership of the specified file type group. */
 		this.InGroup = function(){};
+		/** @property {function} LabelsThis method returns a Vector of strings representing any labels that have been assigned to the item. */
+		this.Labels = function(){};
+		/**
+		 * @property {function} Open Opens this file and returns a File object that lets you access its contents as binary data.
+		 * @returns {object}
+		 */
+		this.Open = function(flag){};
+		/** @property {function} ShellProp Returns the value of the specified shell property for the item. The property argument can be the property's PKEY or its name. */
+		this.ShellProp = function(){};
+		/** @property {function} Update Updates the Item object from the file on disk. You might use this if you had run a command to change an item's timestamp or attributes, and wanted to retrieve the new information. */
+		this.Update = function(){};
 	}
 
 	/**
@@ -3811,6 +3899,18 @@
 			},
 			getSelFilesCount: function (cmdData) {
 				return _validate(cmdData) && cmdData.func.sourcetab.selstats.selfiles;
+			},
+			getGlobalVar: function(key, val) {
+				// @ts-ignore
+				return DOpus.vars.Get(key);
+			},
+			setGlobalVar: function(key, val) {
+				// @ts-ignore
+				DOpus.vars.Set(key, val);
+			},
+			loadResources: function(name) {
+				// @ts-ignore
+				Script.LoadResources(name);
 			}
 		}
 	}());
@@ -3833,6 +3933,73 @@
 */
 {
 
+	// TheNewSummary
+	{
+		// TODO - REVIEW
+		/**
+		 * @typedef TheNewSummary
+		 * @type {object}
+		 *
+		 * @property {string} name
+		 *
+		 * @property {number} tsStart
+		 * @property {number} tsFinish
+		 * @property {number} tsElapsed
+		 *
+		 * @property {boolean} isAborted
+		 * @property {boolean} isTimedOut
+		 *
+		 * @property {number} cntTotal
+		 * @property {number} cntSuccess
+		 * @property {number} cntSkipped files which are not selected by the filtering criteria (e.g. non-dirty files)
+		 * @property {number} cntError files which did not pass the verification or could not be updated because of read-only flag, etc.
+		 * @property {number} cntUnfinished files which did not finish until max wait is reached or user aborted
+		 *
+		 * @property {number} sizeTotal
+		 * @property {number} sizeSuccess
+		 * @property {number} sizeSkipped files which are not selected by the filtering criteria (e.g. non-dirty files)
+		 * @property {number} sizeError files which did not pass the verification or could not be updated because of read-only flag, etc.
+		 * @property {number} sizeUnfinished files which did not finish until max wait is reached or user aborted
+		 *
+		 * @property {number} averageSpeed
+		 *
+		 * @property {number} maxElapsedForThreadDuration
+		 * @property {number} maxElapsedForThreadSize
+		 *
+		 * @property {string} maxElapsedForFileName
+		 * @property {number} maxElapsedForFileSize
+		 * @property {number} maxElapsedForFileDuration
+		 *
+		 * @property {string} earliestFileFullpath
+		 * @property {string} earliestFileName
+		 * @property {number} earliestFileDate
+		 * @property {number} earliestFileSize
+		 *
+		 * @property {string} latestFileFullpath
+		 * @property {string} latestFileName
+		 * @property {number} latestFileDate
+		 * @property {number} latestFileSize
+		 *
+		 * @property {string} smallestFileFullpath
+		 * @property {string} smallestFileName
+		 * @property {number} smallestFileDate
+		 * @property {number} smallestFileSize
+		 *
+		 * @property {string} largestFileFullpath
+		 * @property {string} largestFileName
+		 * @property {number} largestFileDate
+		 * @property {number} largestFileSize
+		 */
+
+		/**
+		 * @typedef TheNewSummaryAndErrorTexts
+		 * @type {object}
+		 * @property {TheNewSummary} summary
+		 * @property {items} HashedItemsCollection
+		 */
+	}
+
+
 	// ManagerCommand
 	{
 		/**
@@ -3840,7 +4007,6 @@
 		 * @param {string} command command name
 		 * @param {boolean} recurse if subdirs should be processed
 		 * @param {number} maxcount maximum number of threads to use
-		 * @param {number} maxwait number of millisecs to wait for threads to finish
 		 * @param {function} fnFilter filter function, see filters.PUBLIC
 		 * @param {function} fnAction callback action function, see actions.PUBLIC
 		 * @param {string} collectionName collection name to use for results
@@ -3852,14 +4018,13 @@
 		 * @see filters.PUBLIC
 		 * @see actions.PUBLIC
 		 */
-		function ManagerCommand(command, recurse, maxcount, maxwait, fnFilter, fnAction, collectionName, fileName, fileFormat, benchSize, benchCount) {
+		function ManagerCommand(command, recurse, maxcount, fnFilter, fnAction, collectionName, fileName, fileFormat, benchSize, benchCount) {
 			if (typeof fnFilter !== 'function' || typeof fnAction !== 'function') {
 				abortWithFatalError('Given filter or action is not a function:\n' + fnFilter + '\n' + fnAction);
 			}
 			this.command     = command;
 			this.recurse     = recurse;
 			this.maxcount    = maxcount;
-			this.maxwait     = maxwait;
 			this.filter      = fnFilter;
 			this.action      = fnAction;
 			this.collName    = collectionName;
@@ -3967,18 +4132,19 @@
 	}
 
 
-	// HashedItem
+	// HashedItem & HashedItemsCollection
 	{
+
 		/**
 		 * Hashed Item
 		 * @param {DOpusItem} oItem DOpus Item object
 		 * @param {string=} relpath relative path
-		 * @param {boolean=} skipped true if item was skipped by filters
-		 * @param {any=} error any error message string or object
 		 * @param {string=} hash hash value
 		 * @param {string=} algorithm algorithm, e.g. 'sha1'
+		 * @param {any=} error any error message string or object
+		 * @param {any=} skipped amy message if item was skipped by filters
 		 */
-		function HashedItem(oItem, relpath, skipped, error, hash, algorithm) {
+		function HashedItem(oItem, relpath, hash, algorithm, error, skipped) {
 			if (!doh.isValidDOItem(oItem)) {
 				throw new Error('Expected DOpus item object');
 			}
@@ -3989,11 +4155,15 @@
 			this.mod_date  = this.mod_ts.formatAsDateTimeCompact();
 			this.relpath   = ''+relpath || '';
 			this.name      = ''+oItem.name;
-			this.skipped   = skipped || false;
-			this.error     = error;
+
 			this.hash      = hash || '';
 			this.algorithm = algorithm || '';
+			this.error     = error;
+			this.skipped   = skipped || false;
+
+			this.elapsed   = 0;
 			this.finished  = false;
+			this.finalized = false;
 		}
 		/**
 		 * @param {string} currentPath base path to use
@@ -4001,7 +4171,7 @@
 		 */
 		HashedItem.prototype.getRelativeToPath = function (currentPath) {
 			if (currentPath) {
-				this.relpath = this.relpath.replace(currentPath, '') || this.relpath;
+				this.relpath = this.fullpath.replace(currentPath, '') || this.relpath;
 			}
 			return this.relpath;
 		}
@@ -4011,11 +4181,9 @@
 		HashedItem.prototype.markFinished = function () {
 			this.finished = true;
 		}
-	}
 
 
-	// HashedItemsCollection
-	{
+
 		var TS_MAX_VALID = 253402214400000; // 9999-12-31
 		var TS_MIN_VALID = 0;               // 1970-01-01
 		/**
@@ -4084,7 +4252,7 @@
 			for(var fp in this._myItems) {
 				if (!this._myItems.hasOwnProperty(fp)) continue;
 				var _tmp = fnFilter(this._myItems[fp]);
-				if (_tmp >= lastFoundVal) { // use >= instead of > to guarantee there will be always a result
+				if (_tmp >= lastFoundVal) { // use >= instead of > to guarantee there will be always a result, e.g. to find 0 byte files if we start with 0
 					lastFoundVal  = _tmp;
 					lastFoundItem = this._myItems[fp];
 				}
@@ -4102,12 +4270,16 @@
 			if (this._myItems[oHashedItem.fullpath]) {
 				throw new Error('Item cannot be added, already in collection:\n' + dumpObject(oHashedItem));
 			}
+			// add the item to the list
 			this._myItems[oHashedItem.fullpath] = oHashedItem;
 			this.sizeTotal += oHashedItem.size; this.countTotal++;
+
+			// increment the drive letter count for this file
 			var driveLet = oHashedItem.fullpath.slice(0,2);
 			if (!this.driveLetters[driveLet]) this.driveLetters[driveLet] = 0;
 			this.driveLetters[driveLet]++;
 
+			// adjust the success, error & skipped counters
 			if (oHashedItem.skipped) {
 				this.sizeSkipped += oHashedItem.size; this.countSkipped++;
 			} else if (oHashedItem.error) {
@@ -4127,7 +4299,8 @@
 			if (!this._myItems[oHashedItem.fullpath]) {
 				throw new Error('Item cannot be deleted, not in collection:\n' + dumpObject(oHashedItem));
 			}
-			this.sizeTotal -= oHashedItem.size; this.countTotal--;
+
+			// adjust the success, error & skipped counters
 			if (oHashedItem.skipped) {
 				this.sizeSkipped -= oHashedItem.size;  this.countSkipped--;
 			} else if (oHashedItem.error) {
@@ -4136,7 +4309,11 @@
 				this.sizeSuccess -= oHashedItem.size;  this.countSuccess--;
 			}
 
+			// remove the item from the list
+			this.sizeTotal -= oHashedItem.size; this.countTotal--;
 			delete this._myItems[oHashedItem.fullpath];
+
+			// decrement the drive letter count for this file
 			var driveLet = oHashedItem.fullpath.slice(0,2);
 			this.driveLetters[driveLet]--;
 		}
@@ -4151,49 +4328,80 @@
 			return this._myItems[path];
 		}
 		/**
-		 * @param {object} oDOpusItem DOpus item
+		 * @param {DOpusItem} oItem DOpus item
 		 * @returns {HashedItem}
 		 */
-		HashedItemsCollection.prototype.getItemByDOpusItem = function (oDOpusItem) {
-			if (!doh.isValidDOItem(oDOpusItem)) {
-				throw new Error('Expected DOpus Item, got type: ' + typeof oDOpusItem + ', value:  ' + oDOpusItem);
+		HashedItemsCollection.prototype.getItemByDOpusItem = function (oItem) {
+			if (!doh.isValidDOItem(oItem)) {
+				throw new Error('Expected DOpus Item, got type: ' + typeof oItem + ', value:  ' + oItem);
 			}
-			return this._myItems[''+oDOpusItem.realpath];
+			return this._myItems[''+oItem.realpath];
+		}
+		/**
+		 * @param {string} rootPath starting path to use to adjust the relative paths
+		 */
+		HashedItemsCollection.prototype.adjustRelativePaths = function (rootPath) {
+			rootPath = rootPath.normalizeTrailingBackslashes();
+			for(var fp in this._myItems) {
+				if (!this._myItems.hasOwnProperty(fp)) continue;
+				var oHashedItem = this._myItems[fp];
+				var relativePathAndFileName = (''+oHashedItem.fullpath).replace(rootPath, '');
+				oHashedItem.relpath = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oHashedItem.name));
+			}
+		}
+		/**
+		 * @param {string} algorithm
+		 */
+		HashedItemsCollection.prototype.setAlgorithmForAll = function (algorithm) {
+			if (!algorithm) {
+				abortWithFatalError('Given algorithm is invalid: ' + algorithm);
+			}
+			for(var fp in this._myItems) {
+				if (!this._myItems.hasOwnProperty(fp)) continue;
+				this._myItems[fp].algorithm = algorithm;
+			}
 		}
 		/**
 		 * @returns {Object.<string, HashedItem>} all items
 		 */
-		HashedItemsCollection.prototype.getItems        = function () { return this._myItems }
+		HashedItemsCollection.prototype.getItems          = function () { return this._myItems }
 		/**
 		 * @returns {Object.<string, HashedItem>} success items
 		 */
-		HashedItemsCollection.prototype.getSuccessItems = function () { return this._filterByAttribute(function (o){ return !!!o.error && !!!o.skipped }) }
+		HashedItemsCollection.prototype.getSuccessItems   = function () { return this._filterByAttribute(function (o){ return !!!o.error && !!!o.skipped }) }
 		/**
 		 * @returns {Object.<string, HashedItem>} error items
 		 */
-		HashedItemsCollection.prototype.getErrorItems   = function () { return this._filterByAttribute(function (o){ return !!o.error }) }
+		HashedItemsCollection.prototype.getErrorItems     = function () { return this._filterByAttribute(function (o){ return !!o.error }) }
 		/**
 		 * @returns {Object.<string, HashedItem>} skipped items
 		 */
-		HashedItemsCollection.prototype.getSkippedItems = function () { return this._filterByAttribute(function (o){ return !!o.skipped }) }
+		HashedItemsCollection.prototype.getSkippedItems   = function () { return this._filterByAttribute(function (o){ return !!o.skipped }) }
 		/**
 		 * @returns {HashedItem} earliest item
 		 */
-		HashedItemsCollection.prototype.getEarliestItem = function () { return this._findMinByAttribute(function (o){ return o.mod_ts }, TS_MAX_VALID) }
+		HashedItemsCollection.prototype.getEarliestItem   = function () { return this._findMinByAttribute(function (o){ return o.mod_ts }, TS_MAX_VALID) }
 		/**
 		 * @returns {HashedItem} latest item
 		 */
-		HashedItemsCollection.prototype.getLatestItem   = function () { return this._findMaxByAttribute(function (o){ return o.mod_ts }, TS_MIN_VALID) }
+		HashedItemsCollection.prototype.getLatestItem     = function () { return this._findMaxByAttribute(function (o){ return o.mod_ts }, TS_MIN_VALID) }
 		/**
 		 * @returns {HashedItem} smallest item
 		 */
-		HashedItemsCollection.prototype.getSmallestItem = function () { return this._findMinByAttribute(function (o){ return o.size }, Math.pow(2, 50)) } // 1 petabyte, I doubt anybody will attempt to hash it! :D
+		HashedItemsCollection.prototype.getSmallestItem   = function () { return this._findMinByAttribute(function (o){ return o.size }, Math.pow(2, 50)) } // 1 petabyte, I doubt anybody will attempt to hash it! :D
 		/**
 		 * @returns {HashedItem} largest item
 		 */
-		HashedItemsCollection.prototype.getLargestItem  = function () { return this._findMaxByAttribute(function (o){ return o.size }, 0)
+		HashedItemsCollection.prototype.getLargestItem    = function () { return this._findMaxByAttribute(function (o){ return o.size }, 0) }
+		/**
+		 * @returns {HashedItem} earliest item
+		 */
+		HashedItemsCollection.prototype.getMinElapsedItem = function () { return this._findMinByAttribute(function (o){ return o.elapsed }, TS_MAX_VALID) }
+		/**
+		 * @returns {HashedItem} largest item
+		 */
+		HashedItemsCollection.prototype.getMaxElapsedItem = function () { return this._findMaxByAttribute(function (o){ return o.elapsed }, 0)
 		}
-
 	}
 
 
@@ -4201,49 +4409,87 @@
 	{
 		/**
 		 * General purpose Command Results, e.g. for conversion, filtering results, exporting, importing...
+		 * incl. details about slowest thread, file, or largest, smallest, earliest, latest file, etc.
+		 * All non-essential information is in the ExtInfo collection.
+		 * All attribute names are in Capitalized_Words with underscores, which are used for example in exported files;
+		 * the underscores are automatically replaced by space.
 		 *
 		 * @param {HashedItemsCollection} oHashedItemsColl
 		 * @param {string} rootPath root path, not checked for validity
 		 * @param {string=} algorithm hashing algorithm used, default: CURRENT_ALGORITHM
+		 * @param {number=} tsStart start timestamp
+		 * @param {number=} tsFinish finish timestamp
+		 * @param {number=} slowestThreadDuration
+		 * @param {number=} slowestThreadSize
 		 * @constructor
 		 */
-		function CommandResults(oHashedItemsColl, rootPath, algorithm) {
+		function CommandResults(oHashedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestThreadDuration, slowestThreadSize) {
+			var fnName = funcNameExtractor(CommandResults);
+
 			if(!(oHashedItemsColl instanceof HashedItemsCollection)) {
 				throw new Error('Expected HashedItemsCollection object, got:\n' + dumpObject(oHashedItemsColl));
 			}
-			var ts       = now(),
-				oSuccess = oHashedItemsColl.getSuccessItems(),
+
+			var nowTS = now();
+
+			// adjust the parameters - not every caller runs in multi-threading and have this information
+			tsStart               = tsStart || nowTS;
+			tsFinish              = tsFinish || nowTS;
+			slowestThreadDuration = slowestThreadDuration || 0;
+			slowestThreadSize     = slowestThreadSize || 0;
+
+			// adjust these before calling the success, skipped & error
+			if (rootPath)  oHashedItemsColl.adjustRelativePaths(rootPath);
+			if (algorithm) oHashedItemsColl.setAlgorithmForAll(algorithm);
+			var oSuccess = oHashedItemsColl.getSuccessItems(),
 				oSkipped = oHashedItemsColl.getSkippedItems(),
 				oError   = oHashedItemsColl.getErrorItems();
 
+			// the reason why we are using _ in the attribute names is
+			// so that we can replace them with space in text outputs
 			this.Generated_By                   = sprintf('Checksums generated by %s v%s -- %s', Global.SCRIPT_NAME, Global.SCRIPT_VERSION, Global.SCRIPT_URL);
 			this.Root_Path                      = rootPath;
 			this.Algorithm                      = algorithm || CURRENT_ALGORITHM;
-			this.Snapshot_DateTime_Compact      = ts.formatAsDateTimeCompact();
+			this.Snapshot_DateTime_Compact      = nowTS.formatAsDateTimeCompact();
 
 
 			// these calculations are not as time-consuming as you might think
 			// but the extra info may not be for everyone's taste
-			var oEarliestItem = oHashedItemsColl.getEarliestItem(),
-				oLatestItem   = oHashedItemsColl.getLatestItem(),
-				oSmallestItem = oHashedItemsColl.getSmallestItem(),
-				oLargestItem  = oHashedItemsColl.getLargestItem();
+			var oEarliestItem   = oHashedItemsColl.getEarliestItem(),
+				oLatestItem     = oHashedItemsColl.getLatestItem(),
+				oSmallestItem   = oHashedItemsColl.getSmallestItem(),
+				oLargestItem    = oHashedItemsColl.getLargestItem(),
+				oMinElapsedItem = oHashedItemsColl.getMinElapsedItem(),
+				oMaxElapsedItem = oHashedItemsColl.getMaxElapsedItem();
 
 			this.ExtInfo = {
-				Snapshot_DateTime_Timestamp     : ts,
-				Snapshot_DateTime_DOpus         : ts.formatAsDateDOpus(),
-				Snapshot_DateTime_ISO           : ts.formatAsDateISO(),
-				Snapshot_DateTime_String        : new Date(ts).toString(),
-				Snapshot_DateTime_UTC           : new Date(ts).toUTCString(),
-				Snapshot_DateTime_Locale        : new Date(ts).toLocaleString(),
-				Total_Size                      : oHashedItemsColl.sizeTotal + ' (' + oHashedItemsColl.sizeTotal.formatAsSize() + ')',
+				Snapshot_DateTime_Timestamp     : nowTS,
+				Snapshot_DateTime_DOpus         : nowTS.formatAsDateDOpus(),
+				Snapshot_DateTime_ISO           : nowTS.formatAsDateISO(),
+				Snapshot_DateTime_String        : new Date(nowTS).toString(),
+				Snapshot_DateTime_UTC           : new Date(nowTS).toUTCString(),
+				Snapshot_DateTime_Locale        : new Date(nowTS).toLocaleString(),
+
+				Total_Size                      : oHashedItemsColl.sizeTotal + ' B (' + oHashedItemsColl.sizeTotal.formatAsSize() + ')',
 				Total_Count                     : oHashedItemsColl.countTotal,
-				Valid_Size                      : oHashedItemsColl.sizeSuccess + ' (' + oHashedItemsColl.sizeSuccess.formatAsSize() + ')',
+				Valid_Size                      : oHashedItemsColl.sizeSuccess + ' B (' + oHashedItemsColl.sizeSuccess.formatAsSize() + ')',
 				Valid_Count                     : oHashedItemsColl.countSuccess,
-				Skipped_Size                    : oHashedItemsColl.sizeSkipped + ' (' + oHashedItemsColl.sizeSkipped.formatAsSize() + ')',
+				Skipped_Size                    : oHashedItemsColl.sizeSkipped + ' B (' + oHashedItemsColl.sizeSkipped.formatAsSize() + ')',
 				Skipped_Count                   : oHashedItemsColl.countSkipped,
-				Invalid_Size                    : oHashedItemsColl.sizeError + ' (' + oHashedItemsColl.sizeError.formatAsSize() + ')',
+				Invalid_Size                    : oHashedItemsColl.sizeError + ' B (' + oHashedItemsColl.sizeError.formatAsSize() + ')',
 				Invalid_Count                   : oHashedItemsColl.countError,
+
+				Slowest_Thread_Duration         : slowestThreadDuration + ' ms (' + slowestThreadDuration.formatAsDuration() + ' s)',
+				Slowest_Thread_Size             : slowestThreadSize + ' B (' + slowestThreadSize.formatAsSize() + ')',
+
+				Start_Time_Timestamp            : tsStart,
+				Start_Time                      : tsStart.formatAsHms(),
+				Finish_Time_Timestamp           : tsFinish,
+				Finish_Time                     : tsFinish.formatAsHms(),
+				Elapsed_Time_Timestamp          : (tsFinish - tsStart),
+				Elapsed_Time                    : (tsFinish - tsStart) + ' ms (' + (tsFinish - tsStart).formatAsDuration() + ' s)',
+				Average_Speed_Success_Only      : ( (oHashedItemsColl.sizeSuccess * 1000 / (tsFinish - tsStart)) || 0 ).formatAsSize() + '/s', // we calculate speed per second
+
 				Earliest_File_Name              : oEarliestItem.fullpath,
 				Earliest_File_DateTime_Compact  : oEarliestItem.mod_date, // already formatte,
 				Earliest_File_DateTime_Timestamp: oEarliestItem.mod_ts,
@@ -4251,17 +4497,25 @@
 				Latest_File_DateTime_Compact    : oLatestItem.mod_date, // already formatte,
 				Latest_File_DateTime_Timestamp  : oLatestItem.mod_ts,
 				Smallest_File_Name              : oSmallestItem.fullpath,
-				Smallest_File_Size              : oSmallestItem.size + ' (' + oSmallestItem.size.formatAsSize() + ')',
+				Smallest_File_Size              : oSmallestItem.size + ' B (' + oSmallestItem.size.formatAsSize() + ')',
 				Largest_File_Name               : oLargestItem.fullpath,
-				Largest_File_Size               : oLargestItem.size + ' (' + oLargestItem.size.formatAsSize() + ')'
+				Largest_File_Size               : oLargestItem.size + ' B (' + oLargestItem.size.formatAsSize() + ')',
+
+				Min_Elapsed_for_File_Name       : oMinElapsedItem.fullpath,
+				Min_Elapsed_for_File_Size       : oMinElapsedItem.size + ' B (' + oMinElapsedItem.size.formatAsSize() + ')',
+				Min_Elapsed_for_File_Duration   : oMinElapsedItem.elapsed + ' ms (' + oMinElapsedItem.elapsed.formatAsDuration() + ' s)',
+				Max_Elapsed_for_File_Name       : oMaxElapsedItem.fullpath,
+				Max_Elapsed_for_File_Size       : oMaxElapsedItem.size + ' B (' + oMaxElapsedItem.size.formatAsSize() + ')',
+				Max_Elapsed_for_File_Duration   : oMaxElapsedItem.elapsed + ' ms (' + oMaxElapsedItem.elapsed.formatAsDuration() + ' s)'
 			}
 
 			// remove some internal fields
 			for (var ohi in oSuccess) {
 				if (!oSuccess.hasOwnProperty(ohi)) continue; // skip prototype functions, etc.
 				var oHashedItem = oSuccess[ohi];
-				delete oHashedItem.skipped;   // this will be false for all success items
-				delete oHashedItem.finished;  // this may or may not be false for success items - TODO review!
+				delete oHashedItem.error;     // this will be falsy for all success items
+				delete oHashedItem.skipped;   // this will be falsy for all success items
+				delete oHashedItem.finished;  // this may or may not be falsy for success items - TODO review!
 				delete oHashedItem.algorithm; // this is already in the header, I do not support multiple algorithms in one go yet
 				if (!EXPORT_EXTENDED_DATA) {
 					delete oHashedItem.fullpath;
@@ -4275,134 +4529,88 @@
 			if (oSkipped) this.skipped = oSkipped;
 			if (oError)   this.error   = oError;
 		}
-	}
-
-
-	// MTActionResults
-	{
-
 		/**
-		 * @param {object} oDOMap DOpus Map
-		 * @constructor
-		 */
-		function MTActionResultFile(oDOMap) {
-			if (!doh.isValidDOMap(oDOMap)) {
-				abortWithFatalError('Expected a DOpus Map, got:\n' + dumpObject(oDOMap));
-			}
-			/** @type {number} */
-			this.maxwait   = oDOMap('maxwait');
-			/** @type {string} */
-			this.filename  = oDOMap('filename');
-			/** @type {string} */
-			this.filepath  = oDOMap('filepath');
-			/** @type {number} */
-			this.filesize  = oDOMap('filesize');
-			/** @type {boolean} */
-			this.finished  = oDOMap('finished');
-			/** @type {number} */
-			this.elapsed   = oDOMap('elapsed');
-			/** @type {boolean} */
-			this.timeout   = oDOMap('timeout');
-			/** @type {boolean} */
-			this.error     = oDOMap('error');
-			/** @type {string} */
-			this.result    = oDOMap('result');
-			/** @type {boolean} */
-			this.finalized = oDOMap('finalized');
-		}
-
-		/**
+		 * Creates DOpus-only summary texts for popups and/or Output window.
+		 *
 		 * @param {string} fnCallerName caller function's name
-		 * @param {KnapsackCollection} selectedKnapsacked knapsacked items list
-		 * @param {object} tp Thread Pool object
-		 * @param {boolean} userAborted if user has aborted during action
-		 * @param {number} tsStart start timestamp
-		 * @param {number} tsFinish finish timestamp
-		 * @param {number} selectedItemsCount selected items count
-		 * @param {number} selectedItemsSize selected items size
-		 * @constructor
+		 * @param {boolean} isAborted has user aborted the operation
+		 * @param {boolean=} dumpItemResults if individual results should be dumped to DOpus Output
+		 * @returns {{successSummary: string, errorsSummary: string}}
 		 */
-		function MTActionResults(fnCallerName, selectedKnapsacked, tp, userAborted, timedoutOverall, tsStart, tsFinish, selectedItemsCount, selectedItemsSize) {
-			var fnName = funcNameExtractor(MTActionResults);
+		CommandResults.prototype.getSummaries = function (fnCallerName, isAborted, dumpItemResults) {
+			var successSummary = '', errorsSummary = '';
 
-			logger.normal(stopwatch.startAndPrint(fnName, 'Output preparation'));
+			successSummary = sprintf(
+				'\n====  %s SUMMARY  ====\n'
+				+ '%s\n' // show errors only if necessary
+				+ '%s' // show aborted only if necessary
+				+ 'Start: %s\nFinish: %s\n'
+				+ 'Errors: %d\n'
+				+ 'Slowest Thread Duration: %s\nSlowest Thread Size: %s\n'
+				+ 'Slowest File Name: %s\nSlowest File Size: %s\nSlowest File Duration: %s\n'
+				+ '\n\n'
+				+ 'Total Files after Filtering: %d\n\n'
+				+ 'Total Size after Filtering: %s\n\n'
+				+ 'Total Elapsed: %s\n\n'
+				+ 'Average Speed: %s',
+				fnCallerName,
+				(this.ExtInfo.Invalid_Count ? '\nSOME ERRORS OCCURRED\n' : ''),
+				isAborted ? '\nUSER ABORTED!\n\n' : '',
 
-			/** @type {object} */
-			this.summary = {};
-			/** @type {Object.<string, MTActionResultFile>} */
-			this.items   = {};
-			/** @type {string[]} */
-			this.errors  = [];
+				this.ExtInfo.Start_Time,
+				this.ExtInfo.Finish_Time,
 
-			var timeoutsCnt      = 0,
-				filesWithErrors  = [],
-				unfinishedCnt    = 0,
-				maxElapsedFile   = 0,
-				maxElapsedThread = 0,
-				longestFileName  = '',
-				longestFileSize  = 0;
+				this.ExtInfo.Invalid_Count,
 
-			// a threadID points to 1 knapsack
-			var oFinishedKS = selectedKnapsacked.finishedKS;
+				this.ExtInfo.Slowest_Thread_Duration,
+				this.ExtInfo.Slowest_Thread_Size,
 
-			knapsacks: for (var kskey in oFinishedKS) {
-				if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-				var ksMap = tp(oFinishedKS[kskey].id);
+				this.ExtInfo.Max_Elapsed_for_File_Name,
+				this.ExtInfo.Max_Elapsed_for_File_Size,
+				this.ExtInfo.Max_Elapsed_for_File_Duration,
 
-				// each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
-				var elapsedThread = 0;
+				this.ExtInfo.Valid_Count,
+				this.ExtInfo.Valid_Size,
+				this.ExtInfo.Elapsed_Time,
+				this.ExtInfo.Average_Speed_Success_Only
+			);
 
-				files: for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
-					var fileFullpath = eKS.item(),
-						fileAttribs  = ksMap(fileFullpath);
-
-					// convert DOpus Map to JS
-					var oResultFile = new MTActionResultFile(fileAttribs);
-					elapsedThread += oResultFile.elapsed;
-					if (!userAborted && !oResultFile.finished) unfinishedCnt++;
-					if (oResultFile.timeout)                   timeoutsCnt++;
-					if (oResultFile.error)                     filesWithErrors.push(fileFullpath);
-					this.items[fileFullpath] = oResultFile;
-
-					// update statistics
-					if (oResultFile.elapsed > maxElapsedFile) {
-						maxElapsedFile  = oResultFile.elapsed;
-						longestFileName = oResultFile.filename;
-						longestFileSize = oResultFile.filesize;
-					}
-				} // all files in the knapsack
-
-				// update statistics
-				if (elapsedThread > maxElapsedThread) {
-					maxElapsedThread = elapsedThread;
+			var aErrorFiles = getObjKeys(this.error);
+			if (aErrorFiles.length) {
+				errorsSummary = '\nFiles with errors:\n';
+				for (var i = 0; i < aErrorFiles.length; i++) {
+					errorsSummary += '\t' + aErrorFiles[i] + '\n';
 				}
-			} // all knapsacks
+				errorsSummary += '\n\n';
+			}
 
-			this.summary = {
-				myname          : fnCallerName,
-				tsstart         : tsStart,
-				tsfinish        : tsFinish,
-				aborted         : userAborted,
-				usertimeout     : timedoutOverall,
-				totalelapsed    : tsFinish - tsStart,
-				maxelapsedfile  : maxElapsedFile,
-				maxelapsedthread: maxElapsedThread,
-				longestfilename : longestFileName,
-				longestfilesize : longestFileSize,
-				timeouts        : timeoutsCnt,
-				errors          : filesWithErrors.length,
-				unfinished      : unfinishedCnt,
-				totalfiles      : selectedItemsCount || 0,
-				totalsize       : selectedItemsSize || 0,
-				avgspeed        : selectedItemsSize * 1000 / (tsFinish - tsStart) || 0 // we calculate speed per second
-			};
-			this.errors = filesWithErrors;
-
-			logger.normal(stopwatch.stopAndPrint(fnName, 'Output preparation'));
+			if (dumpItemResults) {
+				for (var f in this.items) {
+					if (!this.items.hasOwnProperty(f)) continue;
+					var el = this.items[f];
+					var itemSummaryMsg = sprintf(
+						'%s -- Worker finished: %b, size: %15d, elapsed: %8d ms, file: %s -- %s',
+						fnCallerName,
+						el.finished,
+						el.size,
+						el.elapsed,
+						el.fullpath,
+						el.hash ? 'Result: ' + el.hash : 'Error: ' + el.error
+					);
+					logger.normal(itemSummaryMsg);
+				}
+				logger.normal('');
+				logger.normal('');
+				logger.normal('');
+				logger.normal('');
+				logger.normal('');
+			}
+			return { successSummary: successSummary, errorsSummary: errorsSummary||'' };
 		}
 	}
 
-	// Knapsack & KnapsackCollection
+
+	// Knapsack & KnapsacksCollection
 	{
 		/**
 		 * @param {string} id any unique id, e.g. a thread ID
@@ -4464,7 +4672,7 @@
 		 * @constructor
 		 * @see now()
 		 */
-		function KnapsackCollection(id){
+		function KnapsacksCollection(id){
 			this.id              = id || now();
 
 			/** @type {Object.<string, Knapsack>} */
@@ -4485,7 +4693,7 @@
 		/**
 		 * @param {Knapsack} oKnapsack
 		 */
-		KnapsackCollection.prototype.addKnapsack = function (oKnapsack) {
+		KnapsacksCollection.prototype.addKnapsack = function (oKnapsack) {
 			if (!(oKnapsack instanceof Knapsack)) {
 				throw new Error('Expected Knapsack object, got:\n' + dumpObject(oKnapsack));
 			}
@@ -4505,8 +4713,8 @@
 		 * @returns {boolean} true if all knapsacks finished, must be marked by the knapsack
 		 * @see Knapsack
 		 */
-		KnapsackCollection.prototype.allFinished = function () {
-			var fnName = 'KnapsackCollection.allFinished';
+		KnapsacksCollection.prototype.allFinished = function () {
+			var fnName = 'KnapsacksCollection.allFinished';
 			if (this.countUnfinished < 0) {
 				abortWithFatalError(fnName + '():\nThis should never have happened, item count is negative: ' + this.countUnfinished);
 			}
@@ -4532,7 +4740,52 @@
 			}
 			return this.countUnfinished === 0;
 		}
+
+		/**
+		 * converts KnapsacksCollection to CommandResults
+		 * @param {string} rootPath current path
+		 * @param {string} algorithm hashing algorithm
+		 * @param {object} tp Thread Pool object from cache
+		 * @param {number} tsStart start timestamp
+		 * @param {number} tsFinish finish timestamp
+		 */
+		KnapsacksCollection.prototype.getAsCommandResults = function (rootPath, algorithm, tp, tsStart, tsFinish) {
+			var fnName = 'getAsCommandResults';
+
+			var oHashedItemsColl  = new HashedItemsCollection(),
+				slowestKSDuration = 0,
+				slowestKSSize     = 0;
+
+			// a threadID points to 1 knapsack
+			var oFinishedKS = this.finishedKS;
+			knapsacks: for (var kskey in oFinishedKS) {
+				if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
+				var ksCurrent = oFinishedKS[kskey],
+					ksMap     = tp(ksCurrent.id);
+
+				// each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
+				var elapsedForThisKS = 0;
+				files: for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) {
+					var fileFullpath = eKS.item(),
+						fileAttribs  = ksMap(fileFullpath);
+
+					// get results from fileAttribs (DOpus Map)
+					var oHashedItem = new HashedItem(doh.getItem(fileFullpath), null, fileAttribs('result'), algorithm, fileAttribs('error'), null);
+					oHashedItem.elapsed = fileAttribs('elapsed');
+					oHashedItemsColl.addItem(oHashedItem);
+
+					elapsedForThisKS += fileAttribs('elapsed');
+				}
+				// check if we have the slowest KS
+				if (elapsedForThisKS >= slowestKSDuration) {
+					slowestKSDuration = elapsedForThisKS;
+					slowestKSSize     = ksCurrent.size;
+				}
+			}
+			return new CommandResults(oHashedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
+		}
 	}
+
 }
 
 
@@ -4872,23 +5125,40 @@
 			+ turn cache access to a CacheMgr singleton
 			+ review ReadADS, SaveADS, DeleteADS outputs - 2nd pass
 			+ Auto Drive Type detection and reducing the number of threads to avoid disk-thrashing when using HDDs
+			+ EXPORT: implement on-the-fly calculation and direct export
+			+ IMPROVE: when using the OSP version, extract the included .wav files to a subdir
+			+ CODING: remove timeout & maxwait stuff, unnecessary
+			+ CODING: Consolidate MTActionResults & CommandResults!
+			+ CODING: Convert buildSummaryAndErrorTexts() & MTActionResults/MTActionResultFile to TYPEDEFs?
+			  done via CommandResults.getSummaries() instead
 
-			- Consolidate MTActionResults & CommandResults!
-			- EXPORT: implement on-the-fly calculation and direct export
-			- IMPORT: automatic path adjustment in fileExchangeHandler.convertForImportFromJSON(),
+			- BUG: IMPORT- better format detection in fileExchangeHandler.prepareForImport()?
+			- BUG: If multiple files are selected (some missing ADS) and ADS delete is performed, it says "some files are skipped"
+			- BUG: Auto-refresh when Smart Update or Delete ADS is performed (copy logic from MExt)
+			- BUG: Fix random bug with ADS.Read when we get a file which has been already deleted, e.g. when the temp dir is displayed
+			- BUG: Fix the annoying window flash when adding files to a collection
+			- IMPROVE: review progress bar and switch to 'full' - 1 bar for files, 1 bar for bytes
+			- IMPROVE: Improve FileFormat & FileName dependency and detection
+			- IMPROVE: Improve error handling when files are marked as read-only
+			- IMPROVE: Implement blake3 & rhash hashing
+			- IMPROVE: Configuration variables - BIG TASK!
+			- IMPROVE: Implement external JSON file to customize columns
+			- IMPROVE: Implement Disk Serial number detection and re-recognizing them fast!
+			- IMPROVE: Error messages & optics of the messages
+			- IMPROVE: What to do when all feedback options are disabled: Success & Error Messages, etc. => Sound Files
+
+
+			- CODING: convert progress bar methods to its own object
+			- CODING: review logger levels for all outputs
+			- CODING: review all @ts-ignore - especially DOpus map access stuff - convert cache to singleton if ncessary
+			- CODING: updateProgressBar() - review parameters list, it's too long
+
+
+			- MAYBE: IMPORT: automatic path adjustment in fileExchangeHandler.convertForImportFromJSON(),
 			  	i.e. if full paths are stored in the file but the current does not match the rootpath stored in the JSON file
 			  	we migth use the full path and ignore the relative paths
 			  	ADVANTAGE: one can put the JSON file anywhere and import it
 			  	DISADVANTAGE: I'm not sure if it wouldn't be too confusing or error-prone?
-			- IMPORT: better format detection in fileExchangeHandler.prepareForImport()?
-			- review progress bar and switch to 'full' - 1 bar for files, 1 bar for bytes
-			- convert progress bar methods to its own object
-			- review logger levels for all outputs
-			- fix MAXWAIT for MANAGER again! - The wait is working but not the timeout counts in the summary
-			- review all @ts-ignore - especially DOpus map access stuff - convert cache to singleton if ncessary
-			- updateProgressBar() - review parameters list, it's too long
-			- Improve FileFormat & FileName dependency and detection
-			- Convert buildSummaryAndErrorTexts() & MTActionResults/MTActionResultFile to TYPEDEFs?
 
 
 
@@ -4986,142 +5256,237 @@
 {
 
 	function __README_MD__(){ 0 }
-	/*
+	{
+		/*
 
 
-		# Cü's MultiThreadHash
-		CuMTH or simply MTH is a user script for multi-threaded hashing for the brilliant, very powerful file manager [Directory Opus](https://gpsoft.com.au/) (often called DOpus or DO from here on), using its builtin hashing methods &amp; NTFS ADS.
-
-
-
-
-		## FEATURES:
-
-		* **Multi-threaded hashing**, defaults to all available cores on your machine.
-		* **Seamless integration into DOpus**:
-		* Any number of files and folders can be selected and then hashed, verified, exported, etc.
-		* File modification date is kept as before when you add/remove ADS data.
-		* Action results, e.g. verification errors, files with missing or dirty (outdated) ADS, etc. are put into separate collections for further review.
-		* Caching of ADS data in memory.
-		* Progress bar with Pause & Abort support.
-		* 15 pre-created buttons with multiple examples and nice-looking icons.
-		* 5 helper columns/script fields: *Available*, *Dirty* (showing what has changed: date and/or size), *Dirty* (simple), *Formatted ADS* data to use in Infotips, *Raw ADS* data.
-		* Unicode characters are not corrupted when exported from or imported into ADS.
-		* Configurable number of threads and maximum wait time.
-		* Auto-detection of checksum files if only 1 file is selected and one of the import/verify buttons is used.
-		* NTFS **ADS integration**, through and through.
-		* **External checksum files support** for .md5 & .sha1, incl. on-the-fly export & verification without using ADS. Another JSON-based, specific to this script is also supported, which contains very detailed information.
-		* **Long filename & path support** (> 255 chars).
-		* Simple CPU **benchmarking**.
-		* **Automatic HDD drive detection** (vs SSD, NVMe...) - CuMTH can reduce number of threads to avoid disk thrashing.
-		* **Extremely fast**, in fact faster than most native hashing programs, even all of the few multi-threaded programs except one [*]. Although this JScript, the heavy work is done by DOpus, this script simply optimizes how it is done.
-		* **Less CPU usage** than single- or multi-threaded programs.
-		* Is not limited to the (currently 7) hashing algorithms supported by DOpus. **Extensible via external CLI hashing programs**, e.g. fsum, rhash, fastsum, fciv, blake3, etc. I included a few as example, incl. blake3, rhash.
-		* **Detailed file information** in exported checksum files, e.g. number of total, successful, skipped or failed files and their sizes, earliest/latest file dates, smallest/largest files, snapshot date&time in multiple formats. Exported filenames can be generated with the latest file's timestamp. These can be suppressed but are computed anyway.
+			# Cü's MultiThreadHash
+			CuMTH or simply MTH is a user script for multi-threaded hashing for the brilliant, very powerful file manager [Directory Opus](https://gpsoft.com.au/) (often called DOpus or DO from here on), using its builtin hashing methods &amp; NTFS ADS.
 
 
 
-		[*] [CHK by Ilya Muravyov](http://compressme.net/) is a real piece of art when it comes to speed. It is the fastest hasher out there, bar none. Beats this script from 10% up to 40%, and other programs by at least 300, 400%. Excellent, excellent job Ilya! ...But unfortunately its speed advantage is overshadowed by its very spartan UI and usability. It is not automation-capable, e.g. with CLI parameters. It's not even possible to abort an operation. And good luck with re-verifying your files with the checksum files you just created. Yes, it can hash a directory but not verify it again (tested with latest v3.21). If you're fine with its UI and care only for the highest hashing speed possible, use CHK instead.
 
-		Speed-wise other multi-threaded programs like [ExactFile/exf](https://www.exactfile.com/), let alone single-threaded programs are nowhere near of CuMTH. With many CPU cores and fast SSD/NVMe, you can easily reach hashing-speeds upwards of 1.5 GB/sec; on a RAMDisk I achieved 4.8 GB/sec under near-perfect conditions. You can test the capabilities of your CPU using the incl. benchmark command.
+			## FEATURES:
 
-
-
-		## Why is SHA1 the default?
-
-		**The goal is file integrity check, first and foremost.**
-
-		Currently there will be only 1 algorithm: SHA1. DOpus' internal "sha256" & "sha512" seem to have [a bug and both calculate wrong results for files >=512 MB](https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6), that leaves: "md5", "sha1", "crc32", "crc32_php", and "crc32_php_rev" and I decided to go with SHA1 as a compromise *temporarily* because it's very fast & reasonably secure, between fast and insecure MD5 and slow and secure SHA256/SHA512.
-
-		Before you start "*but SHA1 is broken...*" No, it is not broken, at least not for any practical purpose or for purposes of this script. Yes, SHA1 is known to have collisions but an attack requires malicious & very time-consuming preparation of tampered data, which is never ever the case for files on your disk, even 1 bit corruption in a file will result in a different hash even if you use MD5.
-
-		The goal here is to quickly verify file integrity of your own files, not build military grade infrastructure or use these algorithms for web site security, etc. If you are concerned that the files under your control might be tampered with by external agents and could have the same hash checksum as previously, then this script is not what you're looking for.
-
-		As soon as DOpus fixes the bug mentioned above, you can anyway switch to SHA-256/512 if you like.
-
-
-
-		## Why ADS? Why not classical checksum files?
-
-		*Short answer: Because they're static, become quickly obsolete and have a large overhead.*
-
-		When you create hash checksum files of large folders with typical programs these files contain all the files, just as you requested, and their hashes. These files act as a snapshot. If you are not planning to make any changes in this folder, you can use the checksum file over and over. You can still use this script, as it includes full support for external checksum files and more, too.
-
-		However, if or when you add or remove files from these folders, these files slowly become obsolete and deviate from the checksum you have created. If you use the old checksum file over and over, you will get increasing number of errors. If you create a new checksum file after each change in the folder, you will lose track of which files might have been corrupted.
-
-		You might think "But why would I want to add/remove files from a secure 'archive' directory?" Say, you have a partition or an external disk where you keep copies of your projects, pictures, install files, whatever. If you're planning to use a single checksum file in the root folder or put a separate checksum file in each folder, be my guest.
-
-		If you use ADS, however, you can **attach the hash checksum to each file**; the overhead is very small, only ~150 bytes per file. **The stored information is file's last known modification date & size and its hash value.** Different algorithms are kept separate from each other via ADS name, e.g. SHA1 in <filename>:MTH_SHA1,  MD5 in <filename>:MTH_MD5 and so on. Some programs try to achieve this putting hashes into the filenames, but that's a crude & ugly method. With ADS you can quickly identify changed files and still validate the unchanged files, since each hash is directly attached to the file and contains its size and date at the time of hashing, instead of in static snapshots. And you can select and verify any number of files, you do not need a checksum file containing each of these files. **That's where the real power of this script and integration into a file manager starts to shine.** Where's the catch? ADS work only in NTFS. If you are still not convinced, you can always use checksum files; in fact, once you have the hashes in ADS, you can export a checksum file in almost zero time to a checksum file, too.
-
-		Another benefit is, the file's last modification timestamp & last known size is stored in ADS at the time of hashing. This helps to quickly identify changed files, since you have last updated the ADS hashes WITHOUT re-checking every single file, simply activate one of 'Dirty' or 'Dirty Verbose' columns and you will see. If the file size or date changes, it is almost impossible that the hash will not change unless some super genius agent manipulates your files and/or manipulates the ADS as well. So these files can be quickly identified in isolation, incl. what is changed: date, size or both. If you export ADS hashes, the script will warn you automatically that some files have no or outdates hashes.
-
-		You can also import existing .sha1, .md5 or this script's own .json format checksum files into ADS and remove the dependency to external files. The imported checksums will not be verified during import, but you can verify them very easily and compare freshly calculated data vs the data you just imported.
-
-		Yet another benefit is, apart from the extraordinarily fast multi-threading (fast af, if I may say so), if you are often synchronizing large amounts of files between computers, you can easily export the existing ADS data without re-calculation, and easily verify on the other computer, with this script or any other typical checksum programs, .md5 and .sha1 formats are fully supported. Verifying the hashes on the target machine will be usually much faster than binary comparison over network.
-
-		Although currently **only 1 single algorithm at a time** is supported in the script (I see no benefit in using multiple), the ADS streams for multiple streams are completely independent of each other, i.e. SHA1 hashes are stored in a different stream than SHA256, MD5, etc. hashes. Use whichever algorithm suits your needs best. I might implement multiple algorithms if enough interest is there.
-
-		**Bottom line is:**
-		Once you get used to the integration of extremely fast hashing and an excellent file manager, you will not miss classical hashing programs ;)
-
-		### ADS Overhead:
-
-		For SHA1 hashes the amount of data is typically around 150-160 bytes. This information is NOT allocated in a separate cluster than the main file's own, i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192.
-
-		### Recommended:
-
-		- Generated files are UTF8 without BOM by default
-		If you use DOpus text viewer plugin, activate '***Assume UTF-8 without BOM***' in its settings to view non-ASCII chars correctly.
-		- Activating the DOpus option '***File Operations -> Copy Attributes -> Copy all NTFS data streams***' is highly recommended.
-		- If you are using WinRAR you can activate '***Advanced -> Save file streams***' in archiving dialog and save it in your default profile as well. This will carry ADS hashes around.
-		Unfortunately 7-Zip or DOpus created archives do NOT support this.
-		- DO NOT USE EXACTFILE, EVER!
-		To my **absolute HORROR** I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only), because I was using it a lot. it does so only sporadically, which makes the situation even worse imo. When ExactFile hashes completely identical files in multi-threading the generated checksum file states: this 1 file has a different hash than the others, and when you repeat the hashing it shows the computes the correct hash again.
-		Completely unacceptable!
+			* **Multi-threaded hashing**, defaults to all available cores on your machine.
+			* **Seamless integration into DOpus**:
+			* Any number of files and folders can be selected and then hashed, verified, exported, etc.
+			* File modification date is kept as before when you add/remove ADS data.
+			* Action results, e.g. verification errors, files with missing or dirty (outdated) ADS, etc. are put into separate collections for further review.
+			* Caching of ADS data in memory.
+			* Progress bar with Pause & Abort support.
+			* 15 pre-created buttons with multiple examples and nice-looking icons.
+			* 5 helper columns/script fields: *Available*, *Dirty* (showing what has changed: date and/or size), *Dirty* (simple), *Formatted ADS* data to use in Infotips, *Raw ADS* data.
+			* Unicode characters are not corrupted when exported from or imported into ADS.
+			* Configurable number of threads and maximum wait time.
+			* Auto-detection of checksum files if only 1 file is selected and one of the import/verify buttons is used.
+			* NTFS **ADS integration**, through and through.
+			* **External checksum files support** for .md5 & .sha1, incl. on-the-fly export & verification without using ADS. Another JSON-based, specific to this script is also supported, which contains very detailed information.
+			* **Long filename & path support** (> 255 chars).
+			* Simple CPU **benchmarking**.
+			* **Automatic HDD drive detection** (vs SSD, NVMe...) - CuMTH can reduce number of threads to avoid disk thrashing.
+			* **Extremely fast**, in fact faster than most native hashing programs, even all of the few multi-threaded programs except one [*]. Although this JScript, the heavy work is done by DOpus, this script simply optimizes how it is done.
+			* **Less CPU usage** than single- or multi-threaded programs.
+			* Is not limited to the (currently 7) hashing algorithms supported by DOpus. **Extensible via external CLI hashing programs**, e.g. fsum, rhash, fastsum, fciv, blake3, etc. I included a few as example, incl. blake3, rhash.
+			* **Detailed file information** in exported checksum files, e.g. number of total, successful, skipped or failed files and their sizes, earliest/latest file dates, smallest/largest files, snapshot date&time in multiple formats. Exported filenames can be generated with the latest file's timestamp. These can be suppressed but are computed anyway.
 
 
 
-		## Design Principles of This Script
+			[*] [CHK by Ilya Muravyov](http://compressme.net/) is a real piece of art when it comes to speed. It is the fastest hasher out there, bar none. Beats this script from 10% up to 40%, and other programs by at least 300, 400%. Excellent, excellent job Ilya! ...But unfortunately its speed advantage is overshadowed by its very spartan UI and usability. It is not automation-capable, e.g. with CLI parameters. It's not even possible to abort an operation. And good luck with re-verifying your files with the checksum files you just created. Yes, it can hash a directory but not verify it again (tested with latest v3.21). If you're fine with its UI and care only for the highest hashing speed possible, use CHK instead.
 
-		- Wherever relevant, file size is preferred over file count.
-		- Original files are never ever touched, only its ADS streams.
-		- Tries to replace existing hashing programs, by integrating the functionality into a full-fledged file manager but it can easily be extended with external apps to utilize non-DOpus hashing algorithms, too
-		- Speed! Speed! Speed! Tries to maximize of CPU usage if possible, not to let it sit idly.
-		- Prefers NTFS ADS over external filelists with hashes, but external checksum files are fully supported as well.
-
-
-		When you look at the code, you will see some non-typical, i.e. not state-of-the-art JavaScript. This has 2 reasons:
-		1. I'm an ok but not the most seasoned JS programmer, JS is not my primary language.
-		2. This not ES5 or newer, but JScript, which roughly [corresponds to JS 1.5/ES3](https://johnresig.com/blog/versions-of-javascript/)!
-		3. This is not a browser environment and due to only available method to us for multi-threading,
-		i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
-		DOpus variables only.
-		4. Debugging of user scripts without an IDE or browser support is a major PITA. DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all.
+			Speed-wise other multi-threaded programs like [ExactFile/exf](https://www.exactfile.com/), let alone single-threaded programs are nowhere near of CuMTH. With many CPU cores and fast SSD/NVMe, you can easily reach hashing-speeds upwards of 1.5 GB/sec; on a RAMDisk I achieved 4.8 GB/sec under near-perfect conditions. You can test the capabilities of your CPU using the incl. benchmark command.
 
 
 
-		## Screenshots
+			## Why is SHA1 the default?
 
-		Buttons
+			**The goal is file integrity check, first and foremost.**
 
-		![./Screenshots/01.png](./Screenshots/01.png)
+			Currently there will be only 1 algorithm: SHA1. DOpus' internal "sha256" & "sha512" seem to have [a bug and both calculate wrong results for files >=512 MB](https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6), that leaves: "md5", "sha1", "crc32", "crc32_php", and "crc32_php_rev" and I decided to go with SHA1 as a compromise *temporarily* because it's very fast & reasonably secure, between fast and insecure MD5 and slow and secure SHA256/SHA512.
+
+			Before you start "*but SHA1 is broken...*" No, it is not broken, at least not for any practical purpose or for purposes of this script. Yes, SHA1 is known to have collisions but an attack requires malicious & very time-consuming preparation of tampered data, which is never ever the case for files on your disk, even 1 bit corruption in a file will result in a different hash even if you use MD5.
+
+			The goal here is to quickly verify file integrity of your own files, not build military grade infrastructure or use these algorithms for web site security, etc. If you are concerned that the files under your control might be tampered with by external agents and could have the same hash checksum as previously, then this script is not what you're looking for.
+
+			As soon as DOpus fixes the bug mentioned above, you can anyway switch to SHA-256/512 if you like.
 
 
 
-		Benchmark results on an AMD 3900x (12 cores, 24 threads
+			## Why ADS? Why not classical checksum files?
 
-		![./Screenshots/02.png](./Screenshots/02.png)
+			*Short answer: Because they're static, become quickly obsolete and have a large overhead.*
 
-		Hashing Progress
+			When you create hash checksum files of large folders with typical programs these files contain all the files, just as you requested, and their hashes. These files act as a snapshot. If you are not planning to make any changes in this folder, you can use the checksum file over and over. You can still use this script, as it includes full support for external checksum files and more, too.
 
-		![./Screenshots/03.png](./Screenshots/03.png)
+			However, if or when you add or remove files from these folders, these files slowly become obsolete and deviate from the checksum you have created. If you use the old checksum file over and over, you will get increasing number of errors. If you create a new checksum file after each change in the folder, you will lose track of which files might have been corrupted.
 
-		Summary
+			You might think "But why would I want to add/remove files from a secure 'archive' directory?" Say, you have a partition or an external disk where you keep copies of your projects, pictures, install files, whatever. If you're planning to use a single checksum file in the root folder or put a separate checksum file in each folder, be my guest.
 
-		![./Screenshots/04.png](./Screenshots/04.png)
+			If you use ADS, however, you can **attach the hash checksum to each file**; the overhead is very small, only ~150 bytes per file. **The stored information is file's last known modification date & size and its hash value.** Different algorithms are kept separate from each other via ADS name, e.g. SHA1 in <filename>:MTH_SHA1,  MD5 in <filename>:MTH_MD5 and so on. Some programs try to achieve this putting hashes into the filenames, but that's a crude & ugly method. With ADS you can quickly identify changed files and still validate the unchanged files, since each hash is directly attached to the file and contains its size and date at the time of hashing, instead of in static snapshots. And you can select and verify any number of files, you do not need a checksum file containing each of these files. **That's where the real power of this script and integration into a file manager starts to shine.** Where's the catch? ADS work only in NTFS. If you are still not convinced, you can always use checksum files; in fact, once you have the hashes in ADS, you can export a checksum file in almost zero time to a checksum file, too.
 
-		...more to come
+			Another benefit is, the file's last modification timestamp & last known size is stored in ADS at the time of hashing. This helps to quickly identify changed files, since you have last updated the ADS hashes WITHOUT re-checking every single file, simply activate one of 'Dirty' or 'Dirty Verbose' columns and you will see. If the file size or date changes, it is almost impossible that the hash will not change unless some super genius agent manipulates your files and/or manipulates the ADS as well. So these files can be quickly identified in isolation, incl. what is changed: date, size or both. If you export ADS hashes, the script will warn you automatically that some files have no or outdates hashes.
+
+			You can also import existing .sha1, .md5 or this script's own .json format checksum files into ADS and remove the dependency to external files. The imported checksums will not be verified during import, but you can verify them very easily and compare freshly calculated data vs the data you just imported.
+
+			Yet another benefit is, apart from the extraordinarily fast multi-threading (fast af, if I may say so), if you are often synchronizing large amounts of files between computers, you can easily export the existing ADS data without re-calculation, and easily verify on the other computer, with this script or any other typical checksum programs, .md5 and .sha1 formats are fully supported. Verifying the hashes on the target machine will be usually much faster than binary comparison over network.
+
+			Although currently **only 1 single algorithm at a time** is supported in the script (I see no benefit in using multiple), the ADS streams for multiple streams are completely independent of each other, i.e. SHA1 hashes are stored in a different stream than SHA256, MD5, etc. hashes. Use whichever algorithm suits your needs best. I might implement multiple algorithms if enough interest is there.
+
+			**Bottom line is:**
+			Once you get used to the integration of extremely fast hashing and an excellent file manager, you will not miss classical hashing programs ;)
+
+			### ADS Overhead:
+
+			For SHA1 hashes the amount of data is typically around 150-160 bytes. This information is NOT allocated in a separate cluster than the main file's own, i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192.
+
+			### Recommended:
+
+			- Generated files are UTF8 without BOM by default
+			If you use DOpus text viewer plugin, activate '***Assume UTF-8 without BOM***' in its settings to view non-ASCII chars correctly.
+			- Activating the DOpus option '***File Operations -> Copy Attributes -> Copy all NTFS data streams***' is highly recommended.
+			- If you are using WinRAR you can activate '***Advanced -> Save file streams***' in archiving dialog and save it in your default profile as well. This will carry ADS hashes around.
+			Unfortunately 7-Zip or DOpus created archives do NOT support this.
+			- DO NOT USE EXACTFILE, EVER!
+			To my **absolute HORROR** I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only), because I was using it a lot. it does so only sporadically, which makes the situation even worse imo. When ExactFile hashes completely identical files in multi-threading the generated checksum file states: this 1 file has a different hash than the others, and when you repeat the hashing it shows the computes the correct hash again.
+			Completely unacceptable!
+
+
+
+			## Design Principles of This Script
+
+			- Wherever relevant, file size is preferred over file count.
+			- Original files are never ever touched, only its ADS streams.
+			- Tries to replace existing hashing programs, by integrating the functionality into a full-fledged file manager but it can easily be extended with external apps to utilize non-DOpus hashing algorithms, too
+			- Speed! Speed! Speed! Tries to maximize of CPU usage if possible, not to let it sit idly.
+			- Prefers NTFS ADS over external filelists with hashes, but external checksum files are fully supported as well.
+
+
+			When you look at the code, you will see some non-typical, i.e. not state-of-the-art JavaScript. This has 2 reasons:
+			1. I'm an ok but not the most seasoned JS programmer, JS is not my primary language.
+			2. This not ES5 or newer, but JScript, which roughly [corresponds to JS 1.5/ES3](https://johnresig.com/blog/versions-of-javascript/)!
+			3. This is not a browser environment and due to only available method to us for multi-threading,
+			i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
+			DOpus variables only.
+			4. Debugging of user scripts without an IDE or browser support is a major PITA. DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all.
+
+
+
+			## Screenshots
+
+			Buttons
+
+			![./Screenshots/01.png](./Screenshots/01.png)
+
+
+
+			Benchmark results on an AMD 3900x (12 cores, 24 threads
+
+			![./Screenshots/02.png](./Screenshots/02.png)
+
+			Hashing Progress
+
+			![./Screenshots/03.png](./Screenshots/03.png)
+
+			Summary
+
+			![./Screenshots/04.png](./Screenshots/04.png)
+
+			...more to come
 
 		*/
+	}
 
 }
+
+
+
+/*
+	8888888b.  8888888888  .d8888b.   .d88888b.  888     888 8888888b.   .d8888b.  8888888888  .d8888b.
+	888   Y88b 888        d88P  Y88b d88P" "Y88b 888     888 888   Y88b d88P  Y88b 888        d88P  Y88b
+	888    888 888        Y88b.      888     888 888     888 888    888 888    888 888        Y88b.
+	888   d88P 8888888     "Y888b.   888     888 888     888 888   d88P 888        8888888     "Y888b.
+	8888888P"  888            "Y88b. 888     888 888     888 8888888P"  888        888            "Y88b.
+	888 T88b   888              "888 888     888 888     888 888 T88b   888    888 888              "888
+	888  T88b  888        Y88b  d88P Y88b. .d88P Y88b. .d88P 888  T88b  Y88b  d88P 888        Y88b  d88P
+	888   T88b 8888888888  "Y8888P"   "Y88888P"   "Y88888P"  888   T88b  "Y8888P"  8888888888  "Y8888P"
+*/
+{
+	function __RESOURCES__(){ 0 }
+
+	String.prototype.substituteVars = function () {
+		return this.replace(/\${([^}]+)}/g, function (match, p1) {
+			return typeof eval(p1) !== 'undefined'
+				? eval(p1)
+				: 'undefined'
+				;
+		});
+	};
+
+	var SCRIPT_RESOURCES = {
+		SummaryDialog: function(){/*
+			<resources>
+				<resource name="SummaryDialog" type="dialog">
+					<dialog fontsize="8" height="290" lang="english" resize="yes" standard_buttons="ok,cancel" title="MTH Operation Results" width="480">
+						<control halign="left" height="10" name="lblOperation" title="Operation:" type="static" width="40" x="10" y="10" />
+						<control halign="left" height="12" name="txtOperation" readonly="yes" type="edit" width="170" x="54" y="8" />
+						<control halign="left" height="10" name="lblStart" title="Start:" type="static" width="40" x="10" y="32" />
+						<control halign="left" height="12" name="txtStart" readonly="yes" type="edit" width="50" x="54" y="30" />
+						<control halign="left" height="10" name="lblFinish" title="Finish:" type="static" width="40" x="10" y="48" />
+						<control halign="left" height="12" name="txtFinish" readonly="yes" type="edit" width="50" x="54" y="46" />
+						<control halign="left" height="10" name="lblSuccess" title="Successful:" type="static" width="40" x="10" y="64" />
+						<control halign="left" height="12" name="txtSuccess" readonly="yes" type="edit" width="50" x="54" y="62" />
+						<control halign="left" height="10" name="lblErrors" title="Errors:" type="static" width="40" x="110" y="48" />
+						<control halign="left" height="12" name="txtErrors" readonly="yes" type="edit" width="50" x="154" y="47" />
+						<control halign="left" height="10" name="lblSkipped" title="Skipped:" type="static" width="40" x="110" y="64" />
+						<control halign="left" height="12" name="txtSkipped" readonly="yes" type="edit" width="50" x="154" y="62" />
+						<control halign="left" height="10" name="lblMaxElapsedPerThread" title="Max Elapsed/Thread:" type="static" width="72" x="212" y="32" />
+						<control halign="left" height="12" name="txtMaxElapsedPerThreadSize" readonly="yes" type="edit" width="95" x="288" y="30" />
+						<control halign="left" height="12" name="txtMaxElapsedPerThreadDuration" readonly="yes" type="edit" width="85" x="386" y="30" />
+						<control halign="left" height="10" name="lblMaxElapsedPerFile" title="Max Elapsed/File:" type="static" width="72" x="212" y="50" />
+						<control halign="left" height="12" name="txtMaxElapsedPerFileName" readonly="yes" type="edit" width="184" x="288" y="48" />
+						<control halign="left" height="12" name="txtMaxElapsedPerFileSize" readonly="yes" type="edit" width="95" x="288" y="63" />
+						<control halign="left" height="12" name="txtMaxElapsedPerFileDuration" readonly="yes" type="edit" width="85" x="386" y="63" />
+						<control halign="left" height="10" name="lblTotalFilesAfterFiltering" title="Total Files After Filtering:" type="static" width="95" x="8" y="86" />
+						<control halign="left" height="12" name="txtTotalFilesAfterFiltering" readonly="yes" type="edit" width="94" x="110" y="84" />
+						<control halign="left" height="10" name="lblTotalSizeAfterFiltering" title="Total Size After Filtering:" type="static" width="95" x="8" y="102" />
+						<control halign="left" height="12" name="txtTotalSizeAfterFiltering" readonly="yes" type="edit" width="94" x="110" y="99" />
+						<control halign="left" height="10" name="lblTotalElapsed" title="Total Elapsed:" type="static" width="72" x="212" y="86" />
+						<control halign="left" height="12" name="txtTotalElapsed" readonly="yes" type="edit" width="100" x="288" y="84" />
+						<control halign="left" height="10" name="lblAverageSpeed" title="Average Speed:" type="static" width="72" x="212" y="100" />
+						<control halign="left" height="12" name="txtAverageSpeed" readonly="yes" type="edit" width="100" x="288" y="99" />
+						<control halign="left" height="10" name="lblResults" title="Results" type="static" width="40" x="8" y="120" />
+						<control fullrow="yes" height="135" name="listResults" nosel="yes" resize="wh" type="listview" viewmode="details" width="462" x="8" y="132">
+							<contents>
+								<item text="foo" />
+								<item text="test" />
+								<item text="tes" />
+							</contents>
+							<columns>
+								<item text="Name" />
+								<item text="Status" />
+								<item text="Message" />
+								<item text="Path" />
+							</columns>
+						</control>
+					</dialog>
+				</resource>
+			</resources>
+
+			*/}
+			.toString().substituteVars(),
+
+		simple: function(){/*
+			<resources>
+				<resource name="dialog2" type="dialog">
+					<dialog fontsize="8" height="100" lang="" width="180" />
+				</resource>
+			</resources>
+		*/}.toString().substituteVars()
+
+	}
+
+	for (var sr in SCRIPT_RESOURCES) {
+		SCRIPT_RESOURCES[sr] = SCRIPT_RESOURCES[sr].replace(/^\t+/mg, '').slice(14,-3).trim();
+	}
+}
+

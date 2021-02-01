@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iconset name="MTHasher">
+<display_name>Multi-Threaded Hasher Icons</display_name>
+
+<set size="small" width="24" height="24" filename="MTH_24_Main.png"                                               ><icon row="1" col="1" name="Main"                                               /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Blue_Benchmark.png"                                     ><icon row="1" col="1" name="Blue_Benchmark"                                     /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Blue_CalculateOnly.png"                                 ><icon row="1" col="1" name="Blue_CalculateOnly"                                 /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Blue_GitHubPage.png"                                    ><icon row="1" col="1" name="Blue_GitHubPage"                                    /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Blue_Settings.png"                                      ><icon row="1" col="1" name="Blue_Settings"                                      /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_FindDirty.png"                                    ><icon row="1" col="1" name="Green_FindDirty"                                    /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_FindMissing.png"                                  ><icon row="1" col="1" name="Green_FindMissing"                                  /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate.png"                                  ><icon row="1" col="1" name="Green_SmartUpdate"                                  /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt1.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt1"                             /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt2.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt2"                             /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt3.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt3"                             /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt4.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt4"                             /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_VerifyFromADS.png"                                ><icon row="1" col="1" name="Green_VerifyFromADS"                                /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_CopyFromADSToClipboard.png"                      ><icon row="1" col="1" name="Orange_CopyFromADSToClipboard"                      /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_ExportFromADS.png"                               ><icon row="1" col="1" name="Orange_ExportFromADS"                               /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_ImportIntoADS.png"                               ><icon row="1" col="1" name="Orange_ImportIntoADS"                               /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_OntheflyCalculateAndExport.png"                  ><icon row="1" col="1" name="Orange_OntheflyCalculateAndExport"                  /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_OntheflyCompareExternalFileToADS.png"            ><icon row="1" col="1" name="Orange_OntheflyCompareExternalFileToADS"            /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Orange_OntheflyCompareExternalFileToNewCalculation.png" ><icon row="1" col="1" name="Orange_OntheflyCompareExternalFileToNewCalculation" /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Red_ClearCache.png"                                     ><icon row="1" col="1" name="Red_ClearCache"                                     /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Red_DeleteADS.png"                                      ><icon row="1" col="1" name="Red_DeleteADS"                                      /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Red_HardUpdateADS.png"                                  ><icon row="1" col="1" name="Red_HardUpdateADS"                                  /></set>
+
+<set size="large" width="32" height="32" filename="MTH_32_Main.png"                                               ><icon row="1" col="1" name="Main"                                               /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Blue_Benchmark.png"                                     ><icon row="1" col="1" name="Blue_Benchmark"                                     /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Blue_CalculateOnly.png"                                 ><icon row="1" col="1" name="Blue_CalculateOnly"                                 /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Blue_GitHubPage.png"                                    ><icon row="1" col="1" name="Blue_GitHubPage"                                    /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Blue_Settings.png"                                      ><icon row="1" col="1" name="Blue_Settings"                                      /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_FindDirty.png"                                    ><icon row="1" col="1" name="Green_FindDirty"                                    /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_FindMissing.png"                                  ><icon row="1" col="1" name="Green_FindMissing"                                  /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate.png"                                  ><icon row="1" col="1" name="Green_SmartUpdate"                                  /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt1.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt1"                             /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt2.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt2"                             /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt3.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt3"                             /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt4.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt4"                             /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_VerifyFromADS.png"                                ><icon row="1" col="1" name="Green_VerifyFromADS"                                /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_CopyFromADSToClipboard.png"                      ><icon row="1" col="1" name="Orange_CopyFromADSToClipboard"                      /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_ExportFromADS.png"                               ><icon row="1" col="1" name="Orange_ExportFromADS"                               /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_ImportIntoADS.png"                               ><icon row="1" col="1" name="Orange_ImportIntoADS"                               /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_OntheflyCalculateAndExport.png"                  ><icon row="1" col="1" name="Orange_OntheflyCalculateAndExport"                  /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_OntheflyCompareExternalFileToADS.png"            ><icon row="1" col="1" name="Orange_OntheflyCompareExternalFileToADS"            /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Orange_OntheflyCompareExternalFileToNewCalculation.png" ><icon row="1" col="1" name="Orange_OntheflyCompareExternalFileToNewCalculation" /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Red_ClearCache.png"                                     ><icon row="1" col="1" name="Red_ClearCache"                                     /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Red_DeleteADS.png"                                      ><icon row="1" col="1" name="Red_DeleteADS"                                      /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Red_HardUpdateADS.png"                                  ><icon row="1" col="1" name="Red_HardUpdateADS"                                  /></set>
+
+</iconset>

@@ -54,6 +54,13 @@ interface String {
      * other than root dir of a drive, i.e. it returns Y:\Subdir (no BS) but Y:\ (with BS)
      */
     normalizeTrailingBackslashes(): string;
+
+    /**
+     * substitutes variables - Only Global ones - in the given string
+     * e.g.
+     * my name is: ${Global.SCRIPT_NAME}
+     */
+    substituteVars(): string;
 }
 
 // export class DOpus {

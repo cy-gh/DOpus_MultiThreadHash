@@ -1,0 +1,4 @@
+@echo off
+*del /qfkz CuMultiThreadHash.osp > NUL:
+winrar a -ep1 -t CuMultiThreadHash.zip CuMultiThreadHash*.* Icons CuMultiThreadHashSounds\*.* _CuMultiThreadHash_Package.btm
+*ren CuMultiThreadHash.zip CuMultiThreadHash.osp
