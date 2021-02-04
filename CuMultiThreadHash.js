@@ -17,7 +17,7 @@
 {
 	{
 		// the gigantic ASCII figlets are just for VSCode minimap :) - by https://textart.io/figlet
-		function __GLOBAL__(){ 0 }
+		function ____GLOBAL____(){ 0 }
 		var Global = {};
 		Global.SCRIPT_NAME        = 'CuMultiThreadHash'; // WARNING: if you change this after initial use you have to reconfigure your columns, infotips, rename scripts...
 		Global.SCRIPT_NAME_SHORT  = 'MTH'; // WARNING: if you change this after initial use you have to rename all methods!
@@ -38,6 +38,8 @@
 		util.shell   = new ActiveXObject('WScript.shell');
 		util.dopusrt = 'dopusrt /acmd';
 
+
+
 		var sleepdur = 1; // in millisecs, used as wait between checking available # of threads & still running threads checks
 
 		var STREAM_PREFIX = 'MTHash_';
@@ -45,9 +47,34 @@
 		// TRUE is highly recommended
 		var CACHE_ENABLED = true;
 
-		// var DEFAULT_ALGORITHM = 'blake3';
-		var DEFAULT_ALGORITHM = 'sha1';
-		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM; // TODO - might be converted to a config parameter or command parameter
+		/**
+		 * @typedef Algorithm
+		 * @type {object}
+		 *
+		 * @property {string} name
+		 * @property {string} fileExt
+		 * @property {boolean} native
+		 * @property {boolean=} viaFilelist
+		 * @property {string=} binaryPath
+		 * @property {number=} maxThreads
+		 */
+
+ 		// Why are SHA-256 & SHA-512 are missing from this list?
+		// read the README.MD, short answer: as of this development (v12.23), the DOpus implementations are buggy
+
+		/**
+		 * @type {Object.<string, Algorithm>}
+		 */
+		var ALGORITHMS = {
+			MD5     : { name: 'MD5',    fileExt: '.md5',    native: true },
+			SHA1    : { name: 'SHA1',   fileExt: '.sha1',   native: true },
+			JSON    : { name: 'JSON',   fileExt: '.json',   native: true },
+			BLAKE3  : { name: 'BLAKE3', fileExt: '.blake3', native: false, binaryPath: '%gvdTool%\\Util\\hashers\\b3sum.exe', viaFilelist: true, maxThreads: 1 }
+		};
+		// var DEFAULT_ALGORITHM = 'sha1';
+		/** @type {Algorithm} */
+		var DEFAULT_ALGORITHM = ALGORITHMS.SHA1;
+		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM.name; // TODO - might be converted to a config parameter or command parameter
 
 		// hashing bigger files first usually increases the speed up to 25% for mixed groups of files
 		// but makes little difference if file sizes are close to each other (usually few big files)
@@ -70,9 +97,13 @@
 		// this must be NOT the function name but the COMMAND name!
 		// we will start it via 'dopusrt /acmd <WORKER_COMMAND>...' to start the threads
 		var WORKER_COMMAND = 'MTHWorker';
+		// this command helps us to receive the results from an external call
+		// instead of creating many external temp files for short outputs,
+		// we will make the called command set a variable via DOpusRT after it's finished
+		var WORKER_SETVAR_COMMAND = 'MTHSetVariable';
 
 		// collection names for find commands & files which reported an error
-		var COLLECTIONS_ENABLED          = true;
+		var COLLECTIONS_ENABLED          = false;
 		var COLLECTION_FOR_SUCCESS       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
 		var COLLECTION_FOR_DIRTY         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
 		var COLLECTION_FOR_MISSING       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
@@ -81,7 +112,7 @@
 		var COLLECTION_FOR_VERIFY_ERRORS = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify errors';
 
 		// show a summary dialog after manager actions
-		var SHOW_SUMMARY_DIALOG = true;
+		var SHOW_SUMMARY_DIALOG = false;
 
 		// export detailed data as comments (SHA, MD5...) or headers (JSON)
 		// such as snapshot date in various formats, earliest/latest/smallest/largest file name/date, etc.
@@ -117,6 +148,8 @@
 		// self-explanatory
 		// not used for anything at the moment
 		var TEMPDIR = '%TEMP%';
+
+		TEMPDIR = (''+util.shell.ExpandEnvironmentStrings(TEMPDIR));
 	}
 }
 
@@ -134,7 +167,43 @@
 */
 {
 
-	function __INIT__(){ 0 }
+	function ____INIT____(){ 0 }
+
+	function fileTail(filename) {
+		var fnName = funcNameExtractor(fileTail);
+		var delay = 500;
+		var maxCount = 50;
+
+		logger.sforce('%s -- monitoring file: %s', fnName, filename);
+
+		var filePtr = 0;
+		for (var i = 0; i < maxCount; i++) {
+			var fh = doh.fsu.OpenFile(filename);
+			if (fh.error) {
+				logger.sforce('%s -- Cannot open file %s, Error: %s', fnName, fh.error); return false;
+			}
+
+			doh.delay(delay);
+			var filesize = parseInt(doh.getItem(filename).size, 10);
+			// logger.sforce('%s -- File size: %d', fnName, filesize);
+			if (filePtr >= filesize) continue;
+
+			fh.Seek(filePtr);
+			logger.sforce('%s -- File change detected -- filesize: %d, filePtr: %d', fnName, filesize, filePtr);
+
+			var blob = doh.dc.Blob;
+			var numBytesRead = fh.Read(blob);
+			if (numBytesRead) {
+				logger.sforce('%s -- Read %d new bytes', fnName, numBytesRead);
+				filePtr = filesize;
+				fh.Close();
+			}
+		}
+		logger.sforce('%s -- Ran out of time, counter: %s', fnName, i);
+		// fh.Close();
+		return true;
+	}
+
 
 	// called by DOpus
 	function OnInit(initData) {
@@ -147,7 +216,6 @@
 		initData.group          = Global.SCRIPT_GROUP;
 		initData.log_prefix     = Global.SCRIPT_PREFIX;
 		initData.default_enable = true;
-
 
 		// return;
 		// cacheMgr.clearCache();
@@ -181,6 +249,9 @@
 		_setScriptPathVars(initData);
 		playFeedbackSound('Success'); // TODO REMOVE
 
+		// fileTail('Y:\\CollectiveOutput.txt');
+		// return;
+
 
 
 		_initializeCommands(initData);
@@ -189,6 +260,8 @@
 	}
 
 	/**
+	 * Sets a global variable in the global DOpus memory with the fullpath of this script
+	 * so that we can determine if we are in development or released OSP mode
 	 * @param {object} initData DOpus InitData
 	 */
 	function _setScriptPathVars(initData) {
@@ -196,50 +269,77 @@
 		doh.setGlobalVar('Global.SCRIPT_ITEM', oItem);
 	}
 	/**
+	 * Reads the fullpath, path name and isOSP flag of this script
 	 * @returns {{fullpath: string, path: string, isOSP: boolean}}
 	 */
 	function _getScriptPathVars() {
-		var oItem = doh.getGlobalVar('Global.SCRIPT_ITEM');
+		var oThisScriptsPath = doh.getGlobalVar('Global.SCRIPT_ITEM');
 		return {
-			fullpath: ''+oItem.realpath,
-			path    : (''+oItem.path).normalizeTrailingBackslashes(),
+			fullpath: ''+oThisScriptsPath.realpath,
+			path    : (''+oThisScriptsPath.path).normalizeTrailingBackslashes(),
 			// isOSP   : (''+doh.fsu.Resolve(oItem.realpath).ext).toLowerCase() === '.osp'
-			isOSP   : (''+oItem.ext).toLowerCase() === '.osp'
+			isOSP   : (''+oThisScriptsPath.ext).toLowerCase() === '.osp'
 		}
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {string} name column name
+	 */
 	function _getColumnLabelFor(name) {
 		return '#' + name;
 		return Global.SCRIPT_NAME_SHORT + ' ' + name;
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {string} name column name
+	 */
 	function _getColumnNameFor(name) {
 		return Global.SCRIPT_NAME_SHORT + '_' + name;
 	}
-	// internal method called by OnInit() directly or indirectly
-	function _getIcon(iconName, scriptPath) {
-		// helper method to get the Icon Name for development and OSP version
-
-		var oPath = doh.fsu.Resolve(scriptPath);
-		var isOSP = oPath.ext === 'osp';
-
-		return ( isOSP
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * helper method to get the Icon Name for development and OSP version
+	 * @param {string} iconName internal name, the prefix and path will be automatically added
+	 */
+	function _getIcon(iconName) {
+		var myInfo = _getScriptPathVars();
+		return ( myInfo.isOSP
 				? ('#MTHasher:' + iconName) // #MTHasher is defined in the Icons.XML file
-				: (oPath.pathpart + '\\icons\\MTH_32_' + iconName + '.png')
+				: (myInfo.path + 'Icons\\MTH_32_' + iconName + '.png')
 			);
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {string} name command name, prefix will be added automatically
+	 * @param {function} fnFunction function which implements the command
+	 * @param {object} initData DOpus InitData
+	 * @param {string} template command template, e.g. FILE/O...
+	 * @param {string} icon icon name, internal
+	 * @param {string} label command label
+	 * @param {string} desc command description
+	 * @param {boolean=} hide if true, command is hidden from commands list
+	 */
 	function _addCommand(name, fnFunction, initData, template, icon, label, desc, hide) {
 		var cmd         = initData.AddCommand();
 		cmd.name        = Global.SCRIPT_NAME_SHORT + name;
 		cmd.method      = funcNameExtractor(fnFunction);
 		cmd.template    = template || '';
-		cmd.icon		= icon && _getIcon(icon, initData.file) || '';
+		cmd.icon		= icon && _getIcon(icon) || '';
 		cmd.label		= label || '';
 		cmd.desc        = desc || label;
 		cmd.hide        = typeof hide !== 'undefined' && hide || false;
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {string} name column name
+	 * @param {function} fnFunction functhi which implements the column
+	 * @param {object} initData DOpus InitData
+	 * @param {string} label column label
+	 * @param {string} justify left, right, etc.
+	 * @param {boolean} autogroup if values should be grouped by DOpus
+	 * @param {boolean} autorefresh
+	 * @param {boolean} multicol
+	 */
 	function _addColumn(name, fnFunction, initData, label, justify, autogroup, autorefresh, multicol) {
 		var col         = initData.AddColumn();
 		col.method      = funcNameExtractor(fnFunction);
@@ -250,7 +350,10 @@
 		col.autorefresh = autorefresh;
 		col.multicol    = multicol;
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {object} initData DOpus InitData
+	 */
 	function _initializeCommands(initData) {
 		/*
 			Available icon names, used by GetIcon()
@@ -294,9 +397,18 @@
 		_addCommand('Worker',
 			onDOpusCmdMTHWorker,
 			initData,
-			'THREADID/K,ACTIONFUNC/K,FILE/K',
+			'THREADID/K,ACTIONFUNC/K,VIAFILELIST/S',
 			'StatusDirty',
 			'MTH Worker (do not call directly!)',
+			null,
+			true // hide from script commands list
+			);
+		_addCommand('SetVariable',
+			onDOpusCmdMTHSetVariable,
+			initData,
+			'VARKEY/K,VARVAL/K',
+			'StatusDirty',
+			'MTH Worker Helper (do not call directly!)',
 			null,
 			true // hide from script commands list
 			);
@@ -349,10 +461,11 @@
 			'Verifies hashes in external file against all matched files by relative path & name; the current lister tab path is used to resolve relative paths'
 			);
 	}
-	// internal method called by OnInit() directly or indirectly
+	/**
+	 * internal method called by OnInit() directly or indirectly
+	 * @param {object} initData DOpus InitData
+	 */
 	function _initializeColumns(initData) {
-		// function addColumn(initData, method, name, label, justify, autogroup, autorefresh, multicol)
-
 		// this column is kept separate, no multicol
 		_addColumn('HasHashStream',
 			onDOpusColHasStream,
@@ -453,6 +566,1079 @@
 
 
 
+
+
+/*
+	 .d8888b.   .d88888b.  888      888     888 888b     d888 888b    888  .d8888b.
+	d88P  Y88b d88P" "Y88b 888      888     888 8888b   d8888 8888b   888 d88P  Y88b
+	888    888 888     888 888      888     888 88888b.d88888 88888b  888 Y88b.
+	888        888     888 888      888     888 888Y88888P888 888Y88b 888  "Y888b.
+	888        888     888 888      888     888 888 Y888P 888 888 Y88b888     "Y88b.
+	888    888 888     888 888      888     888 888  Y8P  888 888  Y88888       "888
+	Y88b  d88P Y88b. .d88P 888      Y88b. .d88P 888   "   888 888   Y8888 Y88b  d88P
+	 "Y8888P"   "Y88888P"  88888888  "Y88888P"  888       888 888    Y888  "Y8888P"
+*/
+{
+	function onDOpusColHasStream(scriptColData){
+		var item = scriptColData.item;
+		if (!doh.isValidDOItem(item) || !doh.isFile(item) || !FS.isValidPath(item.realpath)) return;
+		// logger.sforce('%s -- item.name: %s - exists: %b', 'onDOpusColHasStream', item.name, FS.isValidPath(item.realpath));
+		var res = ADS.hasHashStream(item);
+		scriptColData.value = res ? 'Yes' : 'No';
+		scriptColData.group = 'Has Metadata: ' + scriptColData.value;
+		// return res;
+	}
+	function onDOpusColMultiCol(scriptColData) {
+		var fnName = funcNameExtractor(onDOpusColMultiCol);
+
+		var ts1 = new Date().getTime();
+
+		var item = scriptColData.item;
+		if (!doh.isFile(item)) return;
+
+		// get ADS object
+		var item_props = ADS.read(item);
+		// if (item_props === false || typeof item_props === 'undefined' || !isObject(item_props)) {
+		if (!item_props) {
+			// logger.normal(item.name + ': Metadata does not exist or INVALID: ' + item_props);
+			return;
+		}
+
+		// iterate over requested columns
+		for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
+			var key = e.item();
+			var outstr;
+			switch(key) {
+				case _getColumnNameFor('NeedsUpdate'):
+					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
+						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
+
+					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
+					scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
+					scriptColData.columns(key).value = outstr;
+					break;
+
+				case _getColumnNameFor('NeedsUpdateVerbose'):
+					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
+						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
+					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
+					if (differentModifDate && differentSize) {
+						outstr += ' (date & size)';
+					} else if (differentModifDate) {
+						outstr += ' (date)';
+					} else if (differentSize) {
+						outstr += ' (size)';
+					}
+					scriptColData.columns(key).group = 'Needs update (Verbose): ' + (outstr ? 'Yes' : 'No');
+					scriptColData.columns(key).value = outstr;
+					break;
+
+				case _getColumnNameFor('ADSDataRaw'):
+					scriptColData.columns(key).value = JSON.stringify(item_props);
+					break;
+
+				case _getColumnNameFor('ADSDataFormatted'):
+					scriptColData.columns(key).value = JSON.stringify(item_props, null, "\t");
+					break;
+			} // switch
+		} // for enum
+		var ts2 = new Date().getTime();
+		logger.verbose('OnMExt_MultiColRead() -- Elapsed: ' + (ts2 - ts1) + ', current: ' + ts2);
+	}
+}
+
+
+
+/*
+	888b     d888        d8888 888b    888        d8888  .d8888b.  8888888888 8888888b.
+	8888b   d8888       d88888 8888b   888       d88888 d88P  Y88b 888        888   Y88b
+	88888b.d88888      d88P888 88888b  888      d88P888 888    888 888        888    888
+	888Y88888P888     d88P 888 888Y88b 888     d88P 888 888        8888888    888   d88P
+	888 Y888P 888    d88P  888 888 Y88b888    d88P  888 888  88888 888        8888888P"
+	888  Y8P  888   d88P   888 888  Y88888   d88P   888 888    888 888        888 T88b
+	888   "   888  d8888888888 888   Y8888  d8888888888 Y88b  d88P 888        888  T88b
+	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
+*/
+{
+
+	function ____MANAGER____(){ 0 }
+	// called by custom DOpus command
+	function onDOpusCmdMTHManagerStart(cmdData) {
+		var fnName = funcNameExtractor(onDOpusCmdMTHManagerStart);
+
+		doh.clear();
+
+		// VALIDATE PARAMETERS & SET FILTERS, ACTIONS AND COLLECTIONS
+		{
+			var command        = getManagerCommand(cmdData),
+				commandName    = command.command,
+				collectionName = command.collName,
+				fnFilter       = command.filter,
+				fnFilterName   = command.filterName,
+				fnAction       = command.action,
+				fnActionName   = command.actionName;
+			logger.sforce('%s -- Selected Command: %s, Using Filter: %s, Action: %s', fnName, commandName, fnFilterName, fnActionName);
+		}
+
+
+		// benchmarking, runaway stoppers for while loops, progress bar abort
+		var tsStart     = now(),
+			itercnt     = 0,
+			itermax     = Math.round(60 * 60 * 1000 / (sleepdur||1)),
+			userAborted = false,
+			rootPath    = doh.getCurrentPath(cmdData),
+			sendViaFilelist = false;
+
+
+		// SELECTION & FILTERING
+		{
+			busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName));
+			// if (command.command === 'VERIFY_FROM' ) {
+			if (fnAction === actions.PUBLIC.fnActionBenchmark) {
+				hashPerformanceTest(command.benchSize, command.benchCount, command.maxcount);
+				return;
+			} else if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
+				// get the given file or user-selected file contents in internal format
+				var extFileAsPOJO = fileExchangeHandler.verifyFrom(cmdData, '', command.fileName);
+				if (!extFileAsPOJO.items) {
+					abortWithFatalError('Nothing to do, parsing results:' + JSON.stringify(extFileAsPOJO, null, 4));
+				}
+				// populate the collection which will replace the typical user-selected files collection, e.g. in next block with applyFilterToSelectedItems()
+				var selectedFiltered = new HashedItemsCollection();
+				for (var itemPath in extFileAsPOJO.items) {
+					if (!extFileAsPOJO.items.hasOwnProperty(itemPath)) continue; // skip prototype functions, etc.
+					var item = extFileAsPOJO.items[itemPath];
+					selectedFiltered.addItem(new HashedItem(doh.getItem(itemPath), '', item.hash, extFileAsPOJO.Algorithm));
+				}
+				logger.sverbose('%s -- hic:\n%s', fnName, JSON.stringify(selectedFiltered, null, 4));
+			} else {
+				var selectedFiltered   = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
+			}
+			var selectedItemsCount = selectedFiltered.countSuccess;
+			var selectedItemsSize  = selectedFiltered.sizeSuccess;
+			busyIndicator.stop();
+
+			// if a collection name is set, we only need to show the selection & filtering results, e.g. Dirty, Missing...
+			if (collectionName) {
+				busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
+				logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
+
+				// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+				addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
+
+				logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
+				busyIndicator.stop();
+				return;
+			}
+			// if some hashes are missing or dirty, show and quit
+			if (selectedFiltered.countSkipped && fnAction !== actions.PUBLIC.fnActionCalculateAndSaveToADS) {
+				showMessageDialog(doh.getDialog(cmdData), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.');
+				return;
+			}
+			// nothing to do
+			if (!selectedItemsCount) {
+				if (doh.getSelItemsCount(cmdData)) {
+					showMessageDialog(doh.getDialog(cmdData),
+						sprintf('Nothing to do, quitting...\n\nNo suitable files found for the requested\nCommand: %s\nFilter: %s\nAction: %s', commandName, fnFilterName, fnActionName),
+						'No suitable files found');
+				} else {
+					showMessageDialog(doh.getDialog(cmdData),
+						sprintf('Nothing selected'),
+						'Nothing selected');
+				}
+				return;
+			}
+		}
+
+
+		// DISK TYPE DETECTION
+		{
+			if (AUTO_DETECT_DISK_TYPE) {
+				var driveType = detectDriveType(selectedFiltered.driveLetters);
+				if (!driveType) {
+					// assume SSD and continue
+				} else {
+					if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
+						var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+						var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
+						if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
+					}
+				}
+				logger.snormal('%s -- Number of threads to use: %d', fnName, command.maxcount);
+			}
+		}
+
+		// EXTERNAL HASHERS DETECTION
+		{
+			sendViaFilelist = ALGORITHMS[CURRENT_ALGORITHM].viaFilelist;
+			if (typeof ALGORITHMS[CURRENT_ALGORITHM].maxThreads === 'number' && ALGORITHMS[CURRENT_ALGORITHM].maxThreads > 0) {
+				command.maxcount = ALGORITHMS[CURRENT_ALGORITHM].maxThreads;
+			}
+		}
+
+
+		// SPLITTING / KNAPSACKING
+		{
+			var selectedKnapsacked = knapsackItems(selectedFiltered, command.maxcount);
+		}
+
+
+		// INITIALIZE PROGRESS BAR
+		{
+			var unitMax      = selectedItemsSize.getUnit();
+			var formattedMax = selectedItemsSize.formatAsSize(unitMax);
+			var progbar      = initializeProgressBar(cmdData);
+		}
+
+		// INITIALIZE THREAD POOL
+		{
+			var tp = cacheMgr.getThreadPoolAutoInit();
+			setPauseStatus(false);
+			setAbortStatus(false);
+		}
+
+		// SEND SELECTED FILES TO WORKER THREADS
+		{
+			for (var kskey in selectedKnapsacked.unfinishedKS) {
+				if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
+				var ks = selectedKnapsacked.unfinishedKS[kskey];
+
+				// prepare the variables for this knapsack's worker
+				var torun = sprintf('%s %s THREADID="%s" %s ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, sendViaFilelist && 'VIAFILELIST' || '', fnActionName);
+				// logger.sforce('%s -- torun: %s', fnName, torun);
+				// continue;
+
+				// put all files in this knapsack into a map
+
+				var filesMap = doh.dc.Map();
+				var oHashedItems = ks.itemsColl.getSuccessItems();
+
+				fileloop:for (var hikey in oHashedItems) {
+					if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
+					/** @type {HashedItem} */
+					var oHashedItem = oHashedItems[hikey];
+
+					// create a new DOpus map for this file
+					var new_file             = doh.dc.Map();	        // @ts-ignore
+					new_file('filename')     = oHashedItem.name;		// @ts-ignore
+					new_file('filepath')     = oHashedItem.fullpath;	// @ts-ignore
+					new_file('filesize')     = oHashedItem.size;		// @ts-ignore
+					new_file('finished')     = false; 					// @ts-ignore // if it timed out or was unfinished for any reason
+					new_file('elapsed')      = 0;						// @ts-ignore
+					new_file('error')        = false;					// @ts-ignore
+					new_file('hash')         = false;					// @ts-ignore
+					new_file('finalized')    = false; 					// @ts-ignore // if the file has been processed completely, can include timed out files
+					new_file('externalAlgo') = oHashedItem.algorithm;	// @ts-ignore // if the file has been processed completely, can include timed out files
+					new_file('externalHash') = oHashedItem.hash;		//  @ts-ignore // if the file has been processed completely, can include timed out files
+					filesMap(oHashedItem.fullpath) = new_file;
+				}
+				// put this knapsack into thread pool
+				cacheMgr.setThreadPoolVar(ks.id, filesMap);
+				// logger.snormal('%s -- Worker command to run: %s', fnName, torun);
+				doh.cmd.RunCommand(torun);
+			}
+		}
+
+		// ALL THREADS STARTED - NOW MONITOR THEM
+		{
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('%s -- All workers started', fnName);
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+
+			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
+			var ts = now();
+			var finished_bytes_so_far = 0;
+			unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
+				doh.delay(sleepdur);
+				for (var kskey in selectedKnapsacked.unfinishedKS) {
+					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
+					var ks       = selectedKnapsacked.unfinishedKS[kskey],
+						threadID = ks.id,
+						ksMap    = cacheMgr.getThreadPoolVar(threadID);
+					// logger.forceSprintf('%s -- KS Thread ID: %s', fnName, threadID);
+					for (var e = new Enumerator(ksMap); !e.atEnd(); e.moveNext()) {
+						var ksItemPath  = e.item(),           // full path is the key, as we put it in the manager
+							ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result
+						// logger.forceSprintf('%s -- ksItemAttrib("filename"): %s, finished: %b', fnName, ksItemAttrib('filename'), ksItemAttrib('finished'));
+
+						// check for any unfinished files
+						if (!ksItemAttrib('finished')) {
+							// file not finished yet
+							continue;
+						} else if (ksItemAttrib('finalized')) {
+							// file already finalized
+							continue;
+						} else {
+							// EXTREMELY IMPORTANT
+							// find this item in the knapsack items collection and mark it as finished
+							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsacksCollection
+							// and that's how selectedKnapsacked.allFinished() above works!
+							// ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
+							ks.itemsColl.getByPath(ksItemPath).markFinished();
+
+							logger.sverbose('%s -- %-100s -- AllFinished: %s, KS Finished: %s, KS: %s', fnName, ksItemAttrib('filename'), selectedKnapsacked.allFinished(), ks.isFinished(), kskey);
+
+							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
+							ksItemAttrib('finalized') = true;
+
+							// UPDATE THE PROGRESS BAR not for each file
+							finished_bytes_so_far += ksItemAttrib('filesize');
+							userAborted = updateProgressBar(progbar, tsStart, ksItemAttrib('filename'), finished_bytes_so_far, selectedItemsSize, formattedMax, unitMax);
+							if (userAborted) { break unfinished; }
+						}
+					}
+				}
+			}
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
+			// if (itercnt >= itermax && !selectedKnapsacked.allFinished()) {
+			if (!selectedKnapsacked.allFinished() && itercnt >= itermax) {
+				logger.sforce('');
+				logger.sforce('%s -- Max Wait Reached! (itercnt/itermax: %d/%d)', fnName, itercnt, itermax);
+			}
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.force(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
+
+
+		}
+
+
+		// LAST CLEANUP ACTIONS
+		{
+			doh.delay(10);
+			finalizeProgressBar(progbar);
+			var tsFinish = now();
+			// following is only for cosmetical reasons
+			// wait for DOpus to output the last 'Script Completed' lines
+			// otherwise DOpus might show a 'Script Completed' in the middle of our outputs below
+
+			doh.delay(500);
+			// doh.clear();
+		}
+
+
+		// PREPARE RESULTS OBJECT
+		// results ready, all threads finished/timed out
+		// convert the KnapsacksCollection object to a new CommandResults object
+		// these 2 objects are normally not directly compatible
+		// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
+		// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
+		var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tp, tsStart, tsFinish)
+
+
+		// SUCCESS & ERROR COLLECTIONS
+		{
+			if (COLLECTION_FOR_SUCCESS || COLLECTION_FOR_ERRORS) {
+				if (COLLECTION_FOR_SUCCESS && oCommandResults.ExtInfo.Valid_Count)  addFilesToCollection(getObjKeys(oCommandResults.items), COLLECTION_FOR_SUCCESS);
+				if (COLLECTION_FOR_ERRORS && oCommandResults.ExtInfo.Invalid_Count) addFilesToCollection(getObjKeys(oCommandResults.error), COLLECTION_FOR_ERRORS);
+			}
+		}
+
+
+		// doh.clear();
+		// ON-THE-FLY EXPORT AND ALIKE
+		{
+			if (command.fileName || command.fileFormat) {
+				var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, oCommandResults, false);
+				if (!saveResult.isOK()) {
+					showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + saveResult.err, 'Save Error');
+				}
+			}
+		}
+
+
+		// a not so fortunate experiment - I did not like how it looks and seems to be over-complicating things
+		// TODO maybe I'll come back to this later
+		/*
+			doh.loadResources(SCRIPT_RESOURCES.SummaryDialog);
+			var dlg = doh.getDialog(cmdData);
+			dlg.window   = cmdData.func.sourcetab;
+			dlg.template = 'SummaryDialog';
+			dlg.detach   = true;
+			dlg.Show();
+
+			dlg.Control('txtOperation').value                 = command.command;
+			dlg.Control('txtStart').value                     = actionResults.summary.tsstart.formatAsHms();
+			dlg.Control('txtFinish').value                    = actionResults.summary.tsfinish.formatAsHms();
+			dlg.Control('txtSuccess').value                   = '???';
+			dlg.Control('txtErrors').value                    = actionResults.summary.errors;
+			dlg.Control('txtSkipped').value                   = actionResults.summary.unfinished;
+
+			dlg.Control('txtMaxElapsedPerThreadSize').value   = actionResults.summary.maxelapsedthread + ' ms (' + actionResults.summary.maxelapsedthread.formatAsDuration() + ' s)';
+			dlg.Control('txtMaxElapsedPerFileName').value     = actionResults.summary.longestfilename;
+			dlg.Control('txtMaxElapsedPerFileSize').value     = actionResults.summary.longestfilesize + ' B (' + actionResults.summary.longestfilesize.formatAsSize() + ')';
+			dlg.Control('txtMaxElapsedPerFileDuration').value = actionResults.summary.maxelapsedfile + ' s (' + actionResults.summary.maxelapsedfile.formatAsDuration() + ' s)';
+			dlg.Control('txtTotalFilesAfterFiltering').value  = actionResults.summary.totalfiles;
+			dlg.Control('txtTotalSizeAfterFiltering').value   = actionResults.summary.totalsize + ' B (' + actionResults.summary.totalsize.formatAsSize() + ')';
+			dlg.Control('txtTotalElapsed').value              = actionResults.summary.totalelapsed + ' ms (' + actionResults.summary.totalelapsed.formatAsDuration() + ' s)';
+			dlg.Control('txtAverageSpeed').value              = actionResults.summary.avgspeed.formatAsSize() + '/s';
+		*/
+
+		// FROM THIS POINT ON, DO WHAT YOU WANT...
+		{
+			var oSummaries = oCommandResults.getSummaries(fnName, userAborted, DUMP_DETAILED_RESULTS);
+			logger.force(oSummaries.successSummary);
+			logger.force(oSummaries.errorsSummary);
+			if (SHOW_SUMMARY_DIALOG) {
+				// show an overall summary message as dialog if you like
+				showMessageDialog(
+					doh.getDialog(cmdData),
+					oSummaries.successSummary.replace(/,\s+/mg, '\n').replace(fnName + ' ', ''),
+					Global.SCRIPT_NAME + ' - Results');
+			} else {
+				playFeedbackSound('Success');
+			}
+		}
+
+	}
+	/**
+	 * @param {object} cmdData DOpus command data
+	 * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
+	 */
+	function getManagerCommand(cmdData) {
+		var fnName = funcNameExtractor(getManagerCommand);
+
+		var cargs     = cmdData.func.args;
+		var recurse   = cargs.got_arg.RECURSE || true;              // if dirs are selected process children files
+		var maxcount  = cargs.MAXCOUNT || MAX_AVAILABLE_CORE_COUNT; // maxiumum number of threads, default: all available
+		var file      = cargs.FILE || false;                        // file to use for on-the-fly export & verify
+		var format    = cargs.FORMAT || false;                      // file format to use for on-the-fly export (but not verify)
+		var benchsize = cargs.BENCHMARK_SIZE || Math.pow(2, 16);    // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
+		var benchcount= cargs.BENCHMARK_COUNT || 500;                // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
+
+
+		var VALID_SWITCHES = {
+			'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateOnly },
+			'HARD_UPDATE_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
+			'SMART_UPDATE_ADS'       : { filter: filters.PUBLIC.fnFilterAcceptMissingOrDirty,      action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
+			'VERIFY_FROM_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptWithValidHashesOnly, action: actions.PUBLIC.fnActionCalculateAndCompareToADS },
+			'DELETE_ADS'             : { filter: filters.PUBLIC.fnFilterAcceptWithHashes,          action: actions.PUBLIC.fnActionDeleteADS                },
+			'FIND_DIRTY'             : { filter: filters.PUBLIC.fnFilterAcceptDirtyOnly,           action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_DIRTY},
+			'FIND_MISSING'           : { filter: filters.PUBLIC.fnFilterRejectWithHashes,          action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_MISSING},
+			// 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnFilterRejectAnyFile,             action: actions.PUBLIC.fn_NOT_IMPLEMENTED_YET },
+			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnCompareAgainstHash             },
+			'BENCHMARK'              : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionBenchmark                }
+		};
+
+		for (var sw in VALID_SWITCHES) {
+			if (cargs.got_arg[sw]) {
+				var ma = new ManagerCommand(sw, recurse, maxcount, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
+				if (file)       ma.fileName   = file;   // do not add filename unless given
+				if (format)     ma.fileFormat = format; // do not add format unless given
+				if (benchsize)  ma.benchSize  = benchsize;
+				if (benchcount) ma.benchCount = benchcount;
+				logger.snormal('%s -- Selected Action: %s, Using Filter: %s, Action: %s, Collection: %s, Filename: %s, Format: %s', fnName, sw, ma.filterName, ma.actionName, ma.collName, ma.fileName, ma.fileFormat);
+				return ma;
+			}
+		}
+		abortWithFatalError(sprintf('%s -- No valid command is given', fnName));
+	}
+	/**
+	 * @param {string[]} filepathsArray JS array, line item objects must be file paths
+	 * @param {string} collectionName collection name to add to
+	 */
+	function addFilesToCollection(filepathsArray, collectionName) {
+		if (!COLLECTIONS_ENABLED) return;
+
+		if (!collectionName) abortWithFatalError('No collection name is supplied, check script');
+		doh.cmd.RunCommand('Delete FORCE QUIET "coll://' + collectionName + '"');
+		doh.cmd.RunCommand('CreateFolder "coll://' + collectionName + '"');
+		doh.cmd.ClearFiles();
+		for (var i = 0; i < filepathsArray.length; i++) {
+			doh.cmd.AddFile(doh.fsu.GetItem(filepathsArray[i]));
+		}
+		doh.cmd.RunCommand('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
+		doh.cmd.RunCommand('Go "coll://' + collectionName + '" NEWTAB=findexisting');
+	}
+	/**
+	 * Runs a single-threaded hashing benchmark for all available algorithms
+	 * @example hashPerformanceTest(Math.pow(2, 20), 5000); return;
+	 * @param {number} size size of the test data - randomly generated, do not make it too big, but increase the repetitions instead
+	 * @param {number} count number of repetitions per algorithm for the randomly generated data
+	 * @param {number} maxcount the amount of available threads
+	 */
+	function hashPerformanceTest(size, count, maxcount) {
+		var algorithms = [ 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'crc32_php', 'crc32_php_rev' ];
+
+		var instr = '';
+		// for (var i = 0; i < size; i++) {
+		// 	instr += Math.floor(Math.random() * 10);
+		// }
+		logger.sforce(stopwatch.startAndPrint('Random Data Generation'));
+		while (instr.length < size) {
+			instr += Math.floor(10000000 + Math.random() * 89999999);
+		}
+		instr = instr.slice(0, size);
+		logger.sforce(stopwatch.stopAndPrint('Random Data Generation'));
+
+		var blob = doh.dc.Blob;
+		blob.CopyFrom(instr);
+		logger.sforce('instr: %s', instr);
+		if (size !== instr.length) {
+			abortWithFatalError('Could not generate requested test sample size');
+		}
+
+		var outstr = '', line = '';
+		function addAndPrint(line) {
+			outstr += line + '\n'; logger.sforce(line);
+		}
+		addAndPrint('');
+		addAndPrint(sprintf('  -- %s Benchmark --', Global.SCRIPT_NAME));
+		addAndPrint('');
+		addAndPrint(sprintf('Testing all algorithms with a randomly generated input string in memory, in SINGLE THREAD ONLY.'));
+		addAndPrint('');
+		addAndPrint(sprintf('This is the best ever your CPU can do using DOpus & this script, when file access overhead is eliminated.'));
+		addAndPrint('');
+		addAndPrint(sprintf('Repetitions: %d', count));
+		addAndPrint(sprintf('Input Size: %s',size.formatAsSize()));
+		addAndPrint('');
+		addAndPrint(sprintf('  -- Theoretical MT/%dx Limit --', maxcount));
+		addAndPrint('');
+		addAndPrint('The speed you would reach if:');
+		addAndPrint(' - All your CPU cores run at the same clock (likely)');
+		addAndPrint(' - There is no file access overhead at all (impossible, but can be reduced using an SSD, NVMe or RAMDisk)');
+		addAndPrint(sprintf(' - All selected files can be perfectly split among threads, i.e. they are of equal size and total number is an integer multiple of %d (highly unlikely)', maxcount));
+		addAndPrint('');
+
+		for (var i = 0; i < algorithms.length; i++) {
+			var algo = algorithms[i];
+			var id = sprintf('%20s', algo);
+
+			addAndPrint(sprintf('Testing algorithm: ' + algo.toUpperCase()));
+			stopwatch.start(id);
+			for (var j = 0; j < count; j++) {
+				var dummy = doh.fsu.Hash(blob, algo);
+			}
+			var elapsed = stopwatch.getElapsed(id);
+			var avgSpeed = size * count * 1000 / elapsed;
+			stopwatch.stop(id);
+			addAndPrint(sprintf('Average ST/1x speed     : %s/sec', avgSpeed.formatAsSize()));
+			addAndPrint(sprintf('Theoretical MT/%dx Limit: %s/sec', maxcount, (avgSpeed * maxcount).formatAsSize() ));
+			addAndPrint('');
+		}
+		showMessageDialog(null, outstr, 'CPU Benchmark Results');
+	}
+
+}
+
+
+
+/*
+	888       888  .d88888b.  8888888b.  888    d8P  8888888888 8888888b.
+	888   o   888 d88P" "Y88b 888   Y88b 888   d8P   888        888   Y88b
+	888  d8b  888 888     888 888    888 888  d8P    888        888    888
+	888 d888b 888 888     888 888   d88P 888d88K     8888888    888   d88P
+	888d88888b888 888     888 8888888P"  8888888b    888        8888888P"
+	88888P Y88888 888     888 888 T88b   888  Y88b   888        888 T88b
+	8888P   Y8888 Y88b. .d88P 888  T88b  888   Y88b  888        888  T88b
+	888P     Y888  "Y88888P"  888   T88b 888    Y88b 8888888888 888   T88b
+*/
+{
+
+	function ____WORKER____(){ 0 }
+	/**
+	 * called by onDOpusCmdMTHManager - do not call directly
+	 * @param {object} cmdData DOpus command data
+	 */
+	function onDOpusCmdMTHWorker(cmdData) {
+		var fnName = funcNameExtractor(onDOpusCmdMTHWorker);
+
+		var param = {
+			threadID   : cmdData.func.args.THREADID,
+			actionfunc : cmdData.func.args.ACTIONFUNC,
+			viaFilelist: cmdData.func.args.VIAFILELIST
+		}
+		logger.force(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, viafilelist: %b, action: %s', param.threadID, param.viaFilelist, param.actionfunc) ));
+
+		// convert function name to function
+		var fnActionFunc = actions.getFunc(param.actionfunc);
+
+		// check the thread pool
+		var ksMap = cacheMgr.getThreadPoolVar(param.threadID);
+		if(!ksMap) {
+			abortWithFatalError('The thread info was not received with given threadID!\nThis should never have happened!');
+		}
+
+		// variable to query if user has aborted via progress bar or not
+		var aborted    = false,
+			filesCount = 0;
+
+
+		// callback for individual files, filelists, etc.
+		// this is what they need to do in order to mark files as finished
+		// so that the manager can update the progress bar, get the results, etc.
+		var fnCallback = function(ksItemPath, elapsed, result, error) {
+			logger.sinfo('%s -- Worker callback is called: %s, elapsed: %d, result: %s, error: %s', fnName, ksItemPath, elapsed, result, error);
+			var ksItemAttrib = ksMap(ksItemPath);
+			// put the results back to map, and the map back to TP
+			// @ts-ignore
+			ksItemAttrib('finished') = true;
+			// @ts-ignore
+			ksItemAttrib('elapsed')  = elapsed;
+			// @ts-ignore
+			ksItemAttrib('result')   = typeof result !== 'undefined' ? result : false;
+			// @ts-ignore
+			ksItemAttrib('error')    = typeof error !== 'undefined' ? error : false;
+			// @ts-ignore
+			ksMap(ksItemPath) = ksItemAttrib;
+			cacheMgr.setThreadPoolVar(param.threadID, ksMap);
+		};
+
+
+		if (param.viaFilelist) {
+
+			// collect filenames and pass the list to the action instead of each individual file
+			var aFilepaths = [];
+			filesloop: for (var e = new Enumerator(ksMap); !aborted && !e.atEnd(); e.moveNext()) {
+				var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
+					ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result, externalAlgo, externalHash
+				logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
+				// collect the files
+				aFilepaths.push(ksItemAttrib('filepath'));
+				filesCount++;
+			}
+
+			// create a new temp file with all collected files in this thread
+			var tmpFilelist = TEMPDIR + '\\' + param.threadID + '.filelist.txt'; // TODO check 255 char limit
+			var numBytesWritten = FS.saveFile(tmpFilelist, aFilepaths.join('\n'));
+			if (!numBytesWritten) {
+				abortWithFatalError('Cannot create temporary filelist: ' + tmpFilelist);
+			}
+			logger.sforce('%s -- numBytesWritten: %d', fnName, numBytesWritten);
+
+			var oItem = doh.fsu.GetItem(tmpFilelist);
+			fnActionFunc(oItem, fnCallback, true, ksItemAttrib('externalHash'), ksItemAttrib('externalAlgo'));
+
+		} else {
+
+			// pass each individual file to the action
+			filesloop: for (var e = new Enumerator(ksMap); !aborted && !e.atEnd(); e.moveNext()) {
+				var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
+					ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result, externalAlgo, externalHash
+				logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
+
+				// if the manager sets the pause or abort status, honor it
+				// already started hashing jobs won't be affected, obviously
+				while(getPausedOrAborted() === true) {
+					while(getPauseStatus() === true) {
+						doh.delay(500); // doesn't need to be too short, pause is pause
+					}
+					if (getAbortStatus() === true) {
+						logger.sforce('%s -- Aborting...', fnName);
+						aborted = true;
+						break filesloop;
+					}
+				}
+
+				// get the DOpus Item for this file and call the hash calculator
+				var oItem = doh.fsu.GetItem(ksItemAttrib('filepath'));
+				// EXTREMELY IMPORTANT: this is the heart of actions, uglier alternative: (param.actionfunc)(oItem, null);
+				// alternative with 'this' set to onDOpusCmdMTHWorker
+				// fnActionFunc.call(onDOpusCmdMTHWorker, oItem, fnCallback, ksItemAttrib('externalHash'), ksItemAttrib('externalAlgo'));
+				/** @type {Result} */
+				fnActionFunc(oItem, fnCallback, false, ksItemAttrib('externalHash'), ksItemAttrib('externalAlgo'));
+
+				filesCount++;
+			}
+
+		}
+		logger.normal(stopwatch.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, items: %s, aborted: %b', param.threadID, filesCount, aborted)));
+	}
+	/**
+	 * called by onDOpusCmdMTHWorker - do not call directly
+	 * @param {object} cmdData DOpus command data
+	 */
+	function onDOpusCmdMTHSetVariable(cmdData) {
+		// var fnName = funcNameExtractor(onDOpusCmdMTHSetVariable);
+		var param = {
+			varKey : cmdData.func.args.VARKEY,
+			varVal : cmdData.func.args.VARVAL
+		}
+		// logger.sforce('%s -- Setting %s -> %s', fnName, param.varKey, param.varVal);
+		// cacheMgr.setCacheVar(param.varKey, param.varVal);
+		// @ts-ignore
+		doh.sv.Set(param.varKey) = param.varVal;
+	}
+}
+
+
+
+/**
+	8888888888 8888888 888    88888888888 8888888888 8888888b.  8888888 888b    888  .d8888b.
+	888          888   888        888     888        888   Y88b   888   8888b   888 d88P  Y88b
+	888          888   888        888     888        888    888   888   88888b  888 888    888
+	8888888      888   888        888     8888888    888   d88P   888   888Y88b 888 888
+	888          888   888        888     888        8888888P"    888   888 Y88b888 888  88888
+	888          888   888        888     888        888 T88b     888   888  Y88888 888    888
+	888          888   888        888     888        888  T88b    888   888   Y8888 Y88b  d88P
+	888        8888888 88888888   888     8888888888 888   T88b 8888888 888    Y888  "Y8888P88
+*/
+{
+
+	function ____FILTERING____(){ 0 }
+	/**
+	 * 	output structure
+	 * 	{
+	 * 		totalsize: number of bytes,
+	 * 		items: array of [ { 'path': string, 'name': string, 'size': number }, ... ]
+	 * 	}
+	 *
+	 * @param {object} enumerableItems DOpus enumerable items, e.g. scriptCmdData.func.sourcetab.selected
+	 * @param {boolean} recurse process subdirs
+	 * @param {function} fnItemFilter function to select only certain items
+	 * @returns {HashedItemsCollection} filtered items
+	 * @example applyFilterToSelectedItems(doh.getAllItems(cmdData), true, filters.PUBLIC.fnFilterAcceptWithValidHashesOnly)
+	 */
+	function applyFilterToSelectedItems(enumerableItems, recurse, fnItemFilter) {
+		var fnName = funcNameExtractor(applyFilterToSelectedItems);
+
+		// max # of files directly in a subdir, acts also against infinite while-loop if enum.complete goes wrong
+		var icnt, imax = 100000;
+		// PRESELECT ALL FILES
+		{
+			var oItemsPreFilter = new HashedItemsCollection();
+
+			logger.normal(stopwatch.startAndPrint(fnName, 'File Selection'));
+			// first collect all the path & size information for the selected items
+			// note we pass an 'enumerableItems' which is most likely passed from scriptCmdData.func.sourcetab.selected
+			for (var e = new Enumerator(enumerableItems); !e.atEnd(); e.moveNext()) {
+				var selitem = e.item();
+
+				if (!doh.isDirOrFile(selitem)) {
+					// type: unsupported
+					logger.swarn('Skipping unsupported item: %s', selitem.realpath);
+					continue;
+				} else if (doh.isDir(selitem) && recurse) {
+					// type: directory
+					var fEnum = doh.fsu.ReadDir(selitem, (recurse && 'r'));
+					if (fEnum.error) abortWithFatalError('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
+					icnt = 0; // just as a precaution for while loop
+					while (!fEnum.complete && icnt++ < imax) {
+						var subitem = fEnum.next();
+						if (!doh.isFile(subitem) && doh.isValidDOItem(subitem)) continue;
+						oItemsPreFilter.addItem(new HashedItem(subitem));
+					}
+					fEnum.Close();
+				} else {
+					// type: file
+					oItemsPreFilter.addItem(new HashedItem(selitem));
+				}
+			}
+			logger.normal(stopwatch.stopAndPrint(fnName, 'File Selection'));
+		}
+
+		// COLLECT FILES USING GIVEN FILTER
+		// WARNING: fnItemFilter runs after all files are selected, not during the determination of files
+		{
+			var oItemsPostFilter = new HashedItemsCollection();
+			// apply filter to all candidates
+
+			logger.normal(stopwatch.startAndPrint(fnName, 'Filtering'));
+			var oSuccessItems = oItemsPreFilter.getSuccessItems();
+			for (var key in oSuccessItems) {
+				if (!oSuccessItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+				if (!(fnItemFilter.call(fnItemFilter, oSuccessItems[key].item ))) { // IMPORTANT: this is the heart of filters
+					logger.sinfo('%s -- Filtering out %s', fnName, oSuccessItems[key].name);
+					oSuccessItems[key].skipped = true;
+				}
+				oItemsPostFilter.addItem(oSuccessItems[key]);
+			}
+
+			logger.normal(stopwatch.stopAndPrint(fnName, 'Filtering'));
+		}
+
+		logger.sverbose('%s -- oItemsPostFilter JSON: %s', fnName, JSON.stringify(oItemsPostFilter, null, 4));
+		return oItemsPostFilter;
+	}
+}
+
+
+
+/*
+	888    d8P  888b    888        d8888 8888888b.   .d8888b.         d8888  .d8888b.  888    d8P  8888888 888b    888  .d8888b.
+	888   d8P   8888b   888       d88888 888   Y88b d88P  Y88b       d88888 d88P  Y88b 888   d8P     888   8888b   888 d88P  Y88b
+	888  d8P    88888b  888      d88P888 888    888 Y88b.           d88P888 888    888 888  d8P      888   88888b  888 888    888
+	888d88K     888Y88b 888     d88P 888 888   d88P  "Y888b.       d88P 888 888        888d88K       888   888Y88b 888 888
+	8888888b    888 Y88b888    d88P  888 8888888P"      "Y88b.    d88P  888 888        8888888b      888   888 Y88b888 888  88888
+	888  Y88b   888  Y88888   d88P   888 888              "888   d88P   888 888    888 888  Y88b     888   888  Y88888 888    888
+	888   Y88b  888   Y8888  d8888888888 888        Y88b  d88P  d8888888888 Y88b  d88P 888   Y88b    888   888   Y8888 Y88b  d88P
+	888    Y88b 888    Y888 d88P     888 888         "Y8888P"  d88P     888  "Y8888P"  888    Y88b 8888888 888    Y888  "Y8888P88
+*/
+{
+
+	function ____KNAPSACKING____(){ 0 }
+	/**
+	 * Distributes given items to the requested/available knapsacks
+	 *
+	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
+	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
+	 * @returns {KnapsacksCollection} knapsacked items
+	 */
+	function knapsackItems(oHashedItemsCollection, numThreads) {
+		var fnName = funcNameExtractor(knapsackItems);
+
+		logger.normal(stopwatch.startAndPrint(fnName, 'Knapsacking'));
+
+		numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
+		// SPLIT FILES INTO KNAPSACKS
+		{
+			// now that we all file paths & sizes
+			// we will distribute the files by their sizes
+			// assuming average hashing speed by byte is more or less constant for small files and large files
+			// i.e. a small knapsack with only few large files should ideally take the same amount of time
+			// as a large knapsack with many small files as long as their total byte sizes are approximately the same
+			//
+			// afterwards each knapsack will be executed in a single-thread, as an array of files
+			//
+			// find out how many knapsacks at max we need
+			// if we have less or equal files than available thread count we will create one knapsack for each file (#KS <= #CPU)
+			// if we have more than available thread count we will create only so many knapsacks as available threads (#KS = #CPU)
+			var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
+
+			// create the collection
+			var outObj = new KnapsacksCollection(now().toString());
+
+			// we will not use a knapsack algorithm in the classical sense per se
+			// since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
+			// thus we will implement a cheapass knapsack algorithm but a very fast one to compute
+
+			// calculate the ideal knapsack size
+			var idealKnapsackSize = Math.ceil(oHashedItemsCollection.sizeSuccess / maxNeeded);       // e.g. 24 MB over 24 threads = 1 MB... ideally!
+
+			// at the very max each knapsack will have this many elements
+			var knapsackMaxElements = Math.ceil(oHashedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
+
+			logger.sforce('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
+				fnName,
+				maxNeeded,
+				knapsackMaxElements,
+				maxNeeded,
+				knapsackMaxElements,
+				maxNeeded*knapsackMaxElements,
+				oHashedItemsCollection.countSuccess,
+				idealKnapsackSize,
+				idealKnapsackSize.formatAsSize());
+
+			// initialize individual knapsacks
+			/** @type {Knapsack[]} */
+			var ksArray = [];
+			for (var i = 0; i < maxNeeded; i++) {
+				ksArray.push(new Knapsack(getNewThreadID()));
+			}
+		}
+
+
+		// start allocating files to knapsacks
+		var oAllItems = oHashedItemsCollection.getSuccessItems();
+
+		/** @type {Array.<HashedItem>} */
+		var aAllItemsSorted = [];
+		for (var key in oAllItems) {
+			if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+			aAllItemsSorted.push(oAllItems[key]);
+		}
+
+		if (PROCESS_LARGEST_FILES_FIRST||PROCESS_SMALLEST_FILES_FIRST) {
+
+			// NEW LOGIC - SORTED BY SIZE
+			// NOT SURE THIS IS ANY FASTER THAN OLD ONE
+
+			aAllItemsSorted.sort(function(oHI1, oHI2){
+				if (PROCESS_SMALLEST_FILES_FIRST) return oHI1.size - oHI2.size; // smallest first
+				if (PROCESS_LARGEST_FILES_FIRST)  return oHI2.size - oHI1.size; // largest first
+			});
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+
+
+			var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
+			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
+				var oHashedItem = aAllItemsSorted[kal];
+				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
+				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
+				// that means:
+				// 1. the higher knapsacks (with lower index) will always get the largest files
+				// 2. if the bottom knapsacks have all free capacity for incoming files
+				//    the ones with lower index among them will always get the incoming file
+				//    so it is perfectly possible that some knapsacks will be empty at the end
+				// ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
+				//
+				// under certain conditions the knapsacks could be filled very unevenly
+				// at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
+				// and the rest of smaller files will end up, crammed into the other half of knapsacks
+				// but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
+				// not even multi-threading will help you when you have to at the very least wait for the longest running thread
+				// ...now you know
+				//
+				var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
+				var ks = ksArray[nextKS];
+				// logger.sforce('%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
+
+				ks.addItem(oHashedItem);
+				ksPointerUnderCapacity++;
+				if (ks.size >= idealKnapsackSize && maxNeeded > 1) {
+					// logger.sforce('%s -- This one [%d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size, ks.size-oHashedItem.size, (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size);
+					logger.sforce('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
+					ksNextStartingPoint = nextKS + 1;
+					// logger.sforce('\t%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
+				}
+				ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
+				if (ksPointerUnderCapacity < ksNextStartingPoint) {
+					ksPointerUnderCapacity = ksNextStartingPoint;
+				}
+			}
+
+
+		} else {
+
+			// OLD LOGIC - RANDOMLY SORTED INPUTS
+			logger.normal(stopwatch.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
+
+			// knapsackAllocLoop: for (var key in oAllItems) {
+			// 	if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+			// 	var oHashedItem = oAllItems[key];
+			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
+				var oHashedItem = aAllItemsSorted[kal];
+
+				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
+				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
+				// that means:
+				// 1. the higher knapsacks (with lower index) will always get the largest files
+				// 2. if the bottom knapsacks have all free capacity for incoming files
+				//    the ones with lower index among them will always get the incoming file
+				//    so it is perfectly possible that some knapsacks will be empty at the end
+				// ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
+				//
+				// under certain conditions the knapsacks could be filled very unevenly
+				// at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
+				// and the rest of smaller files will end up, crammed into the other half of knapsacks
+				// but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
+				// not even multi-threading will help you when you have to at the very least wait for the longest running thread
+				// ...now you know
+				//
+				for (var i = 0; i < maxNeeded; i++) {
+					var ks = ksArray[i];
+					if (ks.size  + oHashedItem.size <= idealKnapsackSize) {
+						// we found a home for this item
+						ks.addItem(oHashedItem); continue knapsackAllocLoop;
+					}
+				}
+
+				// file did not fit into any knapsack
+				// if a file size is larger than ideal capacity, we put it into first knapsack with least items
+				var minimumItemsFound = knapsackMaxElements;
+				var minimumFilledKnapsackNumber = -1;
+				for (var i = 0; i < maxNeeded; i++) {
+					var ks = ksArray[i];
+					if (ks.count < minimumItemsFound){
+						minimumItemsFound = ks.count;
+						minimumFilledKnapsackNumber = i;
+					}
+				}
+				if (minimumFilledKnapsackNumber != -1) {
+					ksArray[minimumFilledKnapsackNumber].addItem(oHashedItem);
+				} else {
+					var msg = sprintf('%s -- THIS SHOULD HAVE NEVER HAPPENED - Found no home for file: %s, size: %d', fnName, oHashedItem['path'], oHashedItem['size']);
+					abortWithFatalError(msg);
+				}
+			}
+			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
+
+			// OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
+			logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
+			{
+				if (AVOID_OVERFILLED_KNAPSACKS) {
+					// optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
+					// this does not reduce the file size in this knapsack much, but the file count noticably
+					// and might help reduce the file access time overhead in this thread
+					// the Robin Hood algorithm!
+					var underfilledKS = -1;
+					var iter = 0, iterMax = maxNeeded;
+					while(underfilledKS === -1 && iter++ < iterMax) {
+						// determine underfilled and overfilled as long as there are empty knapsacks
+						var overfilledKS = -1, currentMax = -1;
+						for (var i = 0; i < maxNeeded; i++) {
+							var ks = ksArray[i];
+							if (currentMax < ks.count && ks.size <= idealKnapsackSize ) {
+								currentMax = ks.count;
+								overfilledKS = i;
+							}
+							if (ks.count === 0) {
+								underfilledKS = i;
+							}
+						}
+						// there are still underfilled & overfilled knapsacks
+						if (overfilledKS !== -1 && underfilledKS !== -1) {
+							logger.sinfo('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
+
+							// move items from overfilled to underfilled
+							var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
+							var i = 0, iMax = Math.floor(getObjKeys(oOverfilledItems).length / 2);
+							for (var key in oOverfilledItems) {
+								if (i++ > iMax) break;
+								if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
+								var oHashedItem = oOverfilledItems[key];
+								ksArray[overfilledKS].delItem(oHashedItem);
+								ksArray[underfilledKS].addItem(oHashedItem);
+							}
+							logger.sinfo('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
+						}
+						underfilledKS = 0;
+						for (var i = 0; i < maxNeeded; i++) {
+							var ks = ksArray[i];
+							if (ks.count === 0) {
+								underfilledKS = -1;
+							}
+						}
+					}
+				}
+			}
+			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 2nd Stage'));
+
+		}
+
+
+
+
+		logger.normal(stopwatch.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
+		var ksColl = new KnapsacksCollection(now().toString());
+		for (var i = 0; i < ksArray.length; i++) {
+			var ks = ksArray[i];
+			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
+			ksColl.addKnapsack(ksArray[i]);
+		}
+		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 3rd Stage'));
+
+		// FS.saveFile('Y:\\ksColl.json', JSON.stringify(ksColl, null, 4));
+
+		// SANITY CHECK - NO FILE GETS LEFT BEHIND!
+		{
+			if (ksColl.countTotal !== oHashedItemsCollection.countSuccess || ksColl.sizeTotal !== oHashedItemsCollection.sizeSuccess) {
+			 	abortWithFatalError(
+					sprintf('%s -- Some items could not be placed in knapsacks!\nInCount/OutCount: %d/%d\nInSize/OutSize: %d/%d', fnName,
+					oHashedItemsCollection.countSuccess, ksColl.countTotal,
+					oHashedItemsCollection.sizeSuccess, ksColl.sizeTotal));
+			}
+		}
+
+		logger.normal(stopwatch.stopAndPrint(fnName, 'Knapsacking', 'Integrity check passed'));
+		return ksColl;
+	}
+}
+
+
+
 /*
 	8888888 888b     d888 8888888b.   .d88888b.  8888888b. 88888888888     d88P 8888888888 Y88b   d88P 8888888b.   .d88888b.  8888888b. 88888888888
 	  888   8888b   d8888 888   Y88b d88P" "Y88b 888   Y88b    888        d88P  888         Y88b d88P  888   Y88b d88P" "Y88b 888   Y88b    888
@@ -466,13 +1652,13 @@
 {
 	var fileExchangeHandler = (function (){
 		var myName = 'fileExchangeHandler';
-		// TODO refactor this!
-		/** @enum {Array} */
-		var VALID_FORMATS_AND_EXTS = {
-			MD5     : ['MD5',  '.md5'],
-			SHA1    : ['SHA1', '.sha1'],
-			JSON    : ['JSON', '.json']
-		};
+		// // TODO refactor this!
+		// /** @enum {Array} */
+		// var VALID_FORMATS_AND_EXTS = {
+		// 	MD5     : ['MD5',  '.md5'],
+		// 	SHA1    : ['SHA1', '.sha1'],
+		// 	JSON    : ['JSON', '.json']
+		// };
 		var SHA1_MD5_SPLITTER = new RegExp(/^([a-zA-Z0-9]+)\b\s+\*(.+)/);
 		/**
 		 * @param {string} filename
@@ -482,10 +1668,11 @@
 			var oItem = doh.fsu.GetItem(filename);
 			if (!oItem) return ResultError();
 			switch(oItem.ext.toLowerCase()) {
-				case VALID_FORMATS_AND_EXTS.MD5[1]:  return ResultSuccess(VALID_FORMATS_AND_EXTS.MD5[0]);
-				case VALID_FORMATS_AND_EXTS.SHA1[1]: return ResultSuccess(VALID_FORMATS_AND_EXTS.SHA1[0]);
-				case VALID_FORMATS_AND_EXTS.JSON[1]: return ResultSuccess(VALID_FORMATS_AND_EXTS.JSON[0]);
-				default:                             return ResultError();
+				case ALGORITHMS.MD5.fileExt:    return ResultSuccess(ALGORITHMS.MD5.name);
+				case ALGORITHMS.SHA1.fileExt:   return ResultSuccess(ALGORITHMS.SHA1.name);
+				case ALGORITHMS.JSON.fileExt:   return ResultSuccess(ALGORITHMS.JSON.name);
+				case ALGORITHMS.BLAKE3.fileExt: return ResultSuccess(ALGORITHMS.BLAKE3.name);
+				default:                        return ResultError();
 			}
 		}
 		/**
@@ -639,7 +1826,7 @@
 				var defaultName = (''+currentPath).replace(/[\\:]/g, '_').replace(/_*$/, '').replace(/_+/, '_') + (useForwardSlash ? '_FS' : ''),
 					nameSuffix  = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES ? ' - ' + now().formatAsDateTimeCompact() :
 					              APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES ? ' - ' + oInternalJSONFormat.ExtInfo.Latest_File_DateTime_Timestamp.formatAsDateTimeCompact() : '',
-					ext         = VALID_FORMATS_AND_EXTS[format.toUpperCase()][1];
+					ext         = ALGORITHMS[format.toUpperCase()].fileExt;
 				outFilename     = currentPath + defaultName + nameSuffix + ext;
 				logger.snormal('%s -- currentPath: %s, Format: %s, useForwardSlash: %b, Suggested File Name: %s', fnName, currentPath, format, useForwardSlash, outFilename);
 
@@ -654,16 +1841,20 @@
 				sortByKey(oInternalJSONFormat);
 			}
 
-
 			// convert to output format
 			var outContents = '';
 
 			switch(format.toUpperCase()) {
-				case VALID_FORMATS_AND_EXTS.MD5[0]:
-					outContents = convertForExportToClassical(oInternalJSONFormat, VALID_FORMATS_AND_EXTS.MD5[0].toLowerCase()); break;
-				case VALID_FORMATS_AND_EXTS.SHA1[0]:
-					outContents = convertForExportToClassical(oInternalJSONFormat, VALID_FORMATS_AND_EXTS.SHA1[0].toLowerCase()); break;
-				case VALID_FORMATS_AND_EXTS.JSON[0]:
+				case ALGORITHMS.MD5.name:
+					outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.MD5.name.toLowerCase()); break;
+				case ALGORITHMS.SHA1.name:
+					outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.SHA1.name.toLowerCase()); break;
+				case ALGORITHMS.BLAKE3.name:
+					useForwardSlash = true;
+					outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.BLAKE3.name.toLowerCase());
+					outContents = outContents.replace(/^(\w+)\s+\*(.+)$/mg, '$1  $2').replace(/^;.*$\n/mg, '').trim();
+					break;
+				case ALGORITHMS.JSON.name:
 					outContents = convertForExportToMTHJSON(oInternalJSONFormat); break;
 				default:
 					abortWithFatalError('Given format ' + format + ' is unknown or not yet implemented');
@@ -747,11 +1938,11 @@
 			/** @type {CommandResults} */
 			var outPOJO;
 			switch(format.toUpperCase()) {
-				case VALID_FORMATS_AND_EXTS.MD5[0]:
-					outPOJO = convertForImportFromClassical(inContents, currentPath, VALID_FORMATS_AND_EXTS.MD5[0].toLowerCase()); break;
-				case VALID_FORMATS_AND_EXTS.SHA1[0]:
-					outPOJO = convertForImportFromClassical(inContents, currentPath, VALID_FORMATS_AND_EXTS.SHA1[0].toLowerCase()); break;
-				case VALID_FORMATS_AND_EXTS.JSON[0]:
+				case ALGORITHMS.MD5.name:
+					outPOJO = convertForImportFromClassical(inContents, currentPath, ALGORITHMS.MD5.name.toLowerCase()); break;
+				case ALGORITHMS.SHA1.name:
+					outPOJO = convertForImportFromClassical(inContents, currentPath, ALGORITHMS.SHA1.name.toLowerCase()); break;
+				case ALGORITHMS.JSON.name:
 					outPOJO = convertForImportFromJSON(inContents); break;
 				default:
 					abortWithFatalError('Given format ' + format + ' is unknown or not yet implemented');
@@ -848,17 +2039,17 @@
 				return res2 ? ResultSuccess(res2) : ResultError(res2);
 			},
 			isValidFormat: function (format) {
-				return (format && VALID_FORMATS_AND_EXTS.hasOwnProperty(format.toUpperCase()));
+				return (format && ALGORITHMS.hasOwnProperty(format.toUpperCase()));
 			},
 			isValidExtension: function (extension) {
-				for (var f in VALID_FORMATS_AND_EXTS) {
-					if (extension && VALID_FORMATS_AND_EXTS[f][1] === extension.toLowerCase()) return true;
+				for (var f in ALGORITHMS) {
+					if (extension && ALGORITHMS[f].fileExt === extension.toLowerCase()) return true;
 				}
 				return false;
 			},
 			getValidFormats: function () {
 				var outstr = '';
-				for(var k in VALID_FORMATS_AND_EXTS) {
+				for(var k in ALGORITHMS) {
 					outstr += k + '\n';
 				}
 				return outstr;
@@ -946,962 +2137,6 @@
 
 
 /*
-	 .d8888b.   .d88888b.  888      888     888 888b     d888 888b    888  .d8888b.
-	d88P  Y88b d88P" "Y88b 888      888     888 8888b   d8888 8888b   888 d88P  Y88b
-	888    888 888     888 888      888     888 88888b.d88888 88888b  888 Y88b.
-	888        888     888 888      888     888 888Y88888P888 888Y88b 888  "Y888b.
-	888        888     888 888      888     888 888 Y888P 888 888 Y88b888     "Y88b.
-	888    888 888     888 888      888     888 888  Y8P  888 888  Y88888       "888
-	Y88b  d88P Y88b. .d88P 888      Y88b. .d88P 888   "   888 888   Y8888 Y88b  d88P
-	 "Y8888P"   "Y88888P"  88888888  "Y88888P"  888       888 888    Y888  "Y8888P"
-*/
-{
-	function onDOpusColHasStream(scriptColData){
-		var item = scriptColData.item;
-		if (!doh.isValidDOItem(item) || !doh.isFile(item) || !FS.isValidPath(item.realpath)) return;
-		// logger.sforce('%s -- item.name: %s - exists: %b', 'onDOpusColHasStream', item.name, FS.isValidPath(item.realpath));
-		var res = ADS.hasHashStream(item);
-		scriptColData.value = res ? 'Yes' : 'No';
-		scriptColData.group = 'Has Metadata: ' + scriptColData.value;
-		// return res;
-	}
-	function onDOpusColMultiCol(scriptColData) {
-		var fnName = funcNameExtractor(onDOpusColMultiCol);
-
-		var ts1 = new Date().getTime();
-
-		var item = scriptColData.item;
-		if (!doh.isFile(item)) return;
-
-		// get ADS object
-		var item_props = ADS.read(item);
-		// if (item_props === false || typeof item_props === 'undefined' || !isObject(item_props)) {
-		if (!item_props) {
-			// logger.normal(item.name + ': Metadata does not exist or INVALID: ' + item_props);
-			return;
-		}
-
-		// iterate over requested columns
-		for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
-			var key = e.item();
-			var outstr;
-			switch(key) {
-				case _getColumnNameFor('NeedsUpdate'):
-					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
-
-					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
-					scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
-					scriptColData.columns(key).value = outstr;
-					break;
-
-				case _getColumnNameFor('NeedsUpdateVerbose'):
-					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
-					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
-					if (differentModifDate && differentSize) {
-						outstr += ' (date & size)';
-					} else if (differentModifDate) {
-						outstr += ' (date)';
-					} else if (differentSize) {
-						outstr += ' (size)';
-					}
-					scriptColData.columns(key).group = 'Needs update (Verbose): ' + (outstr ? 'Yes' : 'No');
-					scriptColData.columns(key).value = outstr;
-					break;
-
-				case _getColumnNameFor('ADSDataRaw'):
-					scriptColData.columns(key).value = JSON.stringify(item_props);
-					break;
-
-				case _getColumnNameFor('ADSDataFormatted'):
-					scriptColData.columns(key).value = JSON.stringify(item_props, null, "\t");
-					break;
-			} // switch
-		} // for enum
-		var ts2 = new Date().getTime();
-		logger.verbose('OnMExt_MultiColRead() -- Elapsed: ' + (ts2 - ts1) + ', current: ' + ts2);
-	}
-}
-
-
-
-/*
-	888b     d888        d8888 888b    888        d8888  .d8888b.  8888888888 8888888b.
-	8888b   d8888       d88888 8888b   888       d88888 d88P  Y88b 888        888   Y88b
-	88888b.d88888      d88P888 88888b  888      d88P888 888    888 888        888    888
-	888Y88888P888     d88P 888 888Y88b 888     d88P 888 888        8888888    888   d88P
-	888 Y888P 888    d88P  888 888 Y88b888    d88P  888 888  88888 888        8888888P"
-	888  Y8P  888   d88P   888 888  Y88888   d88P   888 888    888 888        888 T88b
-	888   "   888  d8888888888 888   Y8888  d8888888888 Y88b  d88P 888        888  T88b
-	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
-*/
-{
-
-	function __MANAGER__(){ 0 }
-	// called by custom DOpus command
-	function onDOpusCmdMTHManagerStart(cmdData) {
-		var fnName = funcNameExtractor(onDOpusCmdMTHManagerStart);
-
-		doh.clear();
-
-		// VALIDATE PARAMETERS & SET FILTERS, ACTIONS AND COLLECTIONS
-		{
-			var command        = getManagerCommand(cmdData),
-				commandName    = command.command,
-				collectionName = command.collName,
-				fnFilter       = command.filter,
-				fnFilterName   = command.filterName,
-				fnAction       = command.action,
-				fnActionName   = command.actionName;
-			logger.sforce('%s -- Selected Command: %s, Using Filter: %s, Action: %s', fnName, commandName, fnFilterName, fnActionName);
-		}
-
-
-		// benchmarking, runaway stoppers for while loops, progress bar abort
-		var tsStart     = now(),
-			itercnt     = 0,
-			itermax     = Math.round(60 * 60 * 1000 / (sleepdur||1)),
-			userAborted = false,
-			rootPath    = doh.getCurrentPath(cmdData);
-
-
-		// SELECTION & FILTERING
-		{
-			busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName));
-			// if (command.command === 'VERIFY_FROM' ) {
-			if (fnAction === actions.PUBLIC.fnActionBenchmark) {
-				hashPerformanceTest(command.benchSize, command.benchCount, command.maxcount);
-				return;
-				// // create temp files
-				// var aGeneratedFiles = createTempFileWithSize(command.benchSize, command.benchCount, util.shell.ExpandEnvironmentStrings(TEMPDIR));
-				// var selectedFiltered = new HashedItemsCollection();
-				// for (var i = 0; i < aGeneratedFiles.length; i++) {
-				// 	selectedFiltered.addItem(new HashedItem(doh.getItem(aGeneratedFiles[i])));
-				// }
-				// logger.sforce('%s -- selectedFiltered: %s', fnName, JSON.stringify(selectedFiltered, null, 4));
-			} else if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
-				// get the given file or user-selected file contents in internal format
-				var extFileAsPOJO = fileExchangeHandler.verifyFrom(cmdData, '', command.fileName);
-				if (!extFileAsPOJO.items) {
-					abortWithFatalError('Nothing to do, parsing results:' + JSON.stringify(extFileAsPOJO, null, 4));
-				}
-				// populate the collection which will replace the typical user-selected files collection, e.g. in next block with applyFilterToSelectedItems()
-				var selectedFiltered = new HashedItemsCollection();
-				for (var itemPath in extFileAsPOJO.items) {
-					if (!extFileAsPOJO.items.hasOwnProperty(itemPath)) continue; // skip prototype functions, etc.
-					var item = extFileAsPOJO.items[itemPath];
-					selectedFiltered.addItem(new HashedItem(doh.getItem(itemPath), '', item.hash, extFileAsPOJO.Algorithm));
-				}
-				logger.sverbose('%s -- hic:\n%s', fnName, JSON.stringify(selectedFiltered, null, 4));
-			} else {
-				var selectedFiltered   = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
-			}
-			var selectedItemsCount = selectedFiltered.countSuccess;
-			var selectedItemsSize  = selectedFiltered.sizeSuccess;
-			busyIndicator.stop();
-
-			// if a collection name is set, we only need to show the selection & filtering results, e.g. Dirty, Missing...
-			if (collectionName) {
-				busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
-				logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
-
-				// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
-				addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
-
-				logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
-				busyIndicator.stop();
-				return;
-			}
-			// if some hashes are missing or dirty, show and quit
-			if (selectedFiltered.countSkipped && fnAction !== actions.PUBLIC.fnActionCalculateAndSaveToADS) {
-				showMessageDialog(doh.getDialog(cmdData), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.');
-				return;
-			}
-			// nothing to do
-			if (!selectedItemsCount) {
-				if (doh.getSelItemsCount(cmdData)) {
-					showMessageDialog(doh.getDialog(cmdData),
-						sprintf('Nothing to do, quitting...\n\nNo suitable files found for the requested\nCommand: %s\nFilter: %s\nAction: %s', commandName, fnFilterName, fnActionName),
-						'No suitable files found');
-				} else {
-					showMessageDialog(doh.getDialog(cmdData),
-						sprintf('Nothing selected'),
-						'Nothing selected');
-				}
-				return;
-			}
-		}
-
-		// DISK TYPE DETECTION
-		{
-			if (AUTO_DETECT_DISK_TYPE) {
-				var driveType = detectDriveType(selectedFiltered.driveLetters);
-				if (!driveType) {
-					// assume SSD and continue
-				} else {
-					if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
-						var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
-						var result = showMessageDialog(doh.getDialog(cmdData), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
-						if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
-					}
-				}
-				logger.snormal('%s -- Number of threads to use: %d', fnName, command.maxcount);
-			}
-		}
-
-
-		// SPLITTING / KNAPSACKING
-		{
-			var selectedKnapsacked = knapsackItems(selectedFiltered, command.maxcount);
-		}
-
-
-		// INITIALIZE PROGRESS BAR
-		{
-			var unitMax      = selectedItemsSize.getUnit();
-			var formattedMax = selectedItemsSize.formatAsSize(unitMax);
-			var progbar      = initializeProgressBar(cmdData);
-		}
-
-
-		// INITIALIZE THREAD POOL
-		{
-			var tp = cacheMgr.getThreadPoolAutoInit();
-			setPauseStatus(false);
-			setAbortStatus(false);
-		}
-
-
-		// SEND SELECTED FILES TO WORKER THREADS
-		{
-			for (var kskey in selectedKnapsacked.unfinishedKS) {
-				if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-				var ks = selectedKnapsacked.unfinishedKS[kskey];
-
-				// prepare the variables for this knapsack's worker
-				var torun = sprintf('%s %s THREADID="%s" ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, fnActionName);
-				// logger.sforce('%s -- torun: %s', fnName, torun);
-				// continue;
-
-				// put all files in this knapsack into a map
-
-				var filesMap = doh.dc.Map();
-				var oHashedItems = ks.itemsColl.getSuccessItems();
-
-				fileloop:for (var hikey in oHashedItems) {
-					if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
-					/** @type {HashedItem} */
-					var oHashedItem = oHashedItems[hikey];
-
-					// create a new DOpus map for this file
-					var new_file             = doh.dc.Map();	        // @ts-ignore
-					new_file('filename')     = oHashedItem.name;		// @ts-ignore
-					new_file('filepath')     = oHashedItem.fullpath;	// @ts-ignore
-					new_file('filesize')     = oHashedItem.size;		// @ts-ignore
-					new_file('finished')     = false; 					// @ts-ignore // if it timed out or was unfinished for any reason
-					new_file('elapsed')      = 0;						// @ts-ignore
-					new_file('error')        = false;					// @ts-ignore
-					new_file('hash')         = false;					// @ts-ignore
-					new_file('finalized')    = false; 					// @ts-ignore // if the file has been processed completely, can include timed out files
-					new_file('externalAlgo') = oHashedItem.algorithm;	// @ts-ignore // if the file has been processed completely, can include timed out files
-					new_file('externalHash') = oHashedItem.hash;		//  @ts-ignore // if the file has been processed completely, can include timed out files
-					filesMap(oHashedItem.fullpath) = new_file;
-				}
-				// put this knapsack into thread pool
-				cacheMgr.setThreadPoolVar(ks.id, filesMap);
-				// logger.snormal('%s -- Worker command to run: %s', fnName, torun);
-				doh.cmd.RunCommand(torun);
-			}
-		}
-
-
-		// ALL THREADS STARTED - NOW MONITOR THEM
-		{
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('%s -- All workers started', fnName);
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-
-			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
-			var ts = now();
-			var finished_bytes_so_far = 0;
-			unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
-				doh.delay(sleepdur);
-				for (var kskey in selectedKnapsacked.unfinishedKS) {
-					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-					var ks       = selectedKnapsacked.unfinishedKS[kskey],
-						threadID = ks.id,
-						ksMap    = cacheMgr.getThreadPoolVar(threadID);
-					// logger.forceSprintf('%s -- KS Thread ID: %s', fnName, threadID);
-					for (var e = new Enumerator(ksMap); !e.atEnd(); e.moveNext()) {
-						var ksItemPath  = e.item(),           // full path is the key, as we put it in the manager
-							ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result
-						// logger.forceSprintf('%s -- ksItemAttrib("filename"): %s, finished: %b', fnName, ksItemAttrib('filename'), ksItemAttrib('finished'));
-
-						// check for any unfinished files
-						if (!ksItemAttrib('finished')) {
-							// file not finished yet
-							continue;
-						} else if (ksItemAttrib('finalized')) {
-							// file already finalized
-							continue;
-						} else {
-							// EXTREMELY IMPORTANT
-							// find this item in the knapsack items collection and mark it as finished
-							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsacksCollection
-							// and that's how selectedKnapsacked.allFinished() above works!
-							// ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
-							ks.itemsColl.getByPath(ksItemPath).markFinished();
-
-							logger.sverbose('%s -- %-100s -- AllFinished: %s, KS Finished: %s, KS: %s', fnName, ksItemAttrib('filename'), selectedKnapsacked.allFinished(), ks.isFinished(), kskey);
-
-							// @ts-ignore // file finished, mark it as 'finalized' so that we update its finished status only once
-							ksItemAttrib('finalized') = true;
-
-							// UPDATE THE PROGRESS BAR not for each file
-							finished_bytes_so_far += ksItemAttrib('filesize');
-							userAborted = updateProgressBar(progbar, tsStart, ksItemAttrib('filename'), finished_bytes_so_far, selectedItemsSize, formattedMax, unitMax);
-							if (userAborted) { break unfinished; }
-						}
-					}
-				}
-			}
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
-			// if (itercnt >= itermax && !selectedKnapsacked.allFinished()) {
-			if (!selectedKnapsacked.allFinished() && itercnt >= itermax) {
-				logger.sforce('');
-				logger.sforce('%s -- Max Wait Reached! (itercnt/itermax: %d/%d)', fnName, itercnt, itermax);
-			}
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.force(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
-
-
-		}
-
-
-		// LAST CLEANUP ACTIONS
-		{
-
-			doh.delay(10);
-			finalizeProgressBar(progbar);
-			var tsFinish = now();
-			// following is only for cosmetical reasons
-			// wait for DOpus to output the last 'Script Completed' lines
-			// otherwise DOpus might show a 'Script Completed' in the middle of our outputs below
-
-			doh.delay(500);
-			// doh.clear();
-		}
-
-
-		// PREPARE RESULTS OBJECT
-		// results ready, all threads finished/timed out
-		// convert the KnapsacksCollection object to a new CommandResults object
-		// these 2 objects are normally not directly compatible
-		// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
-		// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
-		var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tp, tsStart, tsFinish)
-
-
-		// SUCCESS & ERROR COLLECTIONS
-		{
-			if (COLLECTION_FOR_SUCCESS || COLLECTION_FOR_ERRORS) {
-				if (COLLECTION_FOR_SUCCESS && oCommandResults.ExtInfo.Valid_Count)  addFilesToCollection(getObjKeys(oCommandResults.items), COLLECTION_FOR_SUCCESS);
-				if (COLLECTION_FOR_ERRORS && oCommandResults.ExtInfo.Invalid_Count) addFilesToCollection(getObjKeys(oCommandResults.error), COLLECTION_FOR_ERRORS);
-			}
-		}
-
-
-		// doh.clear();
-		// ON-THE-FLY EXPORT AND ALIKE
-		{
-			if (command.fileName || command.fileFormat) {
-				var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, oCommandResults, false);
-				if (!saveResult.isOK()) {
-					showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + saveResult.err, 'Save Error');
-				}
-			}
-		}
-
-
-		// a not so fortunate experiment - I did not like how it looks and seems to be over-complicating things
-		// TODO maybe I'll come back to this later
-		/*
-			doh.loadResources(SCRIPT_RESOURCES.SummaryDialog);
-			var dlg = doh.getDialog(cmdData);
-			dlg.window   = cmdData.func.sourcetab;
-			dlg.template = 'SummaryDialog';
-			dlg.detach   = true;
-			dlg.Show();
-
-			dlg.Control('txtOperation').value                 = command.command;
-			dlg.Control('txtStart').value                     = actionResults.summary.tsstart.formatAsHms();
-			dlg.Control('txtFinish').value                    = actionResults.summary.tsfinish.formatAsHms();
-			dlg.Control('txtSuccess').value                   = '???';
-			dlg.Control('txtErrors').value                    = actionResults.summary.errors;
-			dlg.Control('txtSkipped').value                   = actionResults.summary.unfinished;
-
-			dlg.Control('txtMaxElapsedPerThreadSize').value   = actionResults.summary.maxelapsedthread + ' ms (' + actionResults.summary.maxelapsedthread.formatAsDuration() + ' s)';
-			dlg.Control('txtMaxElapsedPerFileName').value     = actionResults.summary.longestfilename;
-			dlg.Control('txtMaxElapsedPerFileSize').value     = actionResults.summary.longestfilesize + ' B (' + actionResults.summary.longestfilesize.formatAsSize() + ')';
-			dlg.Control('txtMaxElapsedPerFileDuration').value = actionResults.summary.maxelapsedfile + ' s (' + actionResults.summary.maxelapsedfile.formatAsDuration() + ' s)';
-			dlg.Control('txtTotalFilesAfterFiltering').value  = actionResults.summary.totalfiles;
-			dlg.Control('txtTotalSizeAfterFiltering').value   = actionResults.summary.totalsize + ' B (' + actionResults.summary.totalsize.formatAsSize() + ')';
-			dlg.Control('txtTotalElapsed').value              = actionResults.summary.totalelapsed + ' ms (' + actionResults.summary.totalelapsed.formatAsDuration() + ' s)';
-			dlg.Control('txtAverageSpeed').value              = actionResults.summary.avgspeed.formatAsSize() + '/s';
-		*/
-
-		// FROM THIS POINT ON, DO WHAT YOU WANT...
-		{
-			var oSummaries = oCommandResults.getSummaries(fnName, userAborted, DUMP_DETAILED_RESULTS);
-			logger.force(oSummaries.successSummary);
-			logger.force(oSummaries.errorsSummary);
-			if (SHOW_SUMMARY_DIALOG) {
-				// show an overall summary message as dialog if you like
-				showMessageDialog(
-					doh.getDialog(cmdData),
-					oSummaries.successSummary.replace(/,\s+/mg, '\n').replace(fnName + ' ', ''),
-					Global.SCRIPT_NAME + ' - Results');
-			} else {
-				playFeedbackSound('Success');
-			}
-		}
-
-	}
-	/**
-	 * @param {object} cmdData DOpus command data
-	 * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
-	 */
-	function getManagerCommand(cmdData) {
-		var fnName = funcNameExtractor(getManagerCommand);
-
-		var cargs     = cmdData.func.args;
-		var recurse   = cargs.got_arg.RECURSE || true;              // if dirs are selected process children files
-		var maxcount  = cargs.MAXCOUNT || MAX_AVAILABLE_CORE_COUNT; // maxiumum number of threads, default: all available
-		var file      = cargs.FILE || false;                        // file to use for on-the-fly export & verify
-		var format    = cargs.FORMAT || false;                      // file format to use for on-the-fly export (but not verify)
-		var benchsize = cargs.BENCHMARK_SIZE || Math.pow(2, 16);    // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
-		var benchcount= cargs.BENCHMARK_COUNT || 500;                // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
-
-
-		var VALID_SWITCHES = {
-			'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateOnly },
-			'HARD_UPDATE_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
-			'SMART_UPDATE_ADS'       : { filter: filters.PUBLIC.fnFilterAcceptMissingOrDirty,      action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
-			'VERIFY_FROM_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptWithValidHashesOnly, action: actions.PUBLIC.fnActionCalculateAndCompareToADS },
-			'DELETE_ADS'             : { filter: filters.PUBLIC.fnFilterAcceptWithHashes,          action: actions.PUBLIC.fnActionDeleteADS                },
-			'FIND_DIRTY'             : { filter: filters.PUBLIC.fnFilterAcceptDirtyOnly,           action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_DIRTY},
-			'FIND_MISSING'           : { filter: filters.PUBLIC.fnFilterRejectWithHashes,          action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_MISSING},
-			// 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnFilterRejectAnyFile,             action: actions.PUBLIC.fn_NOT_IMPLEMENTED_YET },
-			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnCompareAgainstHash             },
-			'BENCHMARK'              : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionBenchmark                }
-		};
-
-		for (var sw in VALID_SWITCHES) {
-			if (cargs.got_arg[sw]) {
-				var ma = new ManagerCommand(sw, recurse, maxcount, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
-				if (file)       ma.fileName   = file;   // do not add filename unless given
-				if (format)     ma.fileFormat = format; // do not add format unless given
-				if (benchsize)  ma.benchSize  = benchsize;
-				if (benchcount) ma.benchCount = benchcount;
-				logger.snormal('%s -- Selected Action: %s, Using Filter: %s, Action: %s, Collection: %s, Filename: %s, Format: %s', fnName, sw, ma.filterName, ma.actionName, ma.collName, ma.fileName, ma.fileFormat);
-				return ma;
-			}
-		}
-		abortWithFatalError(sprintf('%s -- No valid command is given', fnName));
-	}
-	/**
-	 * @param {string[]} filepathsArray JS array, line item objects must be file paths
-	 * @param {string} collectionName collection name to add to
-	 */
-	function addFilesToCollection(filepathsArray, collectionName) {
-		if (!COLLECTIONS_ENABLED) return;
-
-		if (!collectionName) abortWithFatalError('No collection name is supplied, check script');
-		doh.cmd.RunCommand('Delete FORCE QUIET "coll://' + collectionName + '"');
-		doh.cmd.RunCommand('CreateFolder "coll://' + collectionName + '"');
-		doh.cmd.ClearFiles();
-		for (var i = 0; i < filepathsArray.length; i++) {
-			doh.cmd.AddFile(doh.fsu.GetItem(filepathsArray[i]));
-		}
-		doh.cmd.RunCommand('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
-		doh.cmd.RunCommand('Go "coll://' + collectionName + '" NEWTAB=findexisting');
-	}
-}
-
-
-
-/*
-	888       888  .d88888b.  8888888b.  888    d8P  8888888888 8888888b.
-	888   o   888 d88P" "Y88b 888   Y88b 888   d8P   888        888   Y88b
-	888  d8b  888 888     888 888    888 888  d8P    888        888    888
-	888 d888b 888 888     888 888   d88P 888d88K     8888888    888   d88P
-	888d88888b888 888     888 8888888P"  8888888b    888        8888888P"
-	88888P Y88888 888     888 888 T88b   888  Y88b   888        888 T88b
-	8888P   Y8888 Y88b. .d88P 888  T88b  888   Y88b  888        888  T88b
-	888P     Y888  "Y88888P"  888   T88b 888    Y88b 8888888888 888   T88b
-*/
-{
-
-	function __WORKER__(){ 0 }
-	// called by onDOpusCmdMTHManager - do not call directly
-	/**
-	 * called by onDOpusCmdMTHManager - do not call directly
-	 * @param {object} cmdData DOpus command data
-	 */
-	function onDOpusCmdMTHWorker(cmdData) {
-		var fnName = funcNameExtractor(onDOpusCmdMTHWorker);
-
-		var param = {
-			threadID   : cmdData.func.args.THREADID,
-			actionfunc : cmdData.func.args.ACTIONFUNC
-		}
-		logger.info(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, action: %s', param.threadID, param.actionfunc) ));
-
-		// convert function name to function
-		var fnActionFunc = actions.getFunc(param.actionfunc);
-
-		// check the thread pool
-		var ksMap = cacheMgr.getThreadPoolVar(param.threadID);
-		if(!ksMap) {
-			abortWithFatalError('The thread info was not received with given threadID!\nThis should never have happened!');
-		}
-
-		// variable to query if user has aborted via progress bar or not
-		var aborted = false;
-		var filesCount = 0;
-
-		filesloop: for (var e = new Enumerator(ksMap); !aborted && !e.atEnd(); e.moveNext()) {
-			var ksItemPath   = e.item(),          // full path is the key, as we put it in the manager
-				ksItemAttrib = ksMap(ksItemPath); // map with: filename, filepath, filesize, finished, elapsed, error, result, externalAlgo, externalHash
-			logger.sverbose('%s -- ksItemPath: %s, ksItemAttrib.name: %s, ksItemAttrib.size: %15d', fnName, ksItemPath, ksItemAttrib('filename'), ksItemAttrib('filesize') );
-
-			// if the manager sets the pause or abort status, honor it
-			while(getPausedOrAborted() === true) {
-				while(getPauseStatus() === true) {
-					// already started hashing jobs won't be affected, obviously
-					doh.delay(500); // doesn't need to be too short, pause is pause
-					doh.out('Waiting...');
-				}
-				if (getAbortStatus() === true) {
-					logger.sforce('%s -- Aborting...', fnName);
-					aborted = true;
-					break filesloop;
-				}
-			}
-
-			// call the hash calculator
-			stopwatch.start(fnName + ksItemPath);
-			var oItem = doh.fsu.GetItem(ksItemAttrib('filepath'));
-			// EXTREMELY IMPORTANT: this is the heart of actions, uglier alternative: (param.actionfunc)(oItem, null);
-			/** @type {Result} */
-			var newHashResult = fnActionFunc.call(fnActionFunc, oItem, ksItemAttrib('externalHash'), ksItemAttrib('externalAlgo'));
-			var elapsed = stopwatch.stop(fnName + ksItemPath);
-			logger.sverbose('%s       -- %-100s', fnName, ksItemAttrib('filename'));
-
-			// put the results back to map, and the map back to TP
-			// @ts-ignore
-			ksItemAttrib('finished') = true;
-			// @ts-ignore
-			ksItemAttrib('elapsed')  = elapsed;
-			// @ts-ignore
-			ksItemAttrib('result')   = newHashResult.isOK() ? newHashResult.ok : false;
-			// @ts-ignore
-			ksItemAttrib('error')    = newHashResult.isOK() ? false : newHashResult.err;
-			// @ts-ignore
-			ksMap(ksItemPath) = ksItemAttrib;
-			cacheMgr.setThreadPoolVar(param.threadID, ksMap);
-
-			filesCount++;
-		}
-		logger.normal(stopwatch.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, items: %s, aborted: %b', param.threadID, filesCount, aborted)));
-	}
-}
-
-
-
-/**
-	8888888888 8888888 888    88888888888 8888888888 8888888b.  8888888 888b    888  .d8888b.
-	888          888   888        888     888        888   Y88b   888   8888b   888 d88P  Y88b
-	888          888   888        888     888        888    888   888   88888b  888 888    888
-	8888888      888   888        888     8888888    888   d88P   888   888Y88b 888 888
-	888          888   888        888     888        8888888P"    888   888 Y88b888 888  88888
-	888          888   888        888     888        888 T88b     888   888  Y88888 888    888
-	888          888   888        888     888        888  T88b    888   888   Y8888 Y88b  d88P
-	888        8888888 88888888   888     8888888888 888   T88b 8888888 888    Y888  "Y8888P88
-*/
-{
-
-	function __FILTERING__(){ 0 }
-	/**
-	 * 	output structure
-	 * 	{
-	 * 		totalsize: number of bytes,
-	 * 		items: array of [ { 'path': string, 'name': string, 'size': number }, ... ]
-	 * 	}
-	 *
-	 * @param {object} enumerableItems DOpus enumerable items, e.g. scriptCmdData.func.sourcetab.selected
-	 * @param {boolean} recurse process subdirs
-	 * @param {function} fnItemFilter function to select only certain items
-	 * @returns {HashedItemsCollection} filtered items
-	 * @example applyFilterToSelectedItems(doh.getAllItems(cmdData), true, filters.PUBLIC.fnFilterAcceptWithValidHashesOnly)
-	 */
-	function applyFilterToSelectedItems(enumerableItems, recurse, fnItemFilter) {
-		var fnName = funcNameExtractor(applyFilterToSelectedItems);
-
-		// max # of files directly in a subdir, acts also against infinite while-loop if enum.complete goes wrong
-		var icnt, imax = 100000;
-		// PRESELECT ALL FILES
-		{
-			var oItemsPreFilter = new HashedItemsCollection();
-
-			logger.normal(stopwatch.startAndPrint(fnName, 'File Selection'));
-			// first collect all the path & size information for the selected items
-			// note we pass an 'enumerableItems' which is most likely passed from scriptCmdData.func.sourcetab.selected
-			for (var e = new Enumerator(enumerableItems); !e.atEnd(); e.moveNext()) {
-				var selitem = e.item();
-
-				if (!doh.isDirOrFile(selitem)) {
-					// type: unsupported
-					logger.swarn('Skipping unsupported item: %s', selitem.realpath);
-					continue;
-				} else if (doh.isDir(selitem) && recurse) {
-					// type: directory
-					var fEnum = doh.fsu.ReadDir(selitem, (recurse && 'r'));
-					if (fEnum.error) abortWithFatalError('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
-					icnt = 0; // just as a precaution for while loop
-					while (!fEnum.complete && icnt++ < imax) {
-						var subitem = fEnum.next();
-						if (!doh.isFile(subitem) && doh.isValidDOItem(subitem)) continue;
-						oItemsPreFilter.addItem(new HashedItem(subitem));
-					}
-					fEnum.Close();
-				} else {
-					// type: file
-					oItemsPreFilter.addItem(new HashedItem(selitem));
-				}
-			}
-			logger.normal(stopwatch.stopAndPrint(fnName, 'File Selection'));
-		}
-
-		// COLLECT FILES USING GIVEN FILTER
-		// WARNING: fnItemFilter runs after all files are selected, not during the determination of files
-		{
-			var oItemsPostFilter = new HashedItemsCollection();
-			// apply filter to all candidates
-
-			logger.normal(stopwatch.startAndPrint(fnName, 'Filtering'));
-			var oSuccessItems = oItemsPreFilter.getSuccessItems();
-			for (var key in oSuccessItems) {
-				if (!oSuccessItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-				if (!(fnItemFilter.call(fnItemFilter, oSuccessItems[key].item ))) { // IMPORTANT: this is the heart of filters
-					logger.sinfo('%s -- Filtering out %s', fnName, oSuccessItems[key].name);
-					oSuccessItems[key].skipped = true;
-				}
-				oItemsPostFilter.addItem(oSuccessItems[key]);
-			}
-
-			logger.normal(stopwatch.stopAndPrint(fnName, 'Filtering'));
-		}
-
-		logger.sverbose('%s -- oItemsPostFilter JSON: %s', fnName, JSON.stringify(oItemsPostFilter, null, 4));
-		return oItemsPostFilter;
-	}
-}
-
-
-
-/*
-	888    d8P  888b    888        d8888 8888888b.   .d8888b.         d8888  .d8888b.  888    d8P  8888888 888b    888  .d8888b.
-	888   d8P   8888b   888       d88888 888   Y88b d88P  Y88b       d88888 d88P  Y88b 888   d8P     888   8888b   888 d88P  Y88b
-	888  d8P    88888b  888      d88P888 888    888 Y88b.           d88P888 888    888 888  d8P      888   88888b  888 888    888
-	888d88K     888Y88b 888     d88P 888 888   d88P  "Y888b.       d88P 888 888        888d88K       888   888Y88b 888 888
-	8888888b    888 Y88b888    d88P  888 8888888P"      "Y88b.    d88P  888 888        8888888b      888   888 Y88b888 888  88888
-	888  Y88b   888  Y88888   d88P   888 888              "888   d88P   888 888    888 888  Y88b     888   888  Y88888 888    888
-	888   Y88b  888   Y8888  d8888888888 888        Y88b  d88P  d8888888888 Y88b  d88P 888   Y88b    888   888   Y8888 Y88b  d88P
-	888    Y88b 888    Y888 d88P     888 888         "Y8888P"  d88P     888  "Y8888P"  888    Y88b 8888888 888    Y888  "Y8888P88
-*/
-{
-
-	function __KNAPSACKING__(){ 0 }
-	/**
-	 * Distributes given items to the requested/available knapsacks
-	 *
-	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
-	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
-	 * @returns {KnapsacksCollection} knapsacked items
-	 */
-	function knapsackItems(oHashedItemsCollection, numThreads) {
-		var fnName = funcNameExtractor(knapsackItems);
-
-		logger.normal(stopwatch.startAndPrint(fnName, 'Knapsacking'));
-
-		numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
-		// SPLIT FILES INTO KNAPSACKS
-		{
-			// now that we all file paths & sizes
-			// we will distribute the files by their sizes
-			// assuming average hashing speed by byte is more or less constant for small files and large files
-			// i.e. a small knapsack with only few large files should ideally take the same amount of time
-			// as a large knapsack with many small files as long as their total byte sizes are approximately the same
-			//
-			// afterwards each knapsack will be executed in a single-thread, as an array of files
-			//
-			// find out how many knapsacks at max we need
-			// if we have less or equal files than available thread count we will create one knapsack for each file (#KS <= #CPU)
-			// if we have more than available thread count we will create only so many knapsacks as available threads (#KS = #CPU)
-			var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
-
-			// create the collection
-			var outObj = new KnapsacksCollection(now().toString());
-
-			// we will not use a knapsack algorithm in the classical sense per se
-			// since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
-			// thus we will implement a cheapass knapsack algorithm but a very fast one to compute
-
-			// calculate the ideal knapsack size
-			var idealKnapsackSize = Math.ceil(oHashedItemsCollection.sizeSuccess / maxNeeded);       // e.g. 24 MB over 24 threads = 1 MB... ideally!
-
-			// at the very max each knapsack will have this many elements
-			var knapsackMaxElements = Math.ceil(oHashedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
-
-			logger.sforce('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
-				fnName,
-				maxNeeded,
-				knapsackMaxElements,
-				maxNeeded,
-				knapsackMaxElements,
-				maxNeeded*knapsackMaxElements,
-				oHashedItemsCollection.countSuccess,
-				idealKnapsackSize,
-				idealKnapsackSize.formatAsSize());
-
-			// initialize individual knapsacks
-			/** @type {Knapsack[]} */
-			var ksArray = [];
-			for (var i = 0; i < maxNeeded; i++) {
-				ksArray.push(new Knapsack(getNewThreadID()));
-			}
-		}
-
-
-
-		// start allocating files to knapsacks
-		var oAllItems = oHashedItemsCollection.getSuccessItems();
-
-		/** @type {Array.<HashedItem>} */
-		var aAllItemsSorted = [];
-		for (var key in oAllItems) {
-			if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-			aAllItemsSorted.push(oAllItems[key]);
-		}
-
-		if (PROCESS_LARGEST_FILES_FIRST||PROCESS_SMALLEST_FILES_FIRST) {
-
-
-			// NEW LOGIC - SORTED BY SIZE
-			// NOT SURE THIS IS ANY FASTER THAN OLD ONE
-
-			aAllItemsSorted.sort(function(oHI1, oHI2){
-				if (PROCESS_SMALLEST_FILES_FIRST) return oHI1.size - oHI2.size; // smallest first
-				if (PROCESS_LARGEST_FILES_FIRST)  return oHI2.size - oHI1.size; // largest first
-			});
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-
-
-			var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
-			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
-				var oHashedItem = aAllItemsSorted[kal];
-
-				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
-				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
-				// that means:
-				// 1. the higher knapsacks (with lower index) will always get the largest files
-				// 2. if the bottom knapsacks have all free capacity for incoming files
-				//    the ones with lower index among them will always get the incoming file
-				//    so it is perfectly possible that some knapsacks will be empty at the end
-				// ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
-				//
-				// under certain conditions the knapsacks could be filled very unevenly
-				// at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
-				// and the rest of smaller files will end up, crammed into the other half of knapsacks
-				// but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
-				// not even multi-threading will help you when you have to at the very least wait for the longest running thread
-				// ...now you know
-				//
-
-				var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
-				var ks = ksArray[nextKS];
-				// logger.sforce('%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
-
-				ks.addItem(oHashedItem);
-				ksPointerUnderCapacity++;
-				if (ks.size >= idealKnapsackSize) {
-					// logger.sforce('%s -- This one [%d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size, ks.size-oHashedItem.size, (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size);
-					logger.sforce('%s -- This one [%2d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
-					ksNextStartingPoint = nextKS + 1;
-					// logger.sforce('\t%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
-				}
-				ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
-				if (ksPointerUnderCapacity < ksNextStartingPoint) {
-					ksPointerUnderCapacity = ksNextStartingPoint;
-				}
-
-			}
-
-
-		} else {
-
-			// OLD LOGIC - RANDOMLY SORTED INPUTS
-			logger.normal(stopwatch.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
-
-			// knapsackAllocLoop: for (var key in oAllItems) {
-			// 	if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-			// 	var oHashedItem = oAllItems[key];
-			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
-				var oHashedItem = aAllItemsSorted[kal];
-
-				// find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
-				// note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
-				// that means:
-				// 1. the higher knapsacks (with lower index) will always get the largest files
-				// 2. if the bottom knapsacks have all free capacity for incoming files
-				//    the ones with lower index among them will always get the incoming file
-				//    so it is perfectly possible that some knapsacks will be empty at the end
-				// ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
-				//
-				// under certain conditions the knapsacks could be filled very unevenly
-				// at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
-				// and the rest of smaller files will end up, crammed into the other half of knapsacks
-				// but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
-				// not even multi-threading will help you when you have to at the very least wait for the longest running thread
-				// ...now you know
-				//
-				for (var i = 0; i < maxNeeded; i++) {
-					var ks = ksArray[i];
-					if (ks.size  + oHashedItem.size <= idealKnapsackSize) {
-						// we found a home for this item
-						ks.addItem(oHashedItem); continue knapsackAllocLoop;
-					}
-				}
-
-				// file did not fit into any knapsack
-				// if a file size is larger than ideal capacity, we put it into first knapsack with least items
-				var minimumItemsFound = knapsackMaxElements;
-				var minimumFilledKnapsackNumber = -1;
-				for (var i = 0; i < maxNeeded; i++) {
-					var ks = ksArray[i];
-					if (ks.count < minimumItemsFound){
-						minimumItemsFound = ks.count;
-						minimumFilledKnapsackNumber = i;
-					}
-				}
-				if (minimumFilledKnapsackNumber != -1) {
-					ksArray[minimumFilledKnapsackNumber].addItem(oHashedItem);
-				} else {
-					var msg = sprintf('%s -- THIS SHOULD HAVE NEVER HAPPENED - Found no home for file: %s, size: %d', fnName, oHashedItem['path'], oHashedItem['size']);
-					abortWithFatalError(msg);
-				}
-			}
-			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
-
-			// OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
-			logger.normal(stopwatch.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
-			{
-				if (AVOID_OVERFILLED_KNAPSACKS) {
-					// optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
-					// this does not reduce the file size in this knapsack much, but the file count noticably
-					// and might help reduce the file access time overhead in this thread
-					// the Robin Hood algorithm!
-					var underfilledKS = -1;
-					var iter = 0, iterMax = maxNeeded;
-					while(underfilledKS === -1 && iter++ < iterMax) {
-						// determine underfilled and overfilled as long as there are empty knapsacks
-						var overfilledKS = -1, currentMax = -1;
-						for (var i = 0; i < maxNeeded; i++) {
-							var ks = ksArray[i];
-							if (currentMax < ks.count && ks.size <= idealKnapsackSize ) {
-								currentMax = ks.count;
-								overfilledKS = i;
-							}
-							if (ks.count === 0) {
-								underfilledKS = i;
-							}
-						}
-						// there are still underfilled & overfilled knapsacks
-						if (overfilledKS !== -1 && underfilledKS !== -1) {
-							logger.sinfo('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-
-							// move items from overfilled to underfilled
-							var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
-							var i = 0, iMax = Math.floor(getObjKeys(oOverfilledItems).length / 2);
-							for (var key in oOverfilledItems) {
-								if (i++ > iMax) break;
-								if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc.
-								var oHashedItem = oOverfilledItems[key];
-								ksArray[overfilledKS].delItem(oHashedItem);
-								ksArray[underfilledKS].addItem(oHashedItem);
-							}
-							logger.sinfo('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-						}
-						underfilledKS = 0;
-						for (var i = 0; i < maxNeeded; i++) {
-							var ks = ksArray[i];
-							if (ks.count === 0) {
-								underfilledKS = -1;
-							}
-						}
-					}
-				}
-			}
-			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 2nd Stage'));
-		}
-
-
-
-
-		logger.normal(stopwatch.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
-		var ksColl = new KnapsacksCollection(now().toString());
-		for (var i = 0; i < ksArray.length; i++) {
-			var ks = ksArray[i];
-			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
-			ksColl.addKnapsack(ksArray[i]);
-		}
-		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 3rd Stage'));
-
-		// FS.saveFile('Y:\\ksColl.json', JSON.stringify(ksColl, null, 4));
-
-		// SANITY CHECK - NO FILE GETS LEFT BEHIND!
-		{
-			if (ksColl.countTotal !== oHashedItemsCollection.countSuccess || ksColl.sizeTotal !== oHashedItemsCollection.sizeSuccess) {
-			 	abortWithFatalError(
-					sprintf('%s -- Some items could not be placed in knapsacks!\nInCount/OutCount: %d/%d\nInSize/OutSize: %d/%d', fnName,
-					oHashedItemsCollection.countSuccess, ksColl.countTotal,
-					oHashedItemsCollection.sizeSuccess, ksColl.sizeTotal));
-			}
-		}
-
-		logger.normal(stopwatch.stopAndPrint(fnName, 'Knapsacking', 'Integrity check passed'));
-		return ksColl;
-	}
-}
-
-
-
-/*
 	888       .d88888b.   .d8888b.   .d8888b.  8888888888 8888888b.
 	888      d88P" "Y88b d88P  Y88b d88P  Y88b 888        888   Y88b
 	888      888     888 888    888 888    888 888        888    888
@@ -1914,7 +2149,7 @@
 {
 	// LOGGER object
 
-	function __LOGGER__(){ 0 }
+	function ____LOGGER____(){ 0 }
 	var logger = (function () {
 		/** @enum {number} */
 		var VALID_LEVELS = {
@@ -2012,7 +2247,7 @@
 */
 {
 
-	function __FILE_ACCESS__(){ 0 }
+	function ____FILE_ACCESS____(){ 0 }
 	var FS = (function (){
 		var myName = 'FS';
 		/** @enum {number} */
@@ -2132,7 +2367,7 @@
 */
 {
 
-	function __ADS_ACCESS__(){ 0 }
+	function ____ADS_ACCESS____(){ 0 }
 	var ADS = (function (){
 		var myName = 'ADS';
 
@@ -2143,6 +2378,8 @@
 				abortWithFatalError(sprintf('%s() -- Cannot continue without a stream name: %s', callerName, msn));
 			}
 			if (!doh.isValidDOItem(oItem)) {
+				logger.sforce('%s -- HERE: %s', 'validateStreamNameAndItem', oItem.name);
+
 				abortWithFatalError(sprintf('%s() -- Expected DOpus Item, got type: %s, value: %s', callerName, dumpObject(oItem)));
 			}
 			return ''+oItem.realpath; // realpath returns a DOpus Path object and it does not work well with Map as an object, we need a simple string
@@ -2476,14 +2713,16 @@
 	 * to redirect the request to DOpus or external program
 	 * @param {DOpusItem} oItem DOpus Item object
 	 * @param {string=} algo Hashing algorithm to use
+	 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
+	 * @param {function=} fnCallback callback to thread worker
 	 * @returns {Result} result object
 	 * @see CURRENT_ALGORITHM
 	 */
-	function calculateHashProxy(oItem, algo) {
+	function calculateHashProxy(oItem, algo, itemIsFilelist, fnCallback) {
 		algo = algo || CURRENT_ALGORITHM;
 		switch(algo.toUpperCase()) {
 			case 'BLAKE3':
-				return calculateFileHashWithExtBlake(oItem);
+				return calculateFileHashWithExtBlake(oItem, itemIsFilelist, fnCallback);
 			case 'SHA1':
 			case 'MD5':
 			case 'CRC32':
@@ -2519,32 +2758,261 @@
 		return outObj;
 	}
 
+	// /**
+	//  * internal method to calculate hash with given algorithm
+	//  * @param {DOpusItem} oItem DOpus Item
+	//  * @returns {Result} result object
+	//  * @see CURRENT_ALGORITHM
+	//  */
+	// function calculateFileHashWithExtBlake(oItem) {
+	// 	var fnName = funcNameExtractor(calculateFileHashWithExtBlake);
+
+	// 	var tempOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME_SHORT + '-' + oItem.name + '-' + now() + '.tmp.txt';
+	// 	var blake3Path  = util.shell.ExpandEnvironmentStrings(VALID_FORMATS_AND_EXTS.BLAKE3[2]);
+	// 	// var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
+	// 	// var cmd = 'cmd.exe /c Y:\\b3sum.exe --no-names "' + oItem.realpath + '" > "' + tempOutFile + '"';
+	// 	// var cmd = sprintf('cmd.exe /c "%s" --no-names "%s" > "%s"',  blake3Path, oItem.realpath, tempOutFile);
+	// 	var cmd = sprintf('cmd.exe /s /c ""%s" "%s" > "%s""',  blake3Path, oItem.realpath, tempOutFile);
+	// 	logger.sforce('%s -- Running: %s', fnName, cmd);
+	// 	// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+	// 	util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+	// 	if (!FS.isValidPath(tempOutFile)) {
+	// 		logger.error('Temp file has not been created properly: ' + tempOutFile);
+	// 		return new Result(false, 'Temp file has not been created properly: ' + tempOutFile);
+	// 	}
+	// 	var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
+	// 	doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
+	// 	if (!sContents) {
+	// 		logger.error('Could not get the hash results from temp file: ' + tempOutFile);
+	// 		return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
+	// 	} else {
+	// 		logger.sforce('%s -- sContents: %s', fnName, sContents);
+	// 		// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
+	// 		var hash = sContents.trim().replace(/^(\w+)\s.+$/, '$1');
+	// 		logger.sforce('%s -- Blake3 Hash for %s: %s', fnName, oItem.name, hash);
+	// 		return new Result(hash);
+	// 	}
+	// }
+
+
 	/**
 	 * internal method to calculate hash with given algorithm
 	 * @param {DOpusItem} oItem DOpus Item
+	 * @param {boolean} itemIsFilelist given oItem is a filelist, not the file itself
+	 * @param {function=} fnCallback callback to thread worker
 	 * @returns {Result} result object
 	 * @see CURRENT_ALGORITHM
 	 */
-	function calculateFileHashWithExtBlake(oItem) {
+	function calculateFileHashWithExtBlake(oItem, itemIsFilelist, fnCallback) {
 		var fnName = funcNameExtractor(calculateFileHashWithExtBlake);
 
-		var tempOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '-' + oItem.name + '-' + now() + '.tmp.txt';
-		// var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
-		var cmd = 'cmd.exe /c Y:\\b3sum.exe --no-names "' + oItem.realpath + '" > "' + tempOutFile + '"';
-		logger.sverbose('%s -- Running: %s', fnName, cmd);
-		// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-		util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-		var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
-		doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
-		if (!sContents) {
-			logger.error('Could not get the hash results from temp file: ' + tempOutFile);
-			return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
+		var resultsFileParser = new RegExp(/^(\w+)\s+(.+)$/);
+
+		var passEachResultImmediatelyViaDOpusRT = !itemIsFilelist;
+
+		util.dopusrt = '"C:\\Tool\\Shell\\DirOpus\\dopusrt.exe" /acmd'; // TODO - replace with /home
+
+		if (!passEachResultImmediatelyViaDOpusRT) {
+			// read the files in the given filelist
+			var filelist = FS.readFile(''+oItem.realpath);
+			if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
+			var aFilenames = filelist.split('\n');
+
+			// create a new temp file in the same directory
+			var tempOutputFile      = '' + oItem.path + '\\' + oItem.name_stem + '.results.txt',
+				tempFinishedFlagVar = oItem.name_stem;
+			logger.sforce('%s -- tempOutFile: %s', fnName, tempOutputFile);
+
+
+			// without sprintf the command lines below look like pure chaos than they already are,
+			// so it is very important that we do not use a %X variable in 'for /f' command which is also recognized by sprintf
+			// that's why I use %y & %z
+			var blake3Path  = util.shell.ExpandEnvironmentStrings(ALGORITHMS.BLAKE3.binaryPath),
+				// this is the command prefix for blake3
+				blake3Cmd         = sprintf('"%s"', blake3Path),
+				// this is DOPUSRT prefix, which is for calling back DOpus with the SETVAR_COMMAND with the filename (%y)
+				callbackCmd       = sprintf('%s %s VARKEY="%s" VARVAL=1', util.dopusrt, WORKER_SETVAR_COMMAND, tempFinishedFlagVar),
+				// this calls blake3 with the filename (%y), and sets the result (%z) via DOPUSRT
+				blake3CmdCallback = sprintf('for /f "usebackq delims=" ^%z in (`call %s "%y"`) do >> "%s""', blake3Cmd, tempOutputFile),
+				// this is the outer filelist parsing - %y is the current filename
+				torun             = sprintf('cmd.exe /s /c "(FOR /F "eol=; delims=" ^%y in (%s) do @%s "%y" >> "%s") && %s"', oItem.realpath, blake3Cmd, tempOutputFile, callbackCmd);
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			// logger.sforce('%s -- torun: %s', fnName, torun);
+			logger.sforce('%s', torun);
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+
+			util.shell.Run(torun, 0, false); // 0: hidden, true: wait
+
+
+			var swID = '' + fnName + oItem.realpath;
+			stopwatch.start(swID);
+			while(!doh.sv.Exists(tempFinishedFlagVar) && stopwatch.getElapsed(swID) < 60*1000 ) { doh.delay(0) };
+			var elapsed = stopwatch.stop(swID);
+
+			logger.sforce('%s -- All finished - elapsed: %d', fnName, elapsed);
+
+			var resultsFileContents = FS.readFile(tempOutputFile);
+			if (!resultsFileContents) { abortWithFatalError('Cannot read results file: ' + tempOutputFile); return; } // return needed for VSCode/TSC
+			var aResults = resultsFileContents.split('\n');
+			for (var i = 0; i < aResults.length; i++) {
+				var resultLine = aResults[i];
+				if (resultLine.length === 0) break;
+				var lineParts = resultLine.match(resultsFileParser);
+				if (!lineParts || lineParts.length !== 3) {
+					abortWithFatalError('Cannot parse result file: ' + resultLine + ', ' + resultLine.length);
+				}
+				var hashValue = lineParts[1];
+				var filepath  = lineParts[2].replace(/\//g, '\\'); // Blake3 uses forward slashes in path name
+				// logger.sforce('%s -- hash: %s -- file: %s', fnName, hashValue, filepath);
+
+				if (hashValue) {
+					fnCallback(filepath, elapsed, hashValue, false);
+				} else {
+					fnCallback(filepath, elapsed, false, 'Could not get hash or timed out');
+				}
+			}
+			doh.cmd.RunCommand('Delete /quiet /norecycle "' + oItem.realpath + '"');
+			doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutputFile + '"');
+
+
 		} else {
-			logger.sforce('%s -- sContents: %s', fnName, sContents);
-			// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
-			sContents = sContents.trim();
-			return new Result(sContents);
+			// how to pass a filelist to an external program - sample can be found in cmd.exe -> for /?
+			// FOR /F "eol=;" %i in (filelist.txt) do @b3sum %i
+
+			// e.g. "C:\Tool\Util\hashers\b3sum.exe" "Y:\20210202-101500.blake3"
+			// returns the hashsum
+			// e.g. 8f6dc03ae5c6bdd17c6829cad5bfcd6d9e8ea4d3e74ecdad8c2dbb419add67ec
+
+			// e.g. dopusrt /acmd MTHSetVariable VARKEY="X:\My File.zip"
+			// var callbackVar = 'BLAKE3:^%y';
+
+			// it is very important that we do not use a %X variable in 'for /f' command which is also recognized by sprintf
+			// that's why we will use %z
+			// var torun = sprintf('cmd.exe /s /k "for /f "usebackq delims=" ^%z in (`call %s`) do set __TMP_VAR="%z" && %s VARVAL=%__TMP_VAR%"', blake3Cmd, callbackCmd);
+
+			// var torun = sprintf('cmd.exe /s /c "for /f "usebackq delims=" ^%z in (`call %s`) do %s VARVAL="%z""', blake3Cmd, callbackCmd);
+
+			// blake3Cmd = sprintf('for /f "usebackq delims=" ^%z in (`call %s ^%y`) do %s VARVAL="^%z"', blake3Cmd, callbackCmd);
+
+			// read the files in the given filelist
+			var filelist = FS.readFile(''+oItem.realpath);
+			if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
+			var aFilenames = filelist.split('\n');
+
+
+			// without sprintf the command lines below look like pure chaos than they already are,
+			// so it is very important that we do not use a %X variable in 'for /f' command which is also recognized by sprintf
+			// that's why I use %y & %z
+			var blake3Path  = util.shell.ExpandEnvironmentStrings(ALGORITHMS.BLAKE3.binaryPath),
+				// this is the command prefix for blake3
+				blake3Cmd         = sprintf('"%s" --no-names', blake3Path),
+				// this is DOPUSRT prefix, which is for calling back DOpus with the SETVAR_COMMAND with the filename (%y)
+				callbackCmd       = sprintf('%s %s VARKEY="%y"', util.dopusrt, WORKER_SETVAR_COMMAND),
+				// this calls blake3 with the filename (%y), and sets the result (%z) via DOPUSRT
+				blake3CmdCallback = sprintf('for /f "usebackq delims=" ^%z in (`call %s "%y"`) do %s VARVAL="%z""', blake3Cmd, callbackCmd),
+				// this is the outer filelist parsing - %y is the current filename
+				torun             = sprintf('cmd.exe /s /c "FOR /F "eol=; delims=" ^%y in (%s) do @%s', oItem.realpath, blake3CmdCallback);
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+			// logger.sforce('%s -- torun: %s', fnName, torun);
+			logger.sforce('%s', torun);
+			logger.sforce('');
+			logger.sforce('');
+			logger.sforce('');
+
+			util.shell.Run(torun, 0, false); // 0: hidden, true: wait
+
+			for (var i = 0; i < aFilenames.length; i++) {
+				var filepath = aFilenames[i];
+
+				// wait for the file to come back via DOpusRT
+				// we process files in the exact order as CMD+Blake process them
+				var swID = fnName + filepath;
+				stopwatch.start(swID);
+				while(!doh.sv.Exists(filepath) && stopwatch.getElapsed(swID) < 60*1000 ) { doh.delay(0) };
+				var elapsed = stopwatch.stop(swID);
+
+				var hashValue = doh.sv.Get(filepath);
+				doh.sv.Delete(filepath);
+				if (hashValue) {
+					fnCallback(filepath, elapsed, hashValue, false);
+				} else {
+					fnCallback(filepath, elapsed, false, 'Could not get hash or timed out');
+				}
+
+			}
 		}
+
+
+		return;
+		doh.delay(1);
+		// var hashValue = cacheMgr.getCacheVar(callbackVar);
+		while(!doh.sv.Exists(callbackVar)) {};
+		var hashValue = doh.sv.Get(callbackVar);
+
+		return;
+
+
+
+
+
+		/*
+			this is how passing the output to DOpus works
+			for /f "usebackq delims==" ^%z in (`call THIS_IS_YOUR_COMMAND_INCL_ANY_NUMBER_OF_QUOTES_AS_YOU_NEED`) do set __TMP_VAR=^"%z^"& THIS_IS_YOUR_PROGRAM_TO_WHICH_YOU_WANT_TO_PASS_THE_VALUE ^%__TMP_VAR%
+
+		*/
+		// e.g. "C:\Tool\Util\hashers\b3sum.exe" "Y:\20210202-101500.blake3"
+		// returns the hashsum
+		// e.g. 8f6dc03ae5c6bdd17c6829cad5bfcd6d9e8ea4d3e74ecdad8c2dbb419add67ec
+		var blake3Cmd   = sprintf('"%s" --no-names "%s"', blake3Path, oItem.realpath);
+		// e.g. dopusrt /acmd MTHSetVariable VARKEY="X:\My File.zip"
+		var callbackVar = 'BLAKE3:' + oItem.realpath;
+		var callbackCmd = sprintf('%s %s VARKEY="%s"', util.dopusrt, WORKER_SETVAR_COMMAND, callbackVar);
+
+		// var torun = sprintf('for /f "usebackq delims==" ^%i in (`call %s`) do set __TMP_VAR=^"%i^"& %s ^%__TMP_VAR%', util.dopusrt, WORKER_SETVAR_COMMAND, ksItemAttrib('filename'), newHashResult.ok);
+		// it is very important that we do not use a %X variable in 'for /f' command which is also recognized by sprintf
+		// that's why we will use %z
+		// var torun = sprintf('cmd.exe /s /k "for /f "usebackq delims=" ^%z in (`call %s`) do set __TMP_VAR="%z" && %s VARVAL=%__TMP_VAR%"', blake3Cmd, callbackCmd);
+		var torun = sprintf('cmd.exe /s /c "for /f "usebackq delims=" ^%z in (`call %s`) do %s VARVAL="%z""', blake3Cmd, callbackCmd);
+
+		logger.sforce('%s ------------------------------------------------------', fnName);
+		logger.sforce('%s -- %s', fnName, torun);
+		logger.sforce('%s ------------------------------------------------------', fnName);
+		// doh.cmd.RunCommand(torun);
+		util.shell.Run(torun, 0, true); // 0: hidden, true: wait
+		doh.delay(1);
+		// var hashValue = cacheMgr.getCacheVar(callbackVar);
+		while(!doh.sv.Exists(callbackVar)) {};
+		var hashValue = doh.sv.Get(callbackVar);
+		// logger.sforce('%s -- hashValue: %s', fnName, hashValue);
+
+
+		return new Result(hashValue);
+
+		// var cmd = sprintf('cmd.exe /s /c ""%s" "%s" > "%s""',  blake3Path, oItem.realpath, tempOutFile);
+		// logger.sforce('%s -- Running: %s', fnName, cmd);
+		// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
+		// if (!FS.isValidPath(tempOutFile)) {
+		// 	logger.error('Temp file has not been created properly: ' + tempOutFile);
+		// 	return new Result(false, 'Temp file has not been created properly: ' + tempOutFile);
+		// }
+		// var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
+		// doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
+		// if (!sContents) {
+		// 	logger.error('Could not get the hash results from temp file: ' + tempOutFile);
+		// 	return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
+		// } else {
+		// 	logger.sforce('%s -- sContents: %s', fnName, sContents);
+		// 	// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
+		// 	var hash = sContents.trim().replace(/^(\w+)\s.+$/, '$1');
+		// 	logger.sforce('%s -- Blake3 Hash for %s: %s', fnName, oItem.name, hash);
+		// 	return new Result(hash);
+		// }
 	}
 }
 
@@ -2562,7 +3030,7 @@
 */
 {
 
-	function __FILTERS__(){ 0 }
+	function ____FILTERS____(){ 0 }
 	// valid filters for workers
 	var filters = (function (){
 		var myName = 'filters';
@@ -2634,115 +3102,168 @@
 */
 {
 
-	function __ACTIONS__(){ 0 }
+	function ____ACTIONS____(){ 0 }
 	// valid actions for workers
 	var actions = (function (){
 		var myName = 'actions';
 		var PUBLIC = {
 			/**
-			 * @returns {Result}
 			 */
 			fnActionNull: function () {
 				// nothing
-				return new Result(true);
 			},
 			/**
-			 * @returns {Result}
+			 */
+			fnActionBenchmark: function () {
+				// nothing
+			},
+			/**
 			 */
 			fn_NOT_IMPLEMENTED_YET: function () {
 				showMessageDialog(null, 'Not implemented yet', 'Placeholder');
-				return new Result(false, true, false);
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {Result}
+			 * @param {function} fnCallback callback to thread worker
+			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionCalculateOnly: function (oItem) {
+			fnActionCalculateOnly: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionCalculateOnly';
-				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
-				return calculateHashProxy(oItem);
-			},
-			/**
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {Result}
-			 */
-			fnActionBenchmark: function (oItem) {
-				var fnName = 'actions.fnActionBenchmark';
-				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
-				return calculateHashProxy(oItem);
-			},
-			/**
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {Result}
-			 */
-			fnActionCalculateAndCompareToADS: function (oItem) {
-				var fnName = 'actions.fnActionCalculateAndCompareToADS';
-				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
+				logger.snormal('%s -- I got called with: %s, is filelist: %s', fnName, oItem.realpath, itemIsFilelist);
 
-				var oldData = ADS.read(oItem);
+				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
+
+				if (itemIsFilelist) {
+
+					// // read the files in the given filelist
+					// var filelist = FS.readFile(''+oItem.realpath);
+					// if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
+					// var aFilenames = filelist.split('\n');
+					// // logger.sforce('%s -- aFilenames: %s', fnName, JSON.stringify(aFilenames, null, 4));
+					// for (var i = 0; i < aFilenames.length; i++) {
+					// 	var filepath = aFilenames[i];
+					// }
+					stopwatch.start(fnName + oItem.realpath);
+					var oResult = calculateHashProxy(oItem, null, itemIsFilelist, fnCallback);
+					var elapsed = stopwatch.stop(fnName + oItem.realpath);
+					// fnCallback(oItem.realpath, elapsed, oResult.ok, oResult.err);
+
+					// fnCallback(oItem.realpath, 100, 'DUMMY TODO', false);
+
+				} else {
+					stopwatch.start(fnName + oItem.realpath);
+					var oResult = calculateHashProxy(oItem, null, itemIsFilelist);
+					var elapsed = stopwatch.stop(fnName + oItem.realpath);
+					fnCallback(oItem.realpath, elapsed, oResult.ok, oResult.err);
+				}
+
+			},
+			/**
+			 * @param {DOpusItem} oItem DOpus Item object
+			 * @param {function} fnCallback callback to thread worker
+			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
+			 */
+			fnActionCalculateAndCompareToADS: function (oItem, fnCallback, itemIsFilelist) {
+				var fnName = 'actions.fnActionCalculateAndCompareToADS';
+				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
+
+				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
+
+				var oldData = ADS.read(oItem),
+					errMsg  = '';
 				if (!oldData) {
 					// TODO - Replicate this scenario and replace the message below
-					logger.serror('Cannot read data for: ' + oItem.realpath);
+					errMsg = 'Cannot read data for: ' + oItem.realpath;
+					logger.serror(errMsg);
+					fnCallback(oItem.realpath, 0, false, errMsg);
 					return;
 				}
+
+				stopwatch.start(fnName + oItem.realpath);
 				var newHashResult = calculateHashProxy(oItem);
+				var elapsed = stopwatch.stop(fnName + oItem.realpath);
+
 				logger.sverbose('%s -- old: %s, new: %s', fnName, oldData.hash, newHashResult.ok);
 				if (newHashResult.isOK() && newHashResult.ok === oldData.hash) {
-					return new Result('Stored hash is valid', false, false);
+					fnCallback(oItem.realpath, elapsed, 'Stored hash is valid', false);
 				} else {
-					return new Result(false, sprintf('Hashes differ! Stored: %s, New: %s', oldData.hash, newHashResult.ok), false);
+					fnCallback(oItem.realpath, elapsed, false, sprintf('Hashes differ! Stored: %s, New: %s', oldData.hash, newHashResult.ok));
 				}
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {Result}
+			 * @param {function} fnCallback callback to thread worker
+			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionCalculateAndSaveToADS: function (oItem) {
+			fnActionCalculateAndSaveToADS: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionCalculateAndSaveToADS';
-				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
+				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
 
+				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
+
+				stopwatch.start(fnName + oItem.realpath);
 				var newHashResult = calculateHashProxy(oItem);
-				if (newHashResult.isOK()) {
-					ADS.save(oItem, new CachedItem(oItem, null, null, newHashResult.ok));
+				var elapsed = stopwatch.stop(fnName + oItem.realpath);
+
+				if (!newHashResult.isOK()) {
+					fnCallback(oItem.realpath, elapsed, false, 'Hashing failed');
+				} else {
+					var saveResult = ADS.save(oItem, new CachedItem(oItem, null, null, newHashResult.ok));
+					if (saveResult) {
+						fnCallback(oItem.realpath, elapsed, true);
+					} else {
+						fnCallback(oItem.realpath, elapsed, false, 'Save to ADS failed');
+					}
 				}
-				return newHashResult;
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {Result}
+			 * @param {function} fnCallback callback to thread worker
+			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionDeleteADS: function (oItem) {
+			fnActionDeleteADS: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionDeleteADS';
-				logger.sverbose('%s -- I got called with: %s', fnName, dumpObject(oItem));
+				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
+
+				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
+
+				stopwatch.start(fnName + oItem.realpath);
 				ADS.remove(oItem);
-				return new Result(true);
+				var elapsed = stopwatch.stop(fnName + oItem.realpath);
+				fnCallback(oItem.realpath, elapsed, true);
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
+			 * @param {function} fnCallback callback to thread worker
+			 * @param {boolean} itemIsFilelist given oItem is a filelist, not the file itself
 			 * @param {string} hash used e.g. for verifying using external files, then it will be filled by the knapsack (as HashedItem) then by the manager (as a DOpus Map) already
 			 * @param {string=} algorithm used e.g. for verifying using external files, then it will be filled by the knapsack (as HashedItem) then by the manager (as a DOpus Map) already
-			 * @returns {Result}
 			 */
-			fnCompareAgainstHash: function (oItem, hash, algorithm) {
+			fnCompareAgainstHash: function (oItem, fnCallback, itemIsFilelist, hash, algorithm) {
 				// TODO - review!
 				var fnName = 'actions.fnCompareAgainstHash';
+				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
 				algorithm = algorithm || CURRENT_ALGORITHM;
+
 				if (typeof hash === 'undefined' || !hash) {
 					logger.sforce('%s -- Got no hash value to compare to', fnName);
-					return new Result(false, 'Got no hash value to compare to');
+					fnCallback(oItem.realpath, elapsed, false, 'Got no hash value to compare to');
 				}
 				logger.sverbose('%s -- Filename: %s - Comparing against external algorithm: %s, hash: %s', fnName, oItem.name, algorithm, hash);
+
+				stopwatch.start(fnName + oItem.realpath);
 				var myResult = calculateHashProxy(oItem, algorithm);
+				var elapsed = stopwatch.stop(fnName + oItem.realpath);
+
 				if (!myResult.isOK()) {
-					return myResult;
+					fnCallback(oItem.realpath, elapsed, false, myResult.err);
 				}
 				logger.sinfo('%s -- My own hash: %s  --  External hash: %s', fnName, myResult.ok, hash);
 				if (myResult.ok === hash) {
-					var result = new Result('Hash values are identical: ' + hash, false, false);
+					fnCallback(oItem.realpath, elapsed, 'Hash values are identical: ' + hash);
 				} else {
-					var result = new Result(false, 'Hash values differ -- mine: ' + myResult.ok + ', external: ' + hash);
+					fnCallback(oItem.realpath, elapsed, false, 'Hash values differ -- mine: ' + myResult.ok + ', external: ' + hash);
 				}
-				return result;
 			}
 		};
 		return {
@@ -2751,7 +3272,6 @@
 			validate: function (name) {
 				var fnName = 'actions.validate';
 				if (!PUBLIC.hasOwnProperty(name)) {
-					// abortWithFatalError(sprintf('%s -- No or invalid action -- type: %s - %s', fnName, typeof name, name));
 					abortWithFatalError(sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(name)));
 				}
 			},
@@ -2789,7 +3309,7 @@
 */
 {
 
-	function __STOPWATCH__(){ 0 }
+	function ____STOPWATCH____(){ 0 }
 	var stopwatch = (function (){
 		var myName = 'stopwatch';
 		var _running = {};
@@ -2919,7 +3439,7 @@
 */
 {
 
-	function __PROGRESS_BAR__(){ 0 }
+	function ____PROGRESS_BAR____(){ 0 }
 	function initializeProgressBar(cmdData) {
 		// INITIALIZE PROGRESS BAR
 		if (!USE_PROGRESS_BAR) return;
@@ -3039,7 +3559,7 @@
 */
 {
 
-	function __FEEDBACK__(){ 0 }
+	function ____FEEDBACK____(){ 0 }
 	function showMessageDialog(dialog, msg, title, buttons) {
 		var dlgConfirm      = dialog || doh.dlg();
 		dlgConfirm.message  = msg;
@@ -3115,7 +3635,7 @@
 */
 {
 
-	function __FORMATTERS__(){ 0 }
+	function ____FORMATTERS____(){ 0 }
 	// turns 2^10 to "KB", 2^20 to "MB" and so on
 	/**
 	 * @returns {[string, number]}
@@ -3236,7 +3756,7 @@
 */
 {
 
-	function __UTIL__(){ 0 }
+	function ____UTIL____(){ 0 }
 	function now() {
 		return new Date().getTime();
 	}
@@ -3311,69 +3831,6 @@
 		return aFilenames;
 	}
 
-	// hashPerformanceTest(Math.pow(2, 20), 5000); return;
-	function hashPerformanceTest(size, count, maxcount) {
-		var algorithms = [ 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'crc32_php', 'crc32_php_rev' ];
-
-		var instr = '';
-		// for (var i = 0; i < size; i++) {
-		// 	instr += Math.floor(Math.random() * 10);
-		// }
-		logger.sforce(stopwatch.startAndPrint('Random Data Generation'));
-		while (instr.length < size) {
-			instr += Math.floor(10000000 + Math.random() * 89999999);
-		}
-		instr = instr.slice(0, size);
-		logger.sforce(stopwatch.stopAndPrint('Random Data Generation'));
-
-		var blob = doh.dc.Blob;
-		blob.CopyFrom(instr);
-		logger.sforce('instr: %s', instr);
-		if (size !== instr.length) {
-			abortWithFatalError('Could not generate requested test sample size');
-		}
-
-		var outstr = '', line = '';
-		function addAndPrint(line) {
-			outstr += line + '\n'; logger.sforce(line);
-		}
-		addAndPrint('');
-		addAndPrint(sprintf('  -- %s Benchmark --', Global.SCRIPT_NAME));
-		addAndPrint('');
-		addAndPrint(sprintf('Testing all algorithms with a randomly generated input string in memory, in SINGLE THREAD ONLY.'));
-		addAndPrint('');
-		addAndPrint(sprintf('This is the best ever your CPU can do using DOpus & this script, when file access overhead is eliminated.'));
-		addAndPrint('');
-		addAndPrint(sprintf('Repetitions: %d', count));
-		addAndPrint(sprintf('Input Size: %s',size.formatAsSize()));
-		addAndPrint('');
-		addAndPrint(sprintf('  -- Theoretical MT/%dx Limit --', maxcount));
-		addAndPrint('');
-		addAndPrint('The speed you would reach if:');
-		addAndPrint(' - All your CPU cores run at the same clock (likely)');
-		addAndPrint(' - There is no file access overhead at all (impossible, but can be reduced using an SSD, NVMe or RAMDisk)');
-		addAndPrint(sprintf(' - All selected files can be perfectly split among threads, i.e. they are of equal size and total number is an integer multiple of %d (highly unlikely)', maxcount));
-		addAndPrint('');
-
-		for (var i = 0; i < algorithms.length; i++) {
-			var algo = algorithms[i];
-			var id = sprintf('%20s', algo);
-
-			addAndPrint(sprintf('Testing algorithm: ' + algo.toUpperCase()));
-			stopwatch.start(id);
-			for (var j = 0; j < count; j++) {
-				var dummy = doh.fsu.Hash(blob, algo);
-			}
-			var elapsed = stopwatch.getElapsed(id);
-			var avgSpeed = size * count * 1000 / elapsed;
-			stopwatch.stop(id);
-			addAndPrint(sprintf('Average ST/1x speed     : %s/sec', avgSpeed.formatAsSize()));
-			addAndPrint(sprintf('Theoretical MT/%dx Limit: %s/sec', maxcount, (avgSpeed * maxcount).formatAsSize() ));
-			addAndPrint('');
-		}
-		showMessageDialog(null, outstr, 'CPU Benchmark Results');
-	}
-
 	/**
 	 * @param {Object} driveLetters object which maps driveLetter, e.g. Y: to the number of files found under it (this function ignores it)
 	 * @returns {string|false} drive type, e.g. HDD, SDD on success, false on error
@@ -3405,7 +3862,7 @@
 		logger.snormal(stopwatch.startAndPrint(fnName, 'Drive Type Detection'));
 		for (var driveLetter in driveLetters) {
 			if (!driveLetters.hasOwnProperty(driveLetter)) continue; // skip prototype functions, etc.
-			var tempPSOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
+			var tempPSOutFile = TEMPDIR + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
 			var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
 			logger.sverbose('%s -- Running: %s', fnName, cmd);
 			util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
@@ -3744,6 +4201,7 @@
 			 * @param {number} millisecs to sleep
 			 */
 			delay: function (millisecs) {
+				if (!millisecs) return;
 				// @ts-ignore
 				DOpus.Delay(millisecs);
 			},
@@ -3833,13 +4291,11 @@
 					return (e && typeof e.atEnd === 'function' && typeof e.moveNext === 'function');
 				} catch(e) { return false }
 			},
-
 			// current tab's path
 			getCurrentPath: function (cmdData) {
 				// auto convert to string, and make sure it has a trailing slash
 				return _validate(cmdData) && (''+cmdData.func.sourcetab.path).normalizeTrailingBackslashes();
 			},
-
 			// if the current lister tab is 'dirty'
 			isTabDirty: function (cmdData) {
 				return _validate(cmdData) && !!cmdData.func.sourcetab.dirty;
@@ -3852,7 +4308,6 @@
 			getProgressBar: function (cmdData) {
 				return _validate(cmdData) && cmdData.func.command.progress;
 			},
-
 			// all - DOpus enumerables
 			getAllItems: function (cmdData) {
 				return _validate(cmdData) && cmdData.func.sourcetab.all;
@@ -3873,13 +4328,11 @@
 			getSelFiles: function (cmdData) {
 				return _validate(cmdData) && cmdData.func.sourcetab.selected_files;
 			},
-
 			// get single selected file directly as item
 			getSelFileAsItem: function (cmdData) {
 
 				return _validate(cmdData) && doh.fsu.GetItem(new Enumerator(cmdData.func.sourcetab.selected_files).item());
 			},
-
 			// all items, dirs, files - selstats takes checkbox mode into account
 			getAllItemsCount: function (cmdData) {
 				return _validate(cmdData) && cmdData.func.sourcetab.selstats.items;
@@ -3933,73 +4386,7 @@
 */
 {
 
-	// TheNewSummary
-	{
-		// TODO - REVIEW
-		/**
-		 * @typedef TheNewSummary
-		 * @type {object}
-		 *
-		 * @property {string} name
-		 *
-		 * @property {number} tsStart
-		 * @property {number} tsFinish
-		 * @property {number} tsElapsed
-		 *
-		 * @property {boolean} isAborted
-		 * @property {boolean} isTimedOut
-		 *
-		 * @property {number} cntTotal
-		 * @property {number} cntSuccess
-		 * @property {number} cntSkipped files which are not selected by the filtering criteria (e.g. non-dirty files)
-		 * @property {number} cntError files which did not pass the verification or could not be updated because of read-only flag, etc.
-		 * @property {number} cntUnfinished files which did not finish until max wait is reached or user aborted
-		 *
-		 * @property {number} sizeTotal
-		 * @property {number} sizeSuccess
-		 * @property {number} sizeSkipped files which are not selected by the filtering criteria (e.g. non-dirty files)
-		 * @property {number} sizeError files which did not pass the verification or could not be updated because of read-only flag, etc.
-		 * @property {number} sizeUnfinished files which did not finish until max wait is reached or user aborted
-		 *
-		 * @property {number} averageSpeed
-		 *
-		 * @property {number} maxElapsedForThreadDuration
-		 * @property {number} maxElapsedForThreadSize
-		 *
-		 * @property {string} maxElapsedForFileName
-		 * @property {number} maxElapsedForFileSize
-		 * @property {number} maxElapsedForFileDuration
-		 *
-		 * @property {string} earliestFileFullpath
-		 * @property {string} earliestFileName
-		 * @property {number} earliestFileDate
-		 * @property {number} earliestFileSize
-		 *
-		 * @property {string} latestFileFullpath
-		 * @property {string} latestFileName
-		 * @property {number} latestFileDate
-		 * @property {number} latestFileSize
-		 *
-		 * @property {string} smallestFileFullpath
-		 * @property {string} smallestFileName
-		 * @property {number} smallestFileDate
-		 * @property {number} smallestFileSize
-		 *
-		 * @property {string} largestFileFullpath
-		 * @property {string} largestFileName
-		 * @property {number} largestFileDate
-		 * @property {number} largestFileSize
-		 */
-
-		/**
-		 * @typedef TheNewSummaryAndErrorTexts
-		 * @type {object}
-		 * @property {TheNewSummary} summary
-		 * @property {items} HashedItemsCollection
-		 */
-	}
-
-
+	function ____CUSTOM_OBJECTS____(){ 0 }
 	// ManagerCommand
 	{
 		/**
@@ -4802,6 +5189,7 @@
 */
 {
 
+	function ____UGLY_BITS____(){ 0 }
 	// not the most elegant solution, but JScript/JS does not easily allow to determine function name from a given function object
 	// cannot parse 'anonymous' methods, incl. exposed method names in singletons, e.g. funcNameExtractor(actions.getFunc)
 	var reFuncNameExtractor = new RegExp(/^function\s+(\w+)\(.+/);
@@ -4876,7 +5264,7 @@
 */
 {
 
-	function __LIBS__(){ 0 }
+	function ____LIBS____(){ 0 }
 	// sprintf - BEGIN
 	// https://hexmen.com/blog/2007/03/14/printf-sprintf/
 	{
@@ -5111,7 +5499,7 @@
 */
 {
 
-	function __TODO__(){ 0 }
+	function ____TODO____(){ 0 }
 	// TODO
 	{
 		/*
@@ -5132,6 +5520,8 @@
 			+ CODING: Convert buildSummaryAndErrorTexts() & MTActionResults/MTActionResultFile to TYPEDEFs?
 			  done via CommandResults.getSummaries() instead
 
+			- IMPROVE: Implement Blake3
+			- IMPROVE: Implement Rhash
 			- BUG: IMPORT- better format detection in fileExchangeHandler.prepareForImport()?
 			- BUG: If multiple files are selected (some missing ADS) and ADS delete is performed, it says "some files are skipped"
 			- BUG: Auto-refresh when Smart Update or Delete ADS is performed (copy logic from MExt)
@@ -5255,7 +5645,7 @@
 */
 {
 
-	function __README_MD__(){ 0 }
+	function ____README_MD____(){ 0 }
 	{
 		/*
 
@@ -5411,7 +5801,7 @@
 	888   T88b 8888888888  "Y8888P"   "Y88888P"   "Y88888P"  888   T88b  "Y8888P"  8888888888  "Y8888P"
 */
 {
-	function __RESOURCES__(){ 0 }
+	function ____RESOURCES____(){ 0 }
 
 	String.prototype.substituteVars = function () {
 		return this.replace(/\${([^}]+)}/g, function (match, p1) {
