@@ -4,6 +4,12 @@
 
 
 
+// JScript cannot include external files, and this development has grown very big for 1 file.
+// So it must be tamed some other way.
+// The big ASCII section titles for VSCodium minimap and function ____XXXX____(){ return; } are for outline view.
+// Nested blocks are used so that I can collapse multiple blocks, especially level 4 then with CTRL-K-4 & CTRL-K-2, try it.
+
+
 /*
 	 .d8888b.  888       .d88888b.  888888b.          d8888 888
 	d88P  Y88b 888      d88P" "Y88b 888  "88b        d88888 888
@@ -17,7 +23,8 @@
 {
 	{
 		// the gigantic ASCII figlets are just for VSCode minimap :) - by https://textart.io/figlet
-		function ____GLOBAL____(){ 0 }
+		function ____GLOBAL____(){ return; }
+
 		var Global = {};
 		Global.SCRIPT_NAME        = 'CuMultiThreadHash'; // WARNING: if you change this after initial use you have to reconfigure your columns, infotips, rename scripts...
 		Global.SCRIPT_NAME_SHORT  = 'MTH'; // WARNING: if you change this after initial use you have to rename all methods!
@@ -39,12 +46,13 @@
 		util.dopusrt = 'dopusrt /acmd';
 
 
-
 		var sleepdur = 1; // in millisecs, used as wait between checking available # of threads & still running threads checks
 
 		var STREAM_PREFIX = 'MTHash_';
 
 		// TRUE is highly recommended
+		// if an error is encountered, it is automatically cleared anyway, to prevent any unexpected side-effects
+		// so activating it should be safe
 		var CACHE_ENABLED = true;
 
 		/**
@@ -58,11 +66,9 @@
 		 * @property {string=} binaryPath
 		 * @property {number=} maxThreads
 		 */
-
- 		// Why are SHA-256 & SHA-512 are missing from this list?
-		// read the README.MD, short answer: as of this development (v12.23), the DOpus implementations are buggy
-
 		/**
+		 * Why are SHA-256 & SHA-512 are missing from this list?
+		 * read the README.MD, short answer: as of this development (v12.23), the DOpus implementations are buggy
 		 * @type {Object.<string, Algorithm>}
 		 */
 		var ALGORITHMS = {
@@ -71,15 +77,15 @@
 			JSON    : { name: 'JSON',   fileExt: '.json',   native: true },
 			BLAKE3  : { name: 'BLAKE3', fileExt: '.blake3', native: false, binaryPath: '%gvdTool%\\Util\\hashers\\b3sum.exe', viaFilelist: true, maxThreads: 1 }
 		};
-		// var DEFAULT_ALGORITHM = 'sha1';
 		/** @type {Algorithm} */
+		// var DEFAULT_ALGORITHM = ALGORITHMS.BLAKE3;
 		var DEFAULT_ALGORITHM = ALGORITHMS.SHA1;
 		var CURRENT_ALGORITHM = DEFAULT_ALGORITHM.name; // TODO - might be converted to a config parameter or command parameter
 
 		// hashing bigger files first usually increases the speed up to 25% for mixed groups of files
-		// but makes little difference if file sizes are close to each other (usually few big files)
+		// but makes little difference if file sizes are very close to each other (usually few big files)
 		var PROCESS_LARGEST_FILES_FIRST  = true;
-		var PROCESS_SMALLEST_FILES_FIRST = false; // guaranteed to be slowe, only added because it was easy :)
+		var PROCESS_SMALLEST_FILES_FIRST = false; // guaranteed to be slower, only added because it was easy :)
 
 		// avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack because of other overly large files
 		var AVOID_OVERFILLED_KNAPSACKS = true;
@@ -103,13 +109,15 @@
 		var WORKER_SETVAR_COMMAND = 'MTHSetVariable';
 
 		// collection names for find commands & files which reported an error
-		var COLLECTIONS_ENABLED          = false;
-		var COLLECTION_FOR_SUCCESS       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
-		var COLLECTION_FOR_DIRTY         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
-		var COLLECTION_FOR_MISSING       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
-		var COLLECTION_FOR_ERRORS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
-		var COLLECTION_FOR_IMPORT_ERRORS = Global.SCRIPT_NAME_SHORT + ' - ' + 'Import errors';
-		var COLLECTION_FOR_VERIFY_ERRORS = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify errors';
+		var COLLECTIONS_ENABLED = true;
+		var COLL_DUMMY          = ''; // needed only used for benchmark action
+		var COLL_SUCCESS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
+		var COLL_DIRTY          = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
+		var COLL_MISSING        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
+		var COLL_ERRORS         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
+		var COLL_UPTODATE       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Up-to-date hashes';
+		var COLL_IMPORT_ERRORS  = Global.SCRIPT_NAME_SHORT + ' - ' + 'Import errors';
+		var COLL_VERIFY_MISSING = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify missing files';
 
 		// show a summary dialog after manager actions
 		var SHOW_SUMMARY_DIALOG = false;
@@ -150,10 +158,29 @@
 		var TEMPDIR = '%TEMP%';
 
 		TEMPDIR = (''+util.shell.ExpandEnvironmentStrings(TEMPDIR));
+
 	}
 }
 
 
+// function Employee (name, dept) {
+// 	this.name = name + ' - added by Employee';
+// 	this.dept = dept || "general";
+// }
+// function WorkerBee (name, dept, projs) {
+// 	Employee.call(this, name, dept);
+// 	this.projects = projs || ['added by WorkerBee'];
+// }
+// function Engineer (name, mach) {
+// 	WorkerBee.call(this, name);
+// 	this.dept = "engineering";
+// 	this.machine = mach || "";
+// }
+
+// // DOpus.Output(JSON.stringify(new Employee('Cü'), null, 4));
+// DOpus.Output(JSON.stringify(new Employee('Cu', 'E449'), null, 4));
+// DOpus.Output(JSON.stringify(new WorkerBee('Cu', 'Development', 'MTH'), null, 4));
+// DOpus.Output(JSON.stringify(new Engineer('Cu', 'Vulcan'), null, 4));
 
 /*
 	8888888 888b    888 8888888 88888888888
@@ -166,45 +193,7 @@
 	8888888 888    Y888 8888888     888
 */
 {
-
-	function ____INIT____(){ 0 }
-
-	function fileTail(filename) {
-		var fnName = funcNameExtractor(fileTail);
-		var delay = 500;
-		var maxCount = 50;
-
-		logger.sforce('%s -- monitoring file: %s', fnName, filename);
-
-		var filePtr = 0;
-		for (var i = 0; i < maxCount; i++) {
-			var fh = doh.fsu.OpenFile(filename);
-			if (fh.error) {
-				logger.sforce('%s -- Cannot open file %s, Error: %s', fnName, fh.error); return false;
-			}
-
-			doh.delay(delay);
-			var filesize = parseInt(doh.getItem(filename).size, 10);
-			// logger.sforce('%s -- File size: %d', fnName, filesize);
-			if (filePtr >= filesize) continue;
-
-			fh.Seek(filePtr);
-			logger.sforce('%s -- File change detected -- filesize: %d, filePtr: %d', fnName, filesize, filePtr);
-
-			var blob = doh.dc.Blob;
-			var numBytesRead = fh.Read(blob);
-			if (numBytesRead) {
-				logger.sforce('%s -- Read %d new bytes', fnName, numBytesRead);
-				filePtr = filesize;
-				fh.Close();
-			}
-		}
-		logger.sforce('%s -- Ran out of time, counter: %s', fnName, i);
-		// fh.Close();
-		return true;
-	}
-
-
+	function ____INIT____(){ return; }
 	// called by DOpus
 	function OnInit(initData) {
 		initData.name           = Global.SCRIPT_NAME;
@@ -216,6 +205,8 @@
 		initData.group          = Global.SCRIPT_GROUP;
 		initData.log_prefix     = Global.SCRIPT_PREFIX;
 		initData.default_enable = true;
+
+		logger.setLevel(logger.levels.ERROR);
 
 		// return;
 		// cacheMgr.clearCache();
@@ -240,8 +231,8 @@
 
 			If ((Script.config.DEBUG) Or (SCRIPT_DEBUG)) And (Script.config.DEBUG_CLEAR) Then DOpus.ClearOutput
 		*/
-
 		doh.clear();
+
 		// put the script path, etc. into DOpus Global Vars,
 		// Unfortunately initData cannot be accessed later by methods
 		// even if they are put into Script.Vars, because they get cleared once the script is unloaded from memory
@@ -249,16 +240,28 @@
 		_setScriptPathVars(initData);
 		playFeedbackSound('Success'); // TODO REMOVE
 
-		// fileTail('Y:\\CollectiveOutput.txt');
-		// return;
+
+// var niyex = new NotImplementedYetException('Copy to clip', 'Init');
+// var fuex = new FileSaveException('Y:\\something.txt', 'Init');
 
 
+// doh.out(JSON.stringify(niyex, null, 4));
+// doh.out(JSON.stringify(fuex, null, 4));
+// logger.sforce('%s -- niyex: %s, instanceof self: %b, instanceof base: %b', 'fnName', niyex.where, niyex instanceof FileSaveException, niyex instanceof UserException);
+// logger.sforce('%s -- fuex: %s, instanceof self: %b, instanceof base: %b', 'fnName', fuex.where, fuex instanceof FileSaveException, fuex instanceof UserException);
+
+		// var X = FS.fileTail('Y:\\CollectiveOutput.txt', 15000, 1000);
+		// do {
+		// 	var linesRead = X.read();
+		// 	if (!linesRead.isOK()) continue;
+		// 	logger.sforce('lines: %s', linesRead.ok);
+		// } while(linesRead.isValid());
+		// // do not use while(Result.isOK()), isValid() allows 0,'',{}... as OK value whereas isOK() does not
 
 		_initializeCommands(initData);
 		_initializeColumns(initData);
 		return false;
 	}
-
 	/**
 	 * Sets a global variable in the global DOpus memory with the fullpath of this script
 	 * so that we can determine if we are in development or released OSP mode
@@ -279,15 +282,15 @@
 			path    : (''+oThisScriptsPath.path).normalizeTrailingBackslashes(),
 			// isOSP   : (''+doh.fsu.Resolve(oItem.realpath).ext).toLowerCase() === '.osp'
 			isOSP   : (''+oThisScriptsPath.ext).toLowerCase() === '.osp'
-		}
+		};
 	}
 	/**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {string} name column name
 	 */
 	function _getColumnLabelFor(name) {
+		// return Global.SCRIPT_NAME_SHORT + ' ' + name;
 		return '#' + name;
-		return Global.SCRIPT_NAME_SHORT + ' ' + name;
 	}
 	/**
 	 * internal method called by OnInit() directly or indirectly
@@ -303,10 +306,8 @@
 	 */
 	function _getIcon(iconName) {
 		var myInfo = _getScriptPathVars();
-		return ( myInfo.isOSP
-				? ('#MTHasher:' + iconName) // #MTHasher is defined in the Icons.XML file
-				: (myInfo.path + 'Icons\\MTH_32_' + iconName + '.png')
-			);
+		// #MTHasher is defined in the Icons.XML file
+		return ( myInfo.isOSP ? ('#MTHasher:' + iconName) : (myInfo.path + 'Icons\\MTH_32_' + iconName + '.png') );
 	}
 	/**
 	 * internal method called by OnInit() directly or indirectly
@@ -384,12 +385,11 @@
 		_addCommand('ManagerStart',
 			onDOpusCmdMTHManagerStart,
 			initData,
-			'MAXCOUNT/N,RECURSE/S'
-			+ ',CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S'
-			+ ',FIND_DIRTY/S,FIND_MISSING/S'
-			+ ',VERIFY_FROM/S,FILE/O,FORMAT/O'
-			+ ',BENCHMARK/S,BENCHMARK_SIZE/O,BENCHMARK_COUNT/O'
-			,
+				'MAXCOUNT/N,RECURSE/S,' +
+				'CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S,' +
+				'FIND_DIRTY/S,FIND_MISSING/S,' +
+				'VERIFY_FROM/S,FILE/O,FORMAT/O,' +
+				'BENCHMARK/S,BENCHMARK_SIZE/O,BENCHMARK_COUNT/O',
 			'Green_SmartUpdate',
 			'MTH Manager',
 			'Calculates hashes of selected objects and performs an action.\nObjects can be files and folders (with RECURSE)\nUse one of the parameters to specify action.'
@@ -514,9 +514,9 @@
 	 "Y8888P"   "Y88888P"  888       888 888       888 d88P     888 888    Y888 8888888P"   "Y8888P"
 */
 {
+	function ____COMMANDS____(){ return; }
 	// CLEAR CACHE
 	// called by user command, button, etc.
-
 	function onDOpusCmdMHTClearCache(cmdData) {
 		cacheMgr.clearCache();
 	}
@@ -526,6 +526,11 @@
 		if (!res) { return; }
 		doh.cmd.RunCommand('Clipboard SET ' + JSON.stringify(res, null, 4));
 	}
+	/**
+	 * @param {object} cmdData DOpus command data
+	 * @throws @see {InvalidFormatException} if given format is invalid
+	 * @throws @see {FileCreateException} if file cannot be saved
+	 */
 	function onDOpusADSExportFrom(cmdData) {
 		var fnName = funcNameExtractor(onDOpusADSExportFrom);
 		// check command parameters
@@ -533,14 +538,15 @@
 		var filename        = cmdData.func.args.FILE;
 		var useForwardSlash = cmdData.func.args.got_arg.USE_FORWARD_SLASH;
 		if (!format || !fileExchangeHandler.isValidFormat(format)) {
-			abortWithFatalError('No or invalid format supplied for FORMAT parameter,\nvalid formats are:\n' + fileExchangeHandler.getValidFormats());
+			abortWith(new InvalidFormatException('No or invalid format supplied for FORMAT parameter,\nvalid formats are:\n' + fileExchangeHandler.getValidFormats(), fnName));
 		}
 		// get the hashes
 		var res1 = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
 		if (!res1) { return; }
 		var res2 = fileExchangeHandler.exportTo(cmdData, format, filename, res1, useForwardSlash);
 		if (!res2.isOK()) {
-			showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + res2.err, 'Save Error');
+			abortWith(new FileCreateException('File could not be saved:\n' + res2.err, fnName));
+			// showMessageDialog(doh.getDialog(cmdData), 'File could not be saved:\n' + res2.err, 'Save Error');
 		}
 	}
 	function onDOpusADSImportInto(cmdData) {
@@ -550,17 +556,25 @@
 		var filename        = cmdData.func.args.FILE;
 		fileExchangeHandler.importFrom(cmdData, format, filename);
 	}
+	/**
+	 * @param {object} cmdData DOpus command data
+	 * @throws @see {NotImplementedYetException}
+	 */
 	function onDOpusOnTheFlyCalculateAndExport(cmdData) {
 		var fnName = funcNameExtractor(onDOpusOnTheFlyCalculateAndExport);
-		abortWithFatalError('Not impl yet - ' + fnName);
+		abortWith(new NotImplementedYetException('', fnName));
 	}
+	/**
+	 * @param {object} cmdData DOpus command data
+	 * @throws @see {NotImplementedYetException}
+	 */
 	function onDOpusOnTheFlyVerifyFromFile(cmdData) {
 		var fnName = funcNameExtractor(onDOpusOnTheFlyVerifyFromFile);
 		// check command parameters
 		var format          = cmdData.func.args.FORMAT;
 		var filename        = cmdData.func.args.FILE;
 		// fileExchangeHandler.verifyFrom(scriptCmdData, format, filename);
-		abortWithFatalError('Not impl yet - ' + fnName);
+		abortWith(new NotImplementedYetException('', fnName));
 	}
 }
 
@@ -579,14 +593,13 @@
 	 "Y8888P"   "Y88888P"  88888888  "Y88888P"  888       888 888    Y888  "Y8888P"
 */
 {
+	function ____COLUMNS____(){ return; }
 	function onDOpusColHasStream(scriptColData){
 		var item = scriptColData.item;
 		if (!doh.isValidDOItem(item) || !doh.isFile(item) || !FS.isValidPath(item.realpath)) return;
-		// logger.sforce('%s -- item.name: %s - exists: %b', 'onDOpusColHasStream', item.name, FS.isValidPath(item.realpath));
 		var res = ADS.hasHashStream(item);
 		scriptColData.value = res ? 'Yes' : 'No';
 		scriptColData.group = 'Has Metadata: ' + scriptColData.value;
-		// return res;
 	}
 	function onDOpusColMultiCol(scriptColData) {
 		var fnName = funcNameExtractor(onDOpusColMultiCol);
@@ -607,11 +620,11 @@
 		// iterate over requested columns
 		for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
 			var key = e.item();
-			var outstr;
+			var outstr, differentModifDate, differentSize;
 			switch(key) {
 				case _getColumnNameFor('NeedsUpdate'):
-					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
+					differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify;
+					differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
 
 					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
 					scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
@@ -619,8 +632,8 @@
 					break;
 
 				case _getColumnNameFor('NeedsUpdateVerbose'):
-					var differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify,
-						differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
+					differentModifDate = new Date(item.modify).valueOf() !== item_props.last_modify;
+					differentSize      = parseInt(item.size, 10)         !== item_props.last_size;
 					outstr = differentModifDate || differentSize ? 'Yes' : 'No';
 					if (differentModifDate && differentSize) {
 						outstr += ' (date & size)';
@@ -660,9 +673,14 @@
 	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
 */
 {
-
-	function ____MANAGER____(){ 0 }
+	function ____MANAGER____(){ return; }
 	// called by custom DOpus command
+	/**
+	 *
+	 * @param {object} cmdData DOpus command data
+	 * @throws @see {InvalidFormatException}
+	 * @throws @see {InvalidManagerCommandException}
+	 */
 	function onDOpusCmdMTHManagerStart(cmdData) {
 		var fnName = funcNameExtractor(onDOpusCmdMTHManagerStart);
 
@@ -672,12 +690,12 @@
 		{
 			var command        = getManagerCommand(cmdData),
 				commandName    = command.command,
-				collectionName = command.collName,
+				collectionName = command.collNameSuccess,
 				fnFilter       = command.filter,
 				fnFilterName   = command.filterName,
 				fnAction       = command.action,
 				fnActionName   = command.actionName;
-			logger.sforce('%s -- Selected Command: %s, Using Filter: %s, Action: %s', fnName, commandName, fnFilterName, fnActionName);
+			logger.snormal('%s -- Selected Command: %s, Using Filter: %s, Action: %s', fnName, commandName, fnFilterName, fnActionName);
 		}
 
 
@@ -693,18 +711,19 @@
 		// SELECTION & FILTERING
 		{
 			busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName));
+			var selectedFiltered;
 			// if (command.command === 'VERIFY_FROM' ) {
-			if (fnAction === actions.PUBLIC.fnActionBenchmark) {
+			if (fnAction === actions.PUBLIC.fnBenchmark) {
 				hashPerformanceTest(command.benchSize, command.benchCount, command.maxcount);
 				return;
 			} else if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
 				// get the given file or user-selected file contents in internal format
 				var extFileAsPOJO = fileExchangeHandler.verifyFrom(cmdData, '', command.fileName);
 				if (!extFileAsPOJO.items) {
-					abortWithFatalError('Nothing to do, parsing results:' + JSON.stringify(extFileAsPOJO, null, 4));
+					abortWith(new InvalidFormatException('Nothing to do, parsing results:' + JSON.stringify(extFileAsPOJO, null, 4), fnName));
 				}
 				// populate the collection which will replace the typical user-selected files collection, e.g. in next block with applyFilterToSelectedItems()
-				var selectedFiltered = new HashedItemsCollection();
+				selectedFiltered = new HashedItemsCollection();
 				for (var itemPath in extFileAsPOJO.items) {
 					if (!extFileAsPOJO.items.hasOwnProperty(itemPath)) continue; // skip prototype functions, etc.
 					var item = extFileAsPOJO.items[itemPath];
@@ -712,26 +731,36 @@
 				}
 				logger.sverbose('%s -- hic:\n%s', fnName, JSON.stringify(selectedFiltered, null, 4));
 			} else {
-				var selectedFiltered   = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
+				selectedFiltered   = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
 			}
 			var selectedItemsCount = selectedFiltered.countSuccess;
 			var selectedItemsSize  = selectedFiltered.sizeSuccess;
 			busyIndicator.stop();
 
-			// if a collection name is set, we only need to show the selection & filtering results, e.g. Dirty, Missing...
-			if (collectionName) {
-				busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
-				logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
+			// // TODO - RECHECK if this still applies
+			// // if a collection name is set, we only need to show the selection & filtering results, e.g. Dirty, Missing...
+			// if (collectionName) {
+			// 	busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
+			// 	logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
 
-				// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
-				addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
+			// 	// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+			// 	addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
 
-				logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
-				busyIndicator.stop();
-				return;
-			}
+			// 	logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
+			// 	busyIndicator.stop();
+			// 	return;
+			// }
+			// // TODO - RECHECK if this still applies
+
+
+
 			// if some hashes are missing or dirty, show and quit
-			if (selectedFiltered.countSkipped && fnAction !== actions.PUBLIC.fnActionCalculateAndSaveToADS) {
+			if (selectedFiltered.countSkipped
+				&& (
+					fnAction !== actions.PUBLIC.fnCalculateAndSaveToADS &&
+					fnAction !== actions.PUBLIC.fnDeleteADS
+					)
+				) {
 				showMessageDialog(doh.getDialog(cmdData), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.');
 				return;
 			}
@@ -799,43 +828,43 @@
 
 		// SEND SELECTED FILES TO WORKER THREADS
 		{
-			for (var kskey in selectedKnapsacked.unfinishedKS) {
-				if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
-				var ks = selectedKnapsacked.unfinishedKS[kskey];
+			try {
+				for (var kskey in selectedKnapsacked.unfinishedKS) {
+					if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc.
+					var ks = selectedKnapsacked.unfinishedKS[kskey];
 
-				// prepare the variables for this knapsack's worker
-				var torun = sprintf('%s %s THREADID="%s" %s ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, sendViaFilelist && 'VIAFILELIST' || '', fnActionName);
-				// logger.sforce('%s -- torun: %s', fnName, torun);
-				// continue;
+					// prepare the variables for this knapsack's worker
+					var torun = sprintf('%s %s THREADID="%s" %s ACTIONFUNC=%s', util.dopusrt, WORKER_COMMAND, ks.id, sendViaFilelist && 'VIAFILELIST' || '', fnActionName);
 
-				// put all files in this knapsack into a map
+					// put all files in this knapsack into a map
+					var filesMap = doh.dc.Map();
+					var oHashedItems = ks.itemsColl.getSuccessItems();
+					fileloop:for (var hikey in oHashedItems) {
+						if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
+						/** @type {HashedItem} */
+						var oHashedItem = oHashedItems[hikey];
 
-				var filesMap = doh.dc.Map();
-				var oHashedItems = ks.itemsColl.getSuccessItems();
 
-				fileloop:for (var hikey in oHashedItems) {
-					if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
-					/** @type {HashedItem} */
-					var oHashedItem = oHashedItems[hikey];
-
-					// create a new DOpus map for this file
-					var new_file             = doh.dc.Map();	        // @ts-ignore
-					new_file('filename')     = oHashedItem.name;		// @ts-ignore
-					new_file('filepath')     = oHashedItem.fullpath;	// @ts-ignore
-					new_file('filesize')     = oHashedItem.size;		// @ts-ignore
-					new_file('finished')     = false; 					// @ts-ignore // if it timed out or was unfinished for any reason
-					new_file('elapsed')      = 0;						// @ts-ignore
-					new_file('error')        = false;					// @ts-ignore
-					new_file('hash')         = false;					// @ts-ignore
-					new_file('finalized')    = false; 					// @ts-ignore // if the file has been processed completely, can include timed out files
-					new_file('externalAlgo') = oHashedItem.algorithm;	// @ts-ignore // if the file has been processed completely, can include timed out files
-					new_file('externalHash') = oHashedItem.hash;		//  @ts-ignore // if the file has been processed completely, can include timed out files
-					filesMap(oHashedItem.fullpath) = new_file;
+						// create a new DOpus map for this file
+						var new_file             = doh.dc.Map();	        // @ts-ignore
+						new_file('filename')     = oHashedItem.name;		// @ts-ignore
+						new_file('filepath')     = oHashedItem.fullpath;	// @ts-ignore
+						new_file('filesize')     = oHashedItem.size;		// @ts-ignore
+						new_file('finished')     = false; 					// @ts-ignore // if it timed out or was unfinished for any reason
+						new_file('elapsed')      = 0;						// @ts-ignore
+						new_file('error')        = false;					// @ts-ignore
+						new_file('hash')         = false;					// @ts-ignore
+						new_file('finalized')    = false; 					// @ts-ignore // if the file has been processed completely, can include timed out files
+						new_file('externalAlgo') = oHashedItem.algorithm;	// @ts-ignore // if the file has been processed completely, can include timed out files
+						new_file('externalHash') = oHashedItem.hash;		// @ts-ignore // if the file has been processed completely, can include timed out files
+						filesMap(oHashedItem.fullpath) = new_file;
+					}
+					// put this knapsack into thread pool
+					cacheMgr.setThreadPoolVar(ks.id, filesMap);
+					// logger.snormal('%s -- Worker command to run: %s', fnName, torun);
+					doh.cmd.RunCommand(torun);
 				}
-				// put this knapsack into thread pool
-				cacheMgr.setThreadPoolVar(ks.id, filesMap);
-				// logger.snormal('%s -- Worker command to run: %s', fnName, torun);
-				doh.cmd.RunCommand(torun);
+			} catch (error) {
 			}
 		}
 
@@ -843,14 +872,11 @@
 		{
 			logger.sforce('');
 			logger.sforce('');
-			logger.sforce('');
 			logger.sforce('%s -- All workers started', fnName);
 			logger.sforce('');
 			logger.sforce('');
-			logger.sforce('');
 
-			logger.force(stopwatch.startAndPrint(fnName, 'Progress Bar'));
-			var ts = now();
+			logger.normal(stopwatch.startAndPrint(fnName, 'Progress Bar'));
 			var finished_bytes_so_far = 0;
 			unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
 				doh.delay(sleepdur);
@@ -877,7 +903,6 @@
 							// find this item in the knapsack items collection and mark it as finished
 							// this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsacksCollection
 							// and that's how selectedKnapsacked.allFinished() above works!
-							// ks.itemsColl.getByPath(ksItemAttrib('filepath')).markFinished();
 							ks.itemsColl.getByPath(ksItemPath).markFinished();
 
 							logger.sverbose('%s -- %-100s -- AllFinished: %s, KS Finished: %s, KS: %s', fnName, ksItemAttrib('filename'), selectedKnapsacked.allFinished(), ks.isFinished(), kskey);
@@ -895,7 +920,6 @@
 			}
 			logger.sforce('');
 			logger.sforce('');
-			logger.sforce('');
 			logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
 			// if (itercnt >= itermax && !selectedKnapsacked.allFinished()) {
 			if (!selectedKnapsacked.allFinished() && itercnt >= itermax) {
@@ -904,8 +928,7 @@
 			}
 			logger.sforce('');
 			logger.sforce('');
-			logger.sforce('');
-			logger.force(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
+			logger.normal(stopwatch.stopAndPrint(fnName, 'Progress Bar'));
 
 
 		}
@@ -919,7 +942,6 @@
 			// following is only for cosmetical reasons
 			// wait for DOpus to output the last 'Script Completed' lines
 			// otherwise DOpus might show a 'Script Completed' in the middle of our outputs below
-
 			doh.delay(500);
 			// doh.clear();
 		}
@@ -931,15 +953,14 @@
 		// these 2 objects are normally not directly compatible
 		// since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
 		// whereas HashedItemCollection has a flattened structure with simple JavaScript objects
-		var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tp, tsStart, tsFinish)
+		var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tp, tsStart, tsFinish);
 
 
-		// SUCCESS & ERROR COLLECTIONS
+		// ADD SUCCESSES, ERRORS & SKIPPED TO COLLECTIONS if necessary
 		{
-			if (COLLECTION_FOR_SUCCESS || COLLECTION_FOR_ERRORS) {
-				if (COLLECTION_FOR_SUCCESS && oCommandResults.ExtInfo.Valid_Count)  addFilesToCollection(getObjKeys(oCommandResults.items), COLLECTION_FOR_SUCCESS);
-				if (COLLECTION_FOR_ERRORS && oCommandResults.ExtInfo.Invalid_Count) addFilesToCollection(getObjKeys(oCommandResults.error), COLLECTION_FOR_ERRORS);
-			}
+			if (command.collNameSuccess && oCommandResults.ExtInfo.Valid_Count)   addFilesToCollection(getObjKeys(oCommandResults.items), command.collNameSuccess);
+			if (command.collNameErrors  && oCommandResults.ExtInfo.Invalid_Count) addFilesToCollection(getObjKeys(oCommandResults.error), command.collNameErrors);
+			if (command.collNameSkipped && oCommandResults.ExtInfo.Skipped_Count) addFilesToCollection(getObjKeys(oCommandResults.error), command.collNameSkipped);
 		}
 
 
@@ -994,14 +1015,20 @@
 					oSummaries.successSummary.replace(/,\s+/mg, '\n').replace(fnName + ' ', ''),
 					Global.SCRIPT_NAME + ' - Results');
 			} else {
-				playFeedbackSound('Success');
+				if (oSummaries.errorsSummary) {
+					playFeedbackSound('Warn');
+				} else {
+					playFeedbackSound('Success');
+				}
 			}
+
 		}
 
 	}
 	/**
 	 * @param {object} cmdData DOpus command data
 	 * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
+	 * @throws @see {InvalidManagerCommandException}
 	 */
 	function getManagerCommand(cmdData) {
 		var fnName = funcNameExtractor(getManagerCommand);
@@ -1015,48 +1042,68 @@
 		var benchcount= cargs.BENCHMARK_COUNT || 500;                // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
 
 
+		/**
+		 * @typedef SWITCH
+		 * @type {object}
+		 * @property {function} filter
+		 * @property {function} action
+		 * @property {string} collSuccess
+		 * @property {string=} collErrors
+		 * @property {string=} collSkipped
+		 */
+		/**
+		 * @type {Object.<string, SWITCH>}
+		 */
 		var VALID_SWITCHES = {
-			'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateOnly },
-			'HARD_UPDATE_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
-			'SMART_UPDATE_ADS'       : { filter: filters.PUBLIC.fnFilterAcceptMissingOrDirty,      action: actions.PUBLIC.fnActionCalculateAndSaveToADS    },
-			'VERIFY_FROM_ADS'        : { filter: filters.PUBLIC.fnFilterAcceptWithValidHashesOnly, action: actions.PUBLIC.fnActionCalculateAndCompareToADS },
-			'DELETE_ADS'             : { filter: filters.PUBLIC.fnFilterAcceptWithHashes,          action: actions.PUBLIC.fnActionDeleteADS                },
-			'FIND_DIRTY'             : { filter: filters.PUBLIC.fnFilterAcceptDirtyOnly,           action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_DIRTY},
-			'FIND_MISSING'           : { filter: filters.PUBLIC.fnFilterRejectWithHashes,          action: actions.PUBLIC.fnActionNull,                   collectionName: COLLECTION_FOR_MISSING},
-			// 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnFilterRejectAnyFile,             action: actions.PUBLIC.fn_NOT_IMPLEMENTED_YET },
-			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnCompareAgainstHash             },
-			'BENCHMARK'              : { filter: filters.PUBLIC.fnFilterAcceptAnyFile,             action: actions.PUBLIC.fnActionBenchmark                }
+			'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateOnly,            collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
+			'HARD_UPDATE_ADS'        : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
+			'SMART_UPDATE_ADS'       : { filter: filters.PUBLIC.fnAcceptMissingOrDirty, action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
+			'VERIFY_FROM_ADS'        : { filter: filters.PUBLIC.fnAcceptUptodateOnly,   action: actions.PUBLIC.fnCalculateAndCompareToADS, collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
+			'DELETE_ADS'             : { filter: filters.PUBLIC.fnAcceptWithHashes,     action: actions.PUBLIC.fnDeleteADS,                collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
+			'FIND_DIRTY'             : { filter: filters.PUBLIC.fnAcceptDirtyOnly,      action: actions.PUBLIC.fnNull,                     collSuccess: COLL_DIRTY },
+			'FIND_MISSING'           : { filter: filters.PUBLIC.fnRejectWithHashes,     action: actions.PUBLIC.fnNull,                     collSuccess: COLL_MISSING },
+			// 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnRejectAnyFile,        action: actions.PUBLIC.fnNOT_IMPLEMENTED_YET },
+			'VERIFY_FROM'            : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCompareAgainstHash,       collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_VERIFY_MISSING },
+			'BENCHMARK'              : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnBenchmark,                collSuccess: COLL_DUMMY }
 		};
 
 		for (var sw in VALID_SWITCHES) {
 			if (cargs.got_arg[sw]) {
-				var ma = new ManagerCommand(sw, recurse, maxcount, VALID_SWITCHES[sw].filter, VALID_SWITCHES[sw].action, VALID_SWITCHES[sw].collectionName, '');
+				var oSW = VALID_SWITCHES[sw];
+				var ma = new ManagerCommand(sw, recurse, maxcount, oSW.filter, oSW.action, oSW.collSuccess, oSW.collErrors, oSW.collSkipped, '');
 				if (file)       ma.fileName   = file;   // do not add filename unless given
 				if (format)     ma.fileFormat = format; // do not add format unless given
 				if (benchsize)  ma.benchSize  = benchsize;
 				if (benchcount) ma.benchCount = benchcount;
-				logger.snormal('%s -- Selected Action: %s, Using Filter: %s, Action: %s, Collection: %s, Filename: %s, Format: %s', fnName, sw, ma.filterName, ma.actionName, ma.collName, ma.fileName, ma.fileFormat);
+				logger.snormal('%s -- Selected Action: %s, Using Filter: %s, Action: %s, Collection: %s, Filename: %s, Format: %s', fnName, sw, ma.filterName, ma.actionName, ma.collNameSuccess, ma.fileName, ma.fileFormat);
 				return ma;
 			}
 		}
-		abortWithFatalError(sprintf('%s -- No valid command is given', fnName));
+		abortWith(new InvalidManagerCommandException('No valid command is given', fnName));
 	}
 	/**
 	 * @param {string[]} filepathsArray JS array, line item objects must be file paths
 	 * @param {string} collectionName collection name to add to
+	 * @throws @see {InvalidParameterValueException}
 	 */
 	function addFilesToCollection(filepathsArray, collectionName) {
+		var fnName = funcNameExtractor(addFilesToCollection);
+
 		if (!COLLECTIONS_ENABLED) return;
 
-		if (!collectionName) abortWithFatalError('No collection name is supplied, check script');
-		doh.cmd.RunCommand('Delete FORCE QUIET "coll://' + collectionName + '"');
-		doh.cmd.RunCommand('CreateFolder "coll://' + collectionName + '"');
+		if (!collectionName) abortWith(new InvalidParameterValueException('No collection name is supplied, check script', fnName));
+
+		doh.cmd.Clear();
+		doh.cmd.AddLine('Delete FORCE QUIET "coll://' + collectionName + '"');
+		doh.cmd.AddLine('CreateFolder "coll://' + collectionName + '"');
 		doh.cmd.ClearFiles();
 		for (var i = 0; i < filepathsArray.length; i++) {
 			doh.cmd.AddFile(doh.fsu.GetItem(filepathsArray[i]));
 		}
-		doh.cmd.RunCommand('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
-		doh.cmd.RunCommand('Go "coll://' + collectionName + '" NEWTAB=findexisting');
+		doh.cmd.AddLine('Copy COPYTOCOLL=member FILE TO "coll://' + collectionName + '"');
+		doh.cmd.AddLine('Go "coll://' + collectionName + '" NEWTAB=findexisting');
+		doh.cmd.Run();
+		doh.cmd.Clear();
 	}
 	/**
 	 * Runs a single-threaded hashing benchmark for all available algorithms
@@ -1082,9 +1129,6 @@
 		var blob = doh.dc.Blob;
 		blob.CopyFrom(instr);
 		logger.sforce('instr: %s', instr);
-		if (size !== instr.length) {
-			abortWithFatalError('Could not generate requested test sample size');
-		}
 
 		var outstr = '', line = '';
 		function addAndPrint(line) {
@@ -1142,11 +1186,12 @@
 	888P     Y888  "Y88888P"  888   T88b 888    Y88b 8888888888 888   T88b
 */
 {
-
-	function ____WORKER____(){ 0 }
+	function ____WORKER____(){ return; }
 	/**
 	 * called by onDOpusCmdMTHManager - do not call directly
 	 * @param {object} cmdData DOpus command data
+	 * @throws @see {DeveloperStupidityException}
+	 * @throws @see {FileCreateException}
 	 */
 	function onDOpusCmdMTHWorker(cmdData) {
 		var fnName = funcNameExtractor(onDOpusCmdMTHWorker);
@@ -1156,7 +1201,7 @@
 			actionfunc : cmdData.func.args.ACTIONFUNC,
 			viaFilelist: cmdData.func.args.VIAFILELIST
 		}
-		logger.force(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, viafilelist: %b, action: %s', param.threadID, param.viaFilelist, param.actionfunc) ));
+		logger.normal(stopwatch.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, viafilelist: %b, action: %s', param.threadID, param.viaFilelist, param.actionfunc) ));
 
 		// convert function name to function
 		var fnActionFunc = actions.getFunc(param.actionfunc);
@@ -1164,7 +1209,7 @@
 		// check the thread pool
 		var ksMap = cacheMgr.getThreadPoolVar(param.threadID);
 		if(!ksMap) {
-			abortWithFatalError('The thread info was not received with given threadID!\nThis should never have happened!');
+			abortWith(new DeveloperStupidityException('The thread info was not received with given threadID!\nThis should never have happened!', fnName));
 		}
 
 		// variable to query if user has aborted via progress bar or not
@@ -1210,7 +1255,7 @@
 			var tmpFilelist = TEMPDIR + '\\' + param.threadID + '.filelist.txt'; // TODO check 255 char limit
 			var numBytesWritten = FS.saveFile(tmpFilelist, aFilepaths.join('\n'));
 			if (!numBytesWritten) {
-				abortWithFatalError('Cannot create temporary filelist: ' + tmpFilelist);
+				abortWith(new FileCreateException('Cannot create temporary filelist: ' + tmpFilelist, fnName));
 			}
 			logger.sforce('%s -- numBytesWritten: %d', fnName, numBytesWritten);
 
@@ -1282,8 +1327,7 @@
 	888        8888888 88888888   888     8888888888 888   T88b 8888888 888    Y888  "Y8888P88
 */
 {
-
-	function ____FILTERING____(){ 0 }
+	function ____FILTERING____(){ return; }
 	/**
 	 * 	output structure
 	 * 	{
@@ -1291,11 +1335,13 @@
 	 * 		items: array of [ { 'path': string, 'name': string, 'size': number }, ... ]
 	 * 	}
 	 *
+	 * @example applyFilterToSelectedItems(doh.getAllItems(cmdData), true, filters.PUBLIC.fnFilterAcceptWithValidHashesOnly)
+	 *
 	 * @param {object} enumerableItems DOpus enumerable items, e.g. scriptCmdData.func.sourcetab.selected
 	 * @param {boolean} recurse process subdirs
 	 * @param {function} fnItemFilter function to select only certain items
 	 * @returns {HashedItemsCollection} filtered items
-	 * @example applyFilterToSelectedItems(doh.getAllItems(cmdData), true, filters.PUBLIC.fnFilterAcceptWithValidHashesOnly)
+	 * @throws @see {FileReadException}
 	 */
 	function applyFilterToSelectedItems(enumerableItems, recurse, fnItemFilter) {
 		var fnName = funcNameExtractor(applyFilterToSelectedItems);
@@ -1319,7 +1365,9 @@
 				} else if (doh.isDir(selitem) && recurse) {
 					// type: directory
 					var fEnum = doh.fsu.ReadDir(selitem, (recurse && 'r'));
-					if (fEnum.error) abortWithFatalError('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error);
+					if (fEnum.error) {
+						abortWith(new FileReadException('util.fu.ReadDir cannot read dir:\n' + selitem.realpath + '\nError: ' + fEnum.error, fnName));
+					}
 					icnt = 0; // just as a precaution for while loop
 					while (!fEnum.complete && icnt++ < imax) {
 						var subitem = fEnum.next();
@@ -1373,14 +1421,14 @@
 	888    Y88b 888    Y888 d88P     888 888         "Y8888P"  d88P     888  "Y8888P"  888    Y88b 8888888 888    Y888  "Y8888P88
 */
 {
-
-	function ____KNAPSACKING____(){ 0 }
+	function ____KNAPSACKING____(){ return; }
 	/**
 	 * Distributes given items to the requested/available knapsacks
 	 *
 	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
 	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
 	 * @returns {KnapsacksCollection} knapsacked items
+	 * @throws @see {KnapsackingException}
 	 */
 	function knapsackItems(oHashedItemsCollection, numThreads) {
 		var fnName = funcNameExtractor(knapsackItems);
@@ -1416,7 +1464,7 @@
 			// at the very max each knapsack will have this many elements
 			var knapsackMaxElements = Math.ceil(oHashedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
 
-			logger.sforce('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
+			logger.snormal('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
 				fnName,
 				maxNeeded,
 				knapsackMaxElements,
@@ -1455,12 +1503,6 @@
 				if (PROCESS_SMALLEST_FILES_FIRST) return oHI1.size - oHI2.size; // smallest first
 				if (PROCESS_LARGEST_FILES_FIRST)  return oHI2.size - oHI1.size; // largest first
 			});
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-			logger.sforce('');
-
 
 			var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
 			knapsackAllocLoop: for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
@@ -1483,15 +1525,12 @@
 				//
 				var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
 				var ks = ksArray[nextKS];
-				// logger.sforce('%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
 
 				ks.addItem(oHashedItem);
 				ksPointerUnderCapacity++;
 				if (ks.size >= idealKnapsackSize && maxNeeded > 1) {
-					// logger.sforce('%s -- This one [%d] is full now: %d - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size, ks.size-oHashedItem.size, (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size);
-					logger.sforce('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
+					logger.sverbose('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
 					ksNextStartingPoint = nextKS + 1;
-					// logger.sforce('\t%s -- ksPointerOverCapacity: %2d -- ksPointerUnderCapacity: %2d ==> next KS: %d, KS.size: %d', fnName, ksNextStartingPoint, ksPointerUnderCapacity, nextKS, ks.size);
 				}
 				ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
 				if (ksPointerUnderCapacity < ksNextStartingPoint) {
@@ -1550,7 +1589,7 @@
 					ksArray[minimumFilledKnapsackNumber].addItem(oHashedItem);
 				} else {
 					var msg = sprintf('%s -- THIS SHOULD HAVE NEVER HAPPENED - Found no home for file: %s, size: %d', fnName, oHashedItem['path'], oHashedItem['size']);
-					abortWithFatalError(msg);
+					abortWith(new KnapsackingException(msg, fnName));
 				}
 			}
 			logger.normal(stopwatch.stopAndPrint(fnName + ' -- 1st Stage'));
@@ -1615,7 +1654,7 @@
 		var ksColl = new KnapsacksCollection(now().toString());
 		for (var i = 0; i < ksArray.length; i++) {
 			var ks = ksArray[i];
-			logger.sforce('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
+			logger.snormal('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
 			ksColl.addKnapsack(ksArray[i]);
 		}
 		logger.normal(stopwatch.stopAndPrint(fnName + ' -- 3rd Stage'));
@@ -1625,10 +1664,11 @@
 		// SANITY CHECK - NO FILE GETS LEFT BEHIND!
 		{
 			if (ksColl.countTotal !== oHashedItemsCollection.countSuccess || ksColl.sizeTotal !== oHashedItemsCollection.sizeSuccess) {
-			 	abortWithFatalError(
+				abortWith(new KnapsackingException(
 					sprintf('%s -- Some items could not be placed in knapsacks!\nInCount/OutCount: %d/%d\nInSize/OutSize: %d/%d', fnName,
-					oHashedItemsCollection.countSuccess, ksColl.countTotal,
-					oHashedItemsCollection.sizeSuccess, ksColl.sizeTotal));
+						oHashedItemsCollection.countSuccess, ksColl.countTotal,
+						oHashedItemsCollection.sizeSuccess, ksColl.sizeTotal),
+					fnName));
 			}
 		}
 
@@ -1650,6 +1690,7 @@
 	8888888 888       888 888         "Y88888P"  888   T88b    888  d88P        8888888888 d88P   Y88b 888         "Y88888P"  888   T88b    888
 */
 {
+	function ____IMPORT_EXPORT____(){ return; }
 	var fileExchangeHandler = (function (){
 		var myName = 'fileExchangeHandler';
 		// // TODO refactor this!
@@ -1735,6 +1776,8 @@
 		 * @param {string} currentPath current path to use as the base
 		 * @param {string=} algorithm
 		 * @returns {CommandResults}
+		 * @throws @see {InvalidFormatException}
+		 * @throws @see {FileReadException}
 		 */
 		function convertForImportFromClassical(sContents, currentPath, algorithm) {
 			var fnName = myName + '.convertForImportFromClassical';
@@ -1753,7 +1796,7 @@
 				// split line to hash & relpath parts
 				var lineParts = line.match(SHA1_MD5_SPLITTER);
 				if (!lineParts || lineParts.length !== 3) {
-					abortWithFatalError('Given file does not match expected format in line:\n' + dumpObject(line));
+					abortWith(new InvalidFormatException('Given file does not match expected format in line:\n' + dumpObject(line), fnName));
 				}
 				// find out the target full paths from current path & relative paths
 				hash     = lineParts[1];
@@ -1763,7 +1806,7 @@
 
 				var oItem = doh.fsu.GetItem(fullpath);
 				if (!doh.isValidDOItem(oItem)) {
-					abortWithFatalError('Cannot get DOpus Item for: ' + fullpath);
+					abortWith(new FileReadException('Cannot get DOpus Item for: ' + fullpath, fnName));
 				}
 				if (!FS.isValidPath(''+oItem.realpath)) {
 					oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm, false, 'Not found: ' + oItem.realpath)); // skipped
@@ -1778,6 +1821,7 @@
 		 *
 		 * @param {string} sContents file contents
 		 * @returns {CommandResults}
+		 * @throws @see {InvalidFormatException}
 		 */
 		function convertForImportFromJSON(sContents) {
 			var fnName = myName + '.convertForImportFromJSON';
@@ -1786,13 +1830,13 @@
 				var outPOJO = JSON.parse(sContents);
 				logger.snormal('%s -- outPOJO: %s', fnName, JSON.stringify(outPOJO, null, 4));
 			} catch (e) {
-				abortWithFatalError('Given file contents cannot be parsed as valid JSON');
+				abortWith(new InvalidFormatException('Given file contents cannot be parsed as valid JSON', fnName));
 			}
 			if (!outPOJO.Root_Path || !isObject(outPOJO.items)) {
-				abortWithFatalError('Given file contents do not match expected format, must have Root_Path & items');
+				abortWith(new InvalidFormatException('Given file contents do not match expected format, must have Root_Path & items', fnName));
 			}
 			if (!FS.isValidPath(outPOJO.Root_Path)) {
-				abortWithFatalError('Given file contents is valid but Root Path does not exist: ' + outPOJO.Root_Path);
+				abortWith(new InvalidFormatException('Given file contents is parseable but Root Path does not exist: ' + outPOJO.Root_Path, fnName));
 			}
 			return outPOJO;
 		}
@@ -1803,6 +1847,8 @@
 		 * @param {CommandResults} oInternalJSONFormat internal json format
 		 * @param {boolean=} useForwardSlash if / instead of \ should be used in generated output
 		 * @returns {{filename: string, contents: string}}
+		 * @throws @see {InvalidUserParameterException}
+		 * @throws @see {UnsupportedFormatException}
 		 */
 		function prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
 			var fnName = myName + '.prepareForExport';
@@ -1818,7 +1864,7 @@
 					oItem = doh.fsu.GetItem(currentPath + filename);
 				}
 				if (!oItem.path) {
-					abortWithFatalError('Given filepath ' + filename + ' is not valid');
+					abortWith(new InvalidUserParameterException('Given filepath ' + filename + ' is not valid', fnName));
 				}
 				outFilename = ''+oItem.realpath;
 			} else {
@@ -1857,7 +1903,7 @@
 				case ALGORITHMS.JSON.name:
 					outContents = convertForExportToMTHJSON(oInternalJSONFormat); break;
 				default:
-					abortWithFatalError('Given format ' + format + ' is unknown or not yet implemented');
+					abortWith(new UnsupportedFormatException('Given format ' + format + ' is unknown or not yet implemented', fnName));
 			}
 			if (useForwardSlash) outContents = outContents.replace(/\\/mg, '/');
 
@@ -1870,6 +1916,10 @@
 		 * @param {string=} format file format to use one of VALID_FORMATS_AND_EXTS
 		 * @param {string=} filename given filename, or a calculated output file name
 		 * @returns {CommandResults}
+		 * @throws @see {InvalidUserParameterException}
+		 * @throws @see {InvalidFormatException}
+		 * @throws @see {FileReadException}
+		 * @throws @see {UnsupportedFormatException}
 		 */
 		function prepareForImport(cmdData, format, filename) {
 			var fnName = myName + '.prepareForImport';
@@ -1884,7 +1934,7 @@
 				// validate given filename
 				if(!FS.isValidPath(filename)) {
 					if (!FS.isValidPath(currentPath + filename)) {
-						abortWithFatalError('Given filepath ' + filename + ' is not valid');
+						abortWith(new InvalidUserParameterException('Given filepath ' + filename + ' is not valid', fnName));
 					} else {
 						inFilename = currentPath + filename;
 					}
@@ -1918,17 +1968,17 @@
 			// check if given format is valid
 			detectedFormat = detectFormatFromName(inFilename);
 			if (!detectedFormat.isOK()) {
-				abortWithFatalError('Unrecognized format: ' + format); return; // return is needed only for tsc
+				abortWith(new InvalidFormatException('Unrecognized format: ' + format, fnName)); return; // return is needed only for tsc
 			} else if (format.toLowerCase() !== detectedFormat.ok.toLowerCase()) {
-				abortWithFatalError('Given filename & format do not match\nGiven: ' + format + ', Detected: ' + detectedFormat);
+				abortWith(new InvalidFormatException('Given filename & format do not match\nGiven: ' + format + ', Detected: ' + detectedFormat, fnName));
 			}
 			if (detectedFormat.ok.toUpperCase() !== CURRENT_ALGORITHM.toUpperCase()) {
-				abortWithFatalError('Cannot import format ' + format + ',\ncurrent algorithm is ' + CURRENT_ALGORITHM.toUpperCase() + '.');
+				abortWith(new InvalidFormatException('Cannot import format ' + format + ',\ncurrent algorithm is ' + CURRENT_ALGORITHM.toUpperCase() + '.', fnName));
 			}
 			// read file
 			var inContents = FS.readFile(inFilename);
 			if (!inContents) {
-				abortWithFatalError('Cannot read file: ' + inFilename); return; // return is needed only for tsc
+				abortWith(new FileReadException('Cannot read file: ' + inFilename, fnName)); return; // return is needed only for tsc
 			}
 
 			logger.snormal('%s -- Using filename: %s, format: %s', fnName, inFilename, format);
@@ -1945,7 +1995,7 @@
 				case ALGORITHMS.JSON.name:
 					outPOJO = convertForImportFromJSON(inContents); break;
 				default:
-					abortWithFatalError('Given format ' + format + ' is unknown or not yet implemented');
+					abortWith(new UnsupportedFormatException('Given format ' + format + ' is unknown or not yet implemented', fnName));
 			}
 			return outPOJO;
 		}
@@ -1999,7 +2049,7 @@
 						var el = importErrors[i];
 						logger.sforce('%s -- Error: %s', fnName, el);
 					}
-					addFilesToCollection(importErrors, COLLECTION_FOR_IMPORT_ERRORS);
+					addFilesToCollection(importErrors, COLL_IMPORT_ERRORS);
 				}
 			},
 			/**
@@ -2016,10 +2066,9 @@
 				if (!inPOJO) return;
 				// we have a valid POJO in internal format
 				if (inPOJO.ExtInfo.Invalid_Count) {
-					showMessageDialog(null, 'Some files will not be verified, these will be put into collection:\n' + COLLECTION_FOR_VERIFY_ERRORS);
+					showMessageDialog(null, 'Some files will not be verified, these will be put into collection:\n' + COLL_VERIFY_MISSING);
 				}
 				return inPOJO;
-				// abortWithFatalError('NOT IMPL YET - Verify from external file');
 			},
 			/**
 			 * @param {object} cmdData DOpus Command data
@@ -2062,6 +2111,7 @@
 	 * @param {object} cmdData DOpus CommandData
 	 * @param {string} algorithm
 	 * @returns {CommandResults}
+	 * @throws @see {StreamReadWriteException}
 	 */
 	function _getHashesOfAllSelectedFiles(cmdData, algorithm) {
 		var fnName = funcNameExtractor(_getHashesOfAllSelectedFiles);
@@ -2076,7 +2126,7 @@
 		}
 
 		// check if all files have valid hashes
-		var fnFilter = filters.PUBLIC.fnFilterAcceptWithValidHashesOnly, fnFilterName = filters.getName(fnFilter);
+		var fnFilter = filters.PUBLIC.fnAcceptUptodateOnly, fnFilterName = filters.getName(fnFilter);
 		busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s', fnName, fnFilterName));
 		if (EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED && doh.getSelItemsCount(cmdData) === 0) {
 			logger.sinfo('%s -- Nothing selected, using all items', fnName);
@@ -2115,7 +2165,7 @@
 				oDOItem     = doh.fsu.GetItem(oHashedItem.fullpath),
 				oADSData    = ADS.read(oDOItem);
 
-			if (!oADSData) { abortWithFatalError('Cannot read stream data for: ' + oHashedItem.fullpath); return; } // return needed for VSCode/TSC
+			if (!oADSData) { abortWith(new StreamReadWriteException('Cannot read stream data for: ' + oHashedItem.fullpath, fnName)); return; } // return needed for VSCode/TSC
 
 			// remove cache only fields if necessary
 			cacheMgr.removeCacheFields(oADSData);
@@ -2147,9 +2197,8 @@
 	88888888  "Y88888P"   "Y8888P88  "Y8888P88 8888888888 888   T88b
 */
 {
+	function ____LOGGER____(){ return; }
 	// LOGGER object
-
-	function ____LOGGER____(){ 0 }
 	var logger = (function () {
 		/** @enum {number} */
 		var VALID_LEVELS = {
@@ -2165,9 +2214,7 @@
 			_level = typeof level === 'number' && level >= VALID_LEVELS.NONE && level <= VALID_LEVELS.VERBOSE ? level : _level; // if valid use new, if not use old
 		}
 		function _getLevel() {
-			if (typeof _level === 'undefined') {
-				_level = VALID_LEVELS.ERROR;
-			}
+			if (typeof _level === 'undefined') _level = VALID_LEVELS.ERROR;
 			return _level;
 		}
 		function _baseout(level, message) {
@@ -2247,7 +2294,7 @@
 */
 {
 
-	function ____FILE_ACCESS____(){ 0 }
+	function ____FILE_ACCESS____(){ return; }
 	var FS = (function (){
 		var myName = 'FS';
 		/** @enum {number} */
@@ -2272,7 +2319,7 @@
 			 * @see TEXT_ENCODING
 			 */
 			readFile: function (path, format) {
-				var fnName = 'FS.readFile';
+				var fnName = myName + '.readFile';
 
 				var decformat = format === TEXT_ENCODING.utf16 ? 'utf-16' : 'utf-8';
 
@@ -2313,7 +2360,7 @@
 			 * @see TEXT_ENCODING
 			 */
 			saveFile: function (path, contents, format) {
-				var fnName = 'FS.saveFile';
+				var fnName = myName + '.saveFile';
 
 				// if (path.length > 240 && path.indexOf('\\\\?\\') === -1) {
 				// 	path   = '\\\\?\\' + path;
@@ -2348,6 +2395,66 @@
 			 */
 			isValidPath: function (path) {
 				return doh.fsu.Exists(path);
+			},
+			/**
+			 * @example
+			 * var X = FS.fileTail('Y:\\MyFile.txt', 15000, 1000);
+			 * do {
+			 * 	var linesRead = X.read();
+			 * 	if (!linesRead.isOK()) continue;
+			 * 	logger.sforce('lines: %s', linesRead.ok);
+			 * } while(linesRead.isValid());
+			 * // do not use while(Result.isOK()), isValid() allows 0,'',{}... as OK value, whereas isOK() does not
+			 * @param {string} filepath
+			 * @param {number} maxwait in millisecs
+			 * @param {number=} delayBetweenRetries in millisecs, default 10
+			 * @returns {object}
+			 */
+			fileTail: function (filepath, maxwait, delayBetweenRetries) {
+				var fnName  = myName + '.fileTail';
+
+				var swid    = sprintf('%s-%d-%s', fnName, now(), filepath),
+					filePtr = 0;
+				delayBetweenRetries = delayBetweenRetries || 10;
+
+				stopwatch.start(swid);
+				/**
+				 * Unfortunately we have to open and close the file every time
+				 * because the file will most likely grow since we opened it
+				 * but File.Seek() does not allow us to seek beyond the original file size
+				 * and that way we cannot get the tail lines.
+				 * @returns {Result}
+				 */
+				return {
+					read: function() {
+						if (stopwatch.getElapsed(swid) > maxwait) {
+							stopwatch.stop(swid);
+							return new Result(false, false, true); // timed out=skipped
+						}
+						doh.delay(delayBetweenRetries);
+
+						logger.sverbose('%s -- monitoring file: %s', fnName, filepath);
+
+						var fh = doh.fsu.OpenFile(filepath);
+						if (fh.error) return new Result(false, sprintf('%s -- Cannot open file %s, Error: %s', fnName, fh.error), false);
+
+						var filesize = doh.getFileSize(filepath);
+						if (filePtr >= filesize) return new Result('', false, false);
+
+						fh.Seek(filePtr);
+						logger.sforce('%s -- File change detected -- filesize: %d, filePtr: %d', fnName, filesize, filePtr);
+
+						var blob         = doh.dc.Blob,
+							numBytesRead = fh.Read(blob);
+						if (!numBytesRead) return new Result(false, sprintf('%s -- File size change detected but cannot read lines: %d', fnName, numBytesRead), false);
+
+						var newLines = doh.st.Decode(blob, 'utf-8');
+						filePtr = filesize;
+						fh.Close();
+						logger.sforce('%s -- Read %s new bytes', fnName, numBytesRead);
+						return new Result(newLines, false, false);
+					}
+				}
 			}
 		}
 	}());
@@ -2367,20 +2474,28 @@
 */
 {
 
-	function ____ADS_ACCESS____(){ 0 }
+	function ____ADS_ACCESS____(){ return; }
 	var ADS = (function (){
 		var myName = 'ADS';
 
 		var msn = getHashStreamName();
 
+		/**
+		 *
+		 * @param {string} callerName caller function's name
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @throws @see {InvalidUserParameterException}
+		 * @throws @see {InvalidParameterTypeException}
+		 */
 		function validateStreamNameAndItem(callerName, oItem) {
+			var fnName = funcNameExtractor(validateStreamNameAndItem, myName);
 			if (!msn) {
-				abortWithFatalError(sprintf('%s() -- Cannot continue without a stream name: %s', callerName, msn));
+				abortWith(new InvalidUserParameterException(sprintf('%s() -- Cannot continue without a stream name: %s', callerName, msn), fnName));
 			}
 			if (!doh.isValidDOItem(oItem)) {
 				logger.sforce('%s -- HERE: %s', 'validateStreamNameAndItem', oItem.name);
-
-				abortWithFatalError(sprintf('%s() -- Expected DOpus Item, got type: %s, value: %s', callerName, dumpObject(oItem)));
+				var msg = sprintf('%s() -- Expected DOpus Item, got type: %s, value: %s', callerName, oItem.name + dumpObject(oItem));
+				abortWith(new InvalidParameterTypeException(msg, fnName));
 			}
 			return ''+oItem.realpath; // realpath returns a DOpus Path object and it does not work well with Map as an object, we need a simple string
 		}
@@ -2394,164 +2509,189 @@
 			if (typeof algorithm === 'undefined') algorithm = CURRENT_ALGORITHM;
 			return (STREAM_PREFIX + algorithm.toUpperCase());
 		}
+
+		/**
+		 * @typedef FileAttribs
+		 * @type {object}
+		 * @property {boolean} archive
+		 * @property {boolean} readonly
+		 * @property {boolean} system
+		 * @property {boolean} hidden
+		 */
 		/**
 		 * @param {DOpusItem} oItem
-		 * @returns {{readonly: boolean, system: boolean}}
+		 * @returns {FileAttribs|false}
 		 */
 		function getFileAttributes(oItem) {
-			var fnName = 'ADS.checkFileAttributes';
+			var fnName = funcNameExtractor(getFileAttributes, myName);
+
 			// check the file attributes: Read-Only & System
-			var resetAttribReadOnly = false,
-				resetAttribSystem   = false,
-				oFile               = oItem.Open('m');
+			var oFile = oItem.Open('m');
 			if (oItem.fileattr.readonly) {
 				if (IGNORE_READONLY_FLAG) {
 					oFile.SetAttr('-r');
-					resetAttribReadOnly = true;
 				} else {
-					// TODO show warning message or skip
-					logger.sforce('%s -- unignored READONLY file found: %s', fnName, oItem.name);
-					playFeedbackSound('Warn');
+					logger.swarn('%s -- unignored READONLY file found: %s', fnName, oItem.name);
+					return false;
 				}
 			}
 			if (oItem.fileattr.system) {
 				if (IGNORE_SYSTEM_FLAG) {
 					oFile.SetAttr('-s');
-					resetAttribSystem = true;
 				} else {
-					// TODO show warning message or skip
-					logger.sforce('%s -- unignored SYSTEM file found: %s', fnName, oItem.name);
-					playFeedbackSound('Warn');
+					logger.swarn('%s -- unignored SYSTEM file found: %s', fnName, oItem.name);
+					return false;
 				}
 			}
-			return {readonly: resetAttribReadOnly, system: resetAttribSystem};
+			if (oItem.fileattr.hidden) {
+				oFile.SetAttr('-h'); // always ignored and restored
+			}
+			oFile.Close();
+			return {archive: oItem.fileattr.archive, readonly: oItem.fileattr.readonly, system: oItem.fileattr.system, hidden: oItem.fileattr.hidden};
 		}
 		/**
 		 * @param {DOpusItem} oItem
-		 * @param {{readonly: boolean, system: boolean}} oFileAttrib
+		 * @param {FileAttribs} oFileAttrib
 		 */
 		function resetFileAttributes(oItem, oFileAttrib) {
 			var oFile = oItem.Open('m');
-			oFileAttrib.readonly && oFile.SetAttr('+r');
-			oFileAttrib.system   && oFile.SetAttr('+s');
+			oFile.SetAttr(oFileAttrib.archive  ? '+a' : '-a');
+			oFile.SetAttr(oFileAttrib.readonly ? '+r' : '-r');
+			oFile.SetAttr(oFileAttrib.system   ? '+s' : '-s');
+			oFile.SetAttr(oFileAttrib.hidden   ? '+h' : '-h');
+		}
+
+		/**
+		 * checks if given item has a hash stream
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @returns {boolean} true if file has a hash stream
+		 * @see getHashStreamName()
+		 */
+		function hasHashStream(oItem) {
+			var fnName = myName + '.hasHashStream';
+			validateStreamNameAndItem(fnName, oItem);
+			if (!doh.isFile(oItem)) return false;
+			return FS.isValidPath(oItem.realpath + ':' + msn);
+		}
+
+		/**
+		 * returns the stored ADS data as POJO
+		 * uses cache if enabled and possible
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @returns {CachedItem|false} CachedItem on success, false on error
+		 * @see FS.readFile()
+		 */
+		function read(oItem) {
+			var fnName = funcNameExtractor(read, myName);
+
+			// initCacheIfNecessary();
+			var rp    = validateStreamNameAndItem(fnName, oItem),
+				cache = cacheMgr.getCacheAutoInit(),
+				res;
+
+			// check if cache is enabled and item is in cache
+			if (CACHE_ENABLED && cache.exists(rp)) {
+				logger.sverbose('%s found in cache', oItem.name);
+				res = cache(rp);
+			} else {
+				logger.sverbose('%s -- reading from disk: %s', fnName, oItem.name);
+				res = FS.readFile(rp + ':' + msn, FS.TEXT_ENCODING.utf8); // always string or false ion error
+				if (!res || typeof res !== 'string') return false;
+				if (CACHE_ENABLED && !cache.exists(rp)) {
+					logger.sverbose('%s -- adding missing %s to cache', fnName, oItem.name);
+					res = cacheMgr.enrichWithCacheFields(res);
+					cacheMgr.setCacheVar(rp, res);
+				}
+			}
+			// convert to custom object
+			var _tmp = JSON.parse(res);
+			return new CachedItem(oItem, _tmp.last_modify, _tmp.last_size, _tmp.hash, _tmp.algorithm);
+		}
+
+		/**
+		 * saves given POJO as ADS data, calls SaveFile()
+		 * populates/updates cache if enabled
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @param {CachedItem} oCachedItem
+		 * @returns {number|false} number of bytes written on success, false on error
+		 * @see FS.saveFile()
+		 * @throws @see {FileSaveException}
+		 */
+		function save(oItem, oCachedItem) {
+			var fnName = funcNameExtractor(save, myName);
+
+			var filePath    = validateStreamNameAndItem(fnName, oItem),
+				targetPath  = filePath + ':' + msn,
+				origModDate = DateToDOpusFormat(oItem.modify);
+			logger.sinfo('%s -- Saving %s to %s, with original modification date: %s', fnName, JSON.stringify(oCachedItem), targetPath, origModDate);
+
+			// check if cache is enabled, add/update unconditionally
+			if (CACHE_ENABLED) {
+				cacheMgr.setCacheVar(filePath, cacheMgr.enrichWithCacheFields(oCachedItem));
+				logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCount());
+			}
+
+			// check the file attributes: Read-Only & System
+			var oFileAttrib = getFileAttributes(oItem);
+			if (!oFileAttrib) return false; // readonly and/or system attribute is set but is not ignored, cannot continue
+
+
+			if (filePath.length > 240 ) {
+				filePath   = '\\\\?\\' + filePath;
+				targetPath = '\\\\?\\' + targetPath;
+			}
+
+			var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
+			if (!numBytesWritten) abortWith(new FileSaveException('Cannot save to ' + targetPath + ', # bytes written: ' + numBytesWritten, fnName));
+
+			// reset the file date & attributes
+			doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '"');
+			resetFileAttributes(oItem, oFileAttrib);
+
+			return numBytesWritten;
+		}
+
+		/**
+		 * deletes ADS data, directly deletes "file:stream"
+		 * removes item from cache if enabled
+		 * @param {DOpusItem} oItem DOpus Item object
+		 * @returns {boolean}
+		 */
+		function remove(oItem) {
+			var fnName = funcNameExtractor(remove, myName);
+
+			var filePath    = validateStreamNameAndItem(fnName, oItem),
+				targetPath  = filePath + ':' + msn,
+				origModDate = DateToDOpusFormat(oItem.modify);
+			logger.sinfo('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
+
+			// check the file attributes: Read-Only & System
+			var oFileAttrib = getFileAttributes(oItem);
+			if (!oFileAttrib) return false; // readonly and/or system attribute is set but is not ignored, cannot continue
+
+			if (CACHE_ENABLED) {
+				cacheMgr.deleteCacheVar(filePath);
+			}
+
+			if (filePath.length > 240 ) {
+				filePath   = '\\\\?\\' + filePath;
+				targetPath = '\\\\?\\' + targetPath;
+			}
+			doh.cmd.RunCommand('Delete /quiet /norecycle "' + targetPath + '"');
+
+			// reset the file attributes if necessary: Read-Only & System
+			doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '"');
+			resetFileAttributes(oItem, oFileAttrib);
+
+			return true;
 		}
 
 		return {
 			name: myName,
-			/**
-			 * checks if given item has a hash stream
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {boolean} true if file has a hash stream
-			 * @see getHashStreamName()
-			 */
-			hasHashStream: function (oItem) {
-				var fnName = 'ADS.hasHashStream';
-				validateStreamNameAndItem(fnName, oItem);
-				if (!doh.isFile(oItem)) return false;
-				return FS.isValidPath(oItem.realpath + ':' + msn);
-			},
-			/**
-			 * returns the stored ADS data as POJO
-			 * uses cache if enabled and possible
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns {CachedItem|false} CachedItem on success, false on error
-			 * @see FS.readFile()
-			 */
-			read: function (oItem) {
-				var fnName = 'ADS.read';
-
-				// initCacheIfNecessary();
-				var rp    = validateStreamNameAndItem(fnName, oItem),
-					cache = cacheMgr.getCacheAutoInit(),
-					res;
-
-				// check if cache is enabled and item is in cache
-				if (CACHE_ENABLED && cache.exists(rp)) {
-					logger.sverbose('%s found in cache', oItem.name);
-					res = cache(rp);
-				} else {
-					logger.sverbose('%s -- reading from disk: %s', fnName, oItem.name);
-					res = FS.readFile(rp + ':' + msn, FS.TEXT_ENCODING.utf8); // always string or false ion error
-					if (!res || typeof res !== 'string') return false;
-					if (CACHE_ENABLED && !cache.exists(rp)) {
-						logger.sverbose('%s -- adding missing %s to cache', fnName, oItem.name);
-						res = cacheMgr.enrichWithCacheFields(res);
-						cacheMgr.setCacheVar(rp, res);
-					}
-				}
-				// convert to custom object
-				var _tmp = JSON.parse(res);
-				return new CachedItem(oItem, _tmp.last_modify, _tmp.last_size, _tmp.hash, _tmp.algorithm);
-			},
-			/**
-			 * saves given POJO as ADS data, calls SaveFile()
-			 * populates/updates cache if enabled
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @param {CachedItem} oCachedItem
-			 * @returns {number|false} number of bytes written on success, false on error
-			 * @see FS.saveFile()
-			 */
-			save: function (oItem, oCachedItem) {
-				var fnName = 'ADS.save';
-
-				var filePath    = validateStreamNameAndItem(fnName, oItem),
-					targetPath  = filePath + ':' + msn,
-					origModDate = DateToDOpusFormat(oItem.modify);
-				logger.sinfo('%s -- Saving %s to %s, with original modification date: %s', fnName, JSON.stringify(oCachedItem), targetPath, origModDate);
-
-				// check if cache is enabled, add/update unconditionally
-				if (CACHE_ENABLED) {
-					cacheMgr.setCacheVar(filePath, cacheMgr.enrichWithCacheFields(oCachedItem));
-					logger.sverbose('%s - Cache count: %d', fnName, cacheMgr.getCount());
-				}
-
-				// check the file attributes: Read-Only & System
-				var oFileAttrib = getFileAttributes(oItem);
-
-				if (filePath.length > 240 ) {
-					filePath   = '\\\\?\\' + filePath;
-					targetPath = '\\\\?\\' + targetPath;
-				}
-
-				var numBytesWritten = FS.saveFile(targetPath, JSON.stringify(oCachedItem), FS.TEXT_ENCODING.utf8);
-				if (!numBytesWritten) abortWithFatalError('Cannot save to ' + targetPath + ', # bytes written: ' + numBytesWritten);
-
-				logger.sverbose('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
-				doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
-
-				// reset the file attributes if necessary: Read-Only & System
-				resetFileAttributes(oItem, oFileAttrib);
-
-				return numBytesWritten;
-			},
-			/**
-			 * deletes ADS data, directly deletes "file:stream"
-			 * removes item from cache if enabled
-			 * @param {DOpusItem} oItem DOpus Item object
-			 * @returns nothing
-			 */
-			remove: function (oItem) {
-				var fnName = 'ADS.delete';
-
-				var filePath    = validateStreamNameAndItem(fnName, oItem),
-					targetPath  = filePath + ':' + msn,
-					origModDate = DateToDOpusFormat(oItem.modify);
-				logger.sinfo('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
-
-				if (CACHE_ENABLED) {
-					cacheMgr.deleteCacheVar(filePath);
-				}
-
-				if (filePath.length > 240 ) {
-					filePath   = '\\\\?\\' + filePath;
-					targetPath = '\\\\?\\' + targetPath;
-				}
-				logger.sverbose('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
-				doh.cmd.RunCommand('Delete /quiet /norecycle "' + targetPath + '"');
-				doh.cmd.RunCommand('SetAttr FILE="' + filePath + '" META "lastmodifieddate:' + origModDate + '"');
-
-
-			}
+			hasHashStream: hasHashStream,
+			read: read,
+			save: save,
+			remove: remove
 		}
 	}());
 }
@@ -2569,128 +2709,144 @@
 	 "Y8888P"  d88P     888  "Y8888P"  888    888 8888888888      "Y8888P" Y88b        888     888    888 888   T88b 8888888888 d88P     888 8888888P"      888       888  "Y8888P88 888   T88b
 */
 {
+	function ____CACHE_AND_THREAD____(){ return; }
 	var cacheMgr = (function(){
 		var myName = 'cacheMgr';
 
-		return {
-			/**
-			 * initializes cache if necessary and returns it
-			 * @returns {object|false} cache object on success, false on error or if cache is disabled
-			 */
-			getCacheAutoInit: function() {
-				var fnName = 'ADS.initCacheIfNecessary';
-				if (!CACHE_ENABLED) {
-					logger.sverbose('%s -- Cache not enabled: %b', fnName, CACHE_ENABLED);
-					return false;
-				}
-				var cache = this.getCache();
-				if (cache) {
-					logger.sverbose('%s -- Cache already initialized - Current count: %d', fnName, cache.count);
-					return cache;
-				} else {
-					this.clearCache();
-					if (this.getCache().count !== 0) {
-						abortWithFatalError('This should have not happened');
-					}
-					return this.getCache();
-				}
-			},
-			/**
-			 * clears cache
-			 */
-			clearCache: function() {
-				var fnName = 'cache.clearCache()';
-				doh.sv.Set('cache', doh.dc.Map());
-				logger.sforce('%s -- Cache cleared', fnName);
-			},
-			/**
-			 * @returns {number} number of items in the cache
-			 */
-			getCount: function() {
-				return doh.sv.Get('cache').count;
-			},
-			/**
-			 * returns cache map
-			 * @returns {object|false} cache object on success, false on error
-			 */
-			getCache: function() {
-				return doh.sv.Exists('cache') ? doh.sv.Get('cache') : false;
-			},
-			/**
-			 * sets the value for the given map key
-			 * @param {any} key
-			 * @param {any} val
-			 */
-			getCacheVar: function(key) {
-				// @ts-ignore
-				return doh.sv.Get('cache')(key);
-			},
-			/**
-			 * sets the value for the given map key
-			 * @param {any} key
-			 * @param {any} val
-			 */
-			setCacheVar: function(key, val) {
-				// @ts-ignore
-				doh.sv.Get('cache')(key) = val;
-			},
-			/**
-			 * deletes the key and its value
-			 * @param {any} key
-			 */
-			deleteCacheVar: function(key) {
-				// doh.sv.Get('cache') && doh.sv.Get('cache').exists(key) && doh.sv.Get('cache').erase(key);
-				doh.sv.Get('cache') && doh.sv.Get('cache').erase(key);
-			},
-			/**
-			 * returns the special thread pool map
-			 * @returns {object|false}
-			 */
-			getThreadPoolAutoInit: function() {
-				doh.sv.Set('TP', doh.dc.Map());
-				return doh.sv.Get('TP');
-			},
-			/**
-			 * returns a value from the special thread pool map
-			 * @param {any} threadID
-			 * @returns {object|false} object in thread pool on success, false on error
-			 */
-			getThreadPoolVar: function(threadID) {
-				// return doh.sv.Exists('TP') && doh.sv.Exists('TP')(threadID) ? doh.sv.Get('TP')(threadID) : false;
-				return doh.sv.Exists('TP') ? doh.sv.Get('TP')(threadID) : false;
-			},
-			/**
-			 * sets the value in the special thread pool map
-			 * @param {any} threadID
-			 * @param {any} val
-			 */
-			setThreadPoolVar: function(threadID, val) {
-				// @ts-ignore
-				doh.sv.Get('TP')(threadID) = val;
-			},
-			/**
-			 * adds cache-only fields which are not in and will not be stored in streams
-			 * @param {object|string} oPOJO object to enrich with cache-only fields
-			 * @returns {string} enriched POJO with the fields added_to_cacheXXX as JSOnified string
-			 */
-			enrichWithCacheFields: function(oPOJO) {
-				// add cache only parameters for tooltips, etc.
-				var res = oPOJO;
-				if (typeof oPOJO === 'string') {
-					res = JSON.parse(res);
-				}
-				res.added_to_cache          = new Date().getTime();
-				res.added_to_cache_friendly = res.added_to_cache.formatAsDateTimeCompact();
-				return JSON.stringify(res);
-			},
-			/**
-			 * removes cache-only fields
-			 * @param {object} oPOJO
-			 */
-			removeCacheFields: function(oPOJO) {
-				delete oPOJO.added_to_cache;
-				delete oPOJO.added_to_cache_friendly;
+		/**
+		 * initializes cache if necessary and returns it
+		 * @returns {object|false} cache object on success, false on error or if cache is disabled
+		 * @throws @see {CacheReadWriteException}
+		 */
+		function getCacheAutoInit() {
+			var fnName = funcNameExtractor(getCacheAutoInit, myName);
+			if (!CACHE_ENABLED) {
+				logger.sverbose('%s -- Cache not enabled: %b', fnName, CACHE_ENABLED);
+				return false;
 			}
+			var cache = this.getCache();
+			if (cache) {
+				logger.sverbose('%s -- Cache already initialized - Current count: %d', fnName, cache.count);
+				return cache;
+			} else {
+				this.clearCache();
+				if (this.getCache().count !== 0) {
+					abortWith(new CacheReadWriteException('This should have not happened', fnName));
+				}
+				return this.getCache();
+			}
+		}
+		/**
+		 * clears cache
+		 */
+		function clearCache() {
+			var fnName = funcNameExtractor(clearCache, myName);
+			// @ts-ignore
+			doh.sv.Set('cache', doh.dc.Map());
+			logger.sforce('%s -- Cache cleared', fnName);
+		}
+		/**
+		 * @returns {number} number of items in the cache
+		 */
+		function getCount() {
+			return doh.sv.Get('cache').count;
+		}
+		/**
+		 * returns cache map
+		 * @returns {object|false} cache object on success, false on error
+		 */
+		function getCache() {
+			return doh.sv.Exists('cache') ? doh.sv.Get('cache') : false;
+		}
+		/**
+		 * gets the value for the given map key
+		 * @param {any} key
+		 */
+		function getCacheVar(key) {
+			// @ts-ignore
+			return doh.sv.Get('cache')(key);
+		}
+		/**
+		 * sets the value for the given map key
+		 * @param {any} key
+		 * @param {any} val
+		 */
+		function setCacheVar(key, val) {
+			// @ts-ignore
+			doh.sv.Get('cache')(key) = val;
+		}
+		/**
+		 * deletes the key and its value
+		 * @param {any} key
+		 */
+		function deleteCacheVar(key) {
+			// doh.sv.Get('cache') && doh.sv.Get('cache').exists(key) && doh.sv.Get('cache').erase(key);
+			doh.sv.Get('cache') && doh.sv.Get('cache').erase(key);
+		}
+		/**
+		 * returns the special thread pool map
+		 * @returns {object|false}
+		 */
+		function getThreadPoolAutoInit() {
+			doh.sv.Set('TP', doh.dc.Map());
+			return doh.sv.Get('TP');
+		}
+		/**
+		 * returns a value from the special thread pool map
+		 * @param {any} threadID
+		 * @returns {object|false} object in thread pool on success, false on error
+		 */
+		function getThreadPoolVar(threadID) {
+			// return doh.sv.Exists('TP') && doh.sv.Exists('TP')(threadID) ? doh.sv.Get('TP')(threadID) : false;
+			return doh.sv.Exists('TP') ? doh.sv.Get('TP')(threadID) : false;
+		}
+		/**
+		 * sets the value in the special thread pool map
+		 * @param {any} threadID
+		 * @param {any} val
+		 */
+		function setThreadPoolVar(threadID, val) {
+			// @ts-ignore
+			doh.sv.Get('TP')(threadID) = val;
+		}
+		/**
+		 * adds cache-only fields which are not in and will not be stored in streams
+		 * @param {object|string} oPOJO object to enrich with cache-only fields
+		 * @returns {string} enriched POJO with the fields added_to_cacheXXX as JSOnified string
+		 */
+		function enrichWithCacheFields(oPOJO) {
+			// add cache only parameters for tooltips, etc.
+			var res = oPOJO;
+			if (typeof oPOJO === 'string') {
+				res = JSON.parse(res);
+			}
+			res.added_to_cache          = new Date().getTime();
+			res.added_to_cache_friendly = res.added_to_cache.formatAsDateTimeCompact();
+			return JSON.stringify(res);
+		}
+		/**
+		 * removes cache-only fields
+		 * @param {object} oPOJO
+		 */
+		function removeCacheFields(oPOJO) {
+			delete oPOJO.added_to_cache;
+			delete oPOJO.added_to_cache_friendly;
+		}
+
+
+		return {
+			getCacheAutoInit      : getCacheAutoInit,
+			clearCache            : clearCache,
+			getCount              : getCount,
+			getCache              : getCache,
+			getCacheVar           : getCacheVar,
+			setCacheVar           : setCacheVar,
+			deleteCacheVar        : deleteCacheVar,
+			getThreadPoolAutoInit : getThreadPoolAutoInit,
+			getThreadPoolVar      : getThreadPoolVar,
+			setThreadPoolVar      : setThreadPoolVar,
+			enrichWithCacheFields : enrichWithCacheFields,
+			removeCacheFields     : removeCacheFields
 		}
 	}());
 }
@@ -2708,6 +2864,7 @@
 	888    888 d88P     888  "Y8888P"  888    888 8888888888 888   T88b  "Y8888P"
 */
 {
+	function ____HASHERS____(){ return; }
 	/**
 	 * hash algorithm proxy
 	 * to redirect the request to DOpus or external program
@@ -2717,8 +2874,12 @@
 	 * @param {function=} fnCallback callback to thread worker
 	 * @returns {Result} result object
 	 * @see CURRENT_ALGORITHM
+	 * @throws @see {InvalidUserParameterException}
+	 * @throws @see {NotImplementedYetException}
 	 */
 	function calculateHashProxy(oItem, algo, itemIsFilelist, fnCallback) {
+		var fnName = funcNameExtractor(calculateHashProxy);
+		var msg;
 		algo = algo || CURRENT_ALGORITHM;
 		switch(algo.toUpperCase()) {
 			case 'BLAKE3':
@@ -2731,9 +2892,11 @@
 				return calculateFileHashWithDOpus(oItem, algo);
 			case 'SHA256':
 			case 'SHA512':
-				abortWithFatalError('DO NOT USE!\n\nCurrent DOpus version as of 20210120 has a bug\nwith hashing files >=512 MB using SHA256 or SHA512.\nSee: https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6');
+				msg = 'DO NOT USE!\n\nCurrent DOpus version as of 20210120 has a bug\nwith hashing files >=512 MB using SHA256 or SHA512.\nSee: https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6';
+				abortWith(new InvalidUserParameterException(msg, fnName));
 			default:
-				abortWithFatalError('Given algorithm is not (yet) implemented, but you can easily use an external app if you want.');
+				msg = 'Given algorithm is not (yet) implemented, but you can easily use an external app if you want.';
+				abortWith(new NotImplementedYetException(msg, fnName));
 		}
 	}
 	/**
@@ -2758,43 +2921,6 @@
 		return outObj;
 	}
 
-	// /**
-	//  * internal method to calculate hash with given algorithm
-	//  * @param {DOpusItem} oItem DOpus Item
-	//  * @returns {Result} result object
-	//  * @see CURRENT_ALGORITHM
-	//  */
-	// function calculateFileHashWithExtBlake(oItem) {
-	// 	var fnName = funcNameExtractor(calculateFileHashWithExtBlake);
-
-	// 	var tempOutFile = util.shell.ExpandEnvironmentStrings(TEMPDIR) + '\\' + Global.SCRIPT_NAME_SHORT + '-' + oItem.name + '-' + now() + '.tmp.txt';
-	// 	var blake3Path  = util.shell.ExpandEnvironmentStrings(VALID_FORMATS_AND_EXTS.BLAKE3[2]);
-	// 	// var cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
-	// 	// var cmd = 'cmd.exe /c Y:\\b3sum.exe --no-names "' + oItem.realpath + '" > "' + tempOutFile + '"';
-	// 	// var cmd = sprintf('cmd.exe /c "%s" --no-names "%s" > "%s"',  blake3Path, oItem.realpath, tempOutFile);
-	// 	var cmd = sprintf('cmd.exe /s /c ""%s" "%s" > "%s""',  blake3Path, oItem.realpath, tempOutFile);
-	// 	logger.sforce('%s -- Running: %s', fnName, cmd);
-	// 	// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-	// 	util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-	// 	if (!FS.isValidPath(tempOutFile)) {
-	// 		logger.error('Temp file has not been created properly: ' + tempOutFile);
-	// 		return new Result(false, 'Temp file has not been created properly: ' + tempOutFile);
-	// 	}
-	// 	var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
-	// 	doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
-	// 	if (!sContents) {
-	// 		logger.error('Could not get the hash results from temp file: ' + tempOutFile);
-	// 		return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
-	// 	} else {
-	// 		logger.sforce('%s -- sContents: %s', fnName, sContents);
-	// 		// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
-	// 		var hash = sContents.trim().replace(/^(\w+)\s.+$/, '$1');
-	// 		logger.sforce('%s -- Blake3 Hash for %s: %s', fnName, oItem.name, hash);
-	// 		return new Result(hash);
-	// 	}
-	// }
-
-
 	/**
 	 * internal method to calculate hash with given algorithm
 	 * @param {DOpusItem} oItem DOpus Item
@@ -2802,6 +2928,8 @@
 	 * @param {function=} fnCallback callback to thread worker
 	 * @returns {Result} result object
 	 * @see CURRENT_ALGORITHM
+	 * @throws @see {FileReadException}
+	 * @throws @see {InvalidFormatException}
 	 */
 	function calculateFileHashWithExtBlake(oItem, itemIsFilelist, fnCallback) {
 		var fnName = funcNameExtractor(calculateFileHashWithExtBlake);
@@ -2815,7 +2943,7 @@
 		if (!passEachResultImmediatelyViaDOpusRT) {
 			// read the files in the given filelist
 			var filelist = FS.readFile(''+oItem.realpath);
-			if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
+			if (!filelist) { abortWith(new FileReadException('Cannot read given filelist: ' + oItem.realpath, fnName)); return; } // return needed for VSCode/TSC
 			var aFilenames = filelist.split('\n');
 
 			// create a new temp file in the same directory
@@ -2856,14 +2984,14 @@
 			logger.sforce('%s -- All finished - elapsed: %d', fnName, elapsed);
 
 			var resultsFileContents = FS.readFile(tempOutputFile);
-			if (!resultsFileContents) { abortWithFatalError('Cannot read results file: ' + tempOutputFile); return; } // return needed for VSCode/TSC
+			if (!resultsFileContents) { abortWith(new FileReadException('Cannot read results file: ' + tempOutputFile, fnName)); return; } // return needed for VSCode/TSC
 			var aResults = resultsFileContents.split('\n');
 			for (var i = 0; i < aResults.length; i++) {
 				var resultLine = aResults[i];
 				if (resultLine.length === 0) break;
 				var lineParts = resultLine.match(resultsFileParser);
 				if (!lineParts || lineParts.length !== 3) {
-					abortWithFatalError('Cannot parse result file: ' + resultLine + ', ' + resultLine.length);
+					abortWith(new InvalidFormatException('Cannot parse result file: ' + resultLine + ', ' + resultLine.length, fnName));
 				}
 				var hashValue = lineParts[1];
 				var filepath  = lineParts[2].replace(/\//g, '\\'); // Blake3 uses forward slashes in path name
@@ -2900,7 +3028,7 @@
 
 			// read the files in the given filelist
 			var filelist = FS.readFile(''+oItem.realpath);
-			if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
+			if (!filelist) { abortWith(new FileReadException('Cannot read given filelist: ' + oItem.realpath, fnName)); return; } // return needed for VSCode/TSC
 			var aFilenames = filelist.split('\n');
 
 
@@ -2948,71 +3076,6 @@
 			}
 		}
 
-
-		return;
-		doh.delay(1);
-		// var hashValue = cacheMgr.getCacheVar(callbackVar);
-		while(!doh.sv.Exists(callbackVar)) {};
-		var hashValue = doh.sv.Get(callbackVar);
-
-		return;
-
-
-
-
-
-		/*
-			this is how passing the output to DOpus works
-			for /f "usebackq delims==" ^%z in (`call THIS_IS_YOUR_COMMAND_INCL_ANY_NUMBER_OF_QUOTES_AS_YOU_NEED`) do set __TMP_VAR=^"%z^"& THIS_IS_YOUR_PROGRAM_TO_WHICH_YOU_WANT_TO_PASS_THE_VALUE ^%__TMP_VAR%
-
-		*/
-		// e.g. "C:\Tool\Util\hashers\b3sum.exe" "Y:\20210202-101500.blake3"
-		// returns the hashsum
-		// e.g. 8f6dc03ae5c6bdd17c6829cad5bfcd6d9e8ea4d3e74ecdad8c2dbb419add67ec
-		var blake3Cmd   = sprintf('"%s" --no-names "%s"', blake3Path, oItem.realpath);
-		// e.g. dopusrt /acmd MTHSetVariable VARKEY="X:\My File.zip"
-		var callbackVar = 'BLAKE3:' + oItem.realpath;
-		var callbackCmd = sprintf('%s %s VARKEY="%s"', util.dopusrt, WORKER_SETVAR_COMMAND, callbackVar);
-
-		// var torun = sprintf('for /f "usebackq delims==" ^%i in (`call %s`) do set __TMP_VAR=^"%i^"& %s ^%__TMP_VAR%', util.dopusrt, WORKER_SETVAR_COMMAND, ksItemAttrib('filename'), newHashResult.ok);
-		// it is very important that we do not use a %X variable in 'for /f' command which is also recognized by sprintf
-		// that's why we will use %z
-		// var torun = sprintf('cmd.exe /s /k "for /f "usebackq delims=" ^%z in (`call %s`) do set __TMP_VAR="%z" && %s VARVAL=%__TMP_VAR%"', blake3Cmd, callbackCmd);
-		var torun = sprintf('cmd.exe /s /c "for /f "usebackq delims=" ^%z in (`call %s`) do %s VARVAL="%z""', blake3Cmd, callbackCmd);
-
-		logger.sforce('%s ------------------------------------------------------', fnName);
-		logger.sforce('%s -- %s', fnName, torun);
-		logger.sforce('%s ------------------------------------------------------', fnName);
-		// doh.cmd.RunCommand(torun);
-		util.shell.Run(torun, 0, true); // 0: hidden, true: wait
-		doh.delay(1);
-		// var hashValue = cacheMgr.getCacheVar(callbackVar);
-		while(!doh.sv.Exists(callbackVar)) {};
-		var hashValue = doh.sv.Get(callbackVar);
-		// logger.sforce('%s -- hashValue: %s', fnName, hashValue);
-
-
-		return new Result(hashValue);
-
-		// var cmd = sprintf('cmd.exe /s /c ""%s" "%s" > "%s""',  blake3Path, oItem.realpath, tempOutFile);
-		// logger.sforce('%s -- Running: %s', fnName, cmd);
-		// util.shell.Run(cmd, 0, true); // 0: hidden, true: wait
-		// if (!FS.isValidPath(tempOutFile)) {
-		// 	logger.error('Temp file has not been created properly: ' + tempOutFile);
-		// 	return new Result(false, 'Temp file has not been created properly: ' + tempOutFile);
-		// }
-		// var sContents = FS.readFile(tempOutFile, FS.TEXT_ENCODING.utf8);
-		// doh.cmd.RunCommand('Delete /quiet /norecycle "' + tempOutFile + '"');
-		// if (!sContents) {
-		// 	logger.error('Could not get the hash results from temp file: ' + tempOutFile);
-		// 	return new Result(false, 'Could not get the hash results from temp file: ' + tempOutFile);
-		// } else {
-		// 	logger.sforce('%s -- sContents: %s', fnName, sContents);
-		// 	// sContents = sContents.trim().replace(/^(\S+)\s.+$/, '$1');
-		// 	var hash = sContents.trim().replace(/^(\w+)\s.+$/, '$1');
-		// 	logger.sforce('%s -- Blake3 Hash for %s: %s', fnName, oItem.name, hash);
-		// 	return new Result(hash);
-		// }
 	}
 }
 
@@ -3029,20 +3092,18 @@
 	888        8888888 88888888   888     8888888888 888   T88b  "Y8888P"
 */
 {
-
-	function ____FILTERS____(){ 0 }
+	function ____FILTERS____(){ return; }
 	// valid filters for workers
 	var filters = (function (){
 		var myName = 'filters';
 		var PUBLIC = {
-
-			fnFilterAcceptAnyFile: function (oItem) {
+			fnAcceptAnyFile: function (oItem) {
 				return true;
 			},
-			fnFilterRejectAnyFile: function (oItem) {
+			fnRejectAnyFile: function (oItem) {
 				return false;
 			},
-			fnFilterAcceptDirtyOnly: function (oItem, oADSData) {
+			fnAcceptDirtyOnly: function (oItem, oADSData) {
 				var res = false;
 				if (typeof oADSData === 'undefined') {
 					if(!ADS.hasHashStream(oItem)) {
@@ -3058,31 +3119,36 @@
 				res = differentModifDate || differentSize;
 				return res;
 			},
-			fnFilterAcceptWithValidHashesOnly: function (oItem, oADSData) {
-				return PUBLIC.fnFilterAcceptWithHashes(oItem) && !(PUBLIC.fnFilterAcceptDirtyOnly(oItem, oADSData)); // note how we must reverse the value
+			fnAcceptUptodateOnly: function (oItem, oADSData) {
+				return PUBLIC.fnAcceptWithHashes(oItem) && !(PUBLIC.fnAcceptDirtyOnly(oItem, oADSData)); // note how we must reverse the value
 			},
-			fnFilterAcceptWithHashes: function (oItem) {
+			fnAcceptWithHashes: function (oItem) {
 				return ADS.hasHashStream(oItem);
 			},
-			fnFilterRejectWithHashes: function (oItem) {
-				return !(PUBLIC.fnFilterAcceptWithHashes(oItem)); // note how we must reverse the value
+			fnRejectWithHashes: function (oItem) {
+				return !(PUBLIC.fnAcceptWithHashes(oItem)); // note how we must reverse the value
 			},
-			fnFilterAcceptMissingOrDirty: function (oItem) {
+			fnAcceptMissingOrDirty: function (oItem) {
 				// put missing first, because it will be often faster to check if a stream exists than opening and parsing it
-				return PUBLIC.fnFilterRejectWithHashes(oItem) || PUBLIC.fnFilterAcceptDirtyOnly(oItem);
+				return PUBLIC.fnRejectWithHashes(oItem) || PUBLIC.fnAcceptDirtyOnly(oItem);
 			}
 		};
 		return {
 			name: myName,
 			PUBLIC: PUBLIC,
-			// another ugly solution
+			/**
+			 * another ugly solution
+			 * @param {function} fnFunction
+			 * @throws @see {DeveloperStupidityException}
+			 */
 			getName: function (fnFunction) {
 				var fnName = 'filters.getName';
 				for (var fn in this.PUBLIC) {
 					if (!this.PUBLIC.hasOwnProperty(fn)) continue;
-					if (fnFunction == this.PUBLIC[fn]) return fn;
+					if (fnFunction == this.PUBLIC[fn]) return fn; // note the == as opposed to ===
 				}
-				abortWithFatalError(sprintf('%s -- Unrecognized filter:\n%s', fnName, dumpObject(fnFunction)));
+				var msg = sprintf('%s -- Unrecognized filter:\n%s', fnName, dumpObject(fnFunction));
+				abortWith(new DeveloperStupidityException(msg, fnName));
 			}
 		}
 	}());
@@ -3101,60 +3167,48 @@
 	d88P     888  "Y8888P"     888     8888888  "Y88888P"  888    Y888  "Y8888P"
 */
 {
-
-	function ____ACTIONS____(){ 0 }
+	function ____ACTIONS____(){ return; }
 	// valid actions for workers
 	var actions = (function (){
 		var myName = 'actions';
 		var PUBLIC = {
 			/**
 			 */
-			fnActionNull: function () {
-				// nothing
-			},
-			/**
-			 */
-			fnActionBenchmark: function () {
-				// nothing
-			},
-			/**
-			 */
-			fn_NOT_IMPLEMENTED_YET: function () {
+			fnNOT_IMPLEMENTED_YET: function () {
 				showMessageDialog(null, 'Not implemented yet', 'Placeholder');
+			},
+			/**
+			 */
+			fnNull: function () {
+				// nothing
+			},
+			/**
+			 */
+			fnBenchmark: function () {
+				// nothing
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
 			 * @param {function} fnCallback callback to thread worker
 			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionCalculateOnly: function (oItem, fnCallback, itemIsFilelist) {
+			fnCalculateOnly: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionCalculateOnly';
-				logger.snormal('%s -- I got called with: %s, is filelist: %s', fnName, oItem.realpath, itemIsFilelist);
+				logger.sverbose('%s -- I got called with: %s, is filelist: %s', fnName, oItem.realpath, itemIsFilelist);
 
 				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
 
+				var oResult, elapsed;
+
 				if (itemIsFilelist) {
-
-					// // read the files in the given filelist
-					// var filelist = FS.readFile(''+oItem.realpath);
-					// if (!filelist) { abortWithFatalError('Cannot read given filelist: ' + oItem.realpath); return; } // return needed for VSCode/TSC
-					// var aFilenames = filelist.split('\n');
-					// // logger.sforce('%s -- aFilenames: %s', fnName, JSON.stringify(aFilenames, null, 4));
-					// for (var i = 0; i < aFilenames.length; i++) {
-					// 	var filepath = aFilenames[i];
-					// }
 					stopwatch.start(fnName + oItem.realpath);
-					var oResult = calculateHashProxy(oItem, null, itemIsFilelist, fnCallback);
-					var elapsed = stopwatch.stop(fnName + oItem.realpath);
-					// fnCallback(oItem.realpath, elapsed, oResult.ok, oResult.err);
-
-					// fnCallback(oItem.realpath, 100, 'DUMMY TODO', false);
-
+					oResult = calculateHashProxy(oItem, null, itemIsFilelist, fnCallback); // the proxy will call the callback for each file
+					elapsed = stopwatch.stop(fnName + oItem.realpath);
 				} else {
 					stopwatch.start(fnName + oItem.realpath);
-					var oResult = calculateHashProxy(oItem, null, itemIsFilelist);
-					var elapsed = stopwatch.stop(fnName + oItem.realpath);
-					fnCallback(oItem.realpath, elapsed, oResult.ok, oResult.err);
+					oResult = calculateHashProxy(oItem, null, itemIsFilelist);
+					elapsed = stopwatch.stop(fnName + oItem.realpath);
+					fnCallback(oItem.realpath, elapsed, oResult.ok, oResult.err); // we will call the callback here
 				}
 
 			},
@@ -3163,7 +3217,7 @@
 			 * @param {function} fnCallback callback to thread worker
 			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionCalculateAndCompareToADS: function (oItem, fnCallback, itemIsFilelist) {
+			fnCalculateAndCompareToADS: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionCalculateAndCompareToADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
 
@@ -3195,7 +3249,7 @@
 			 * @param {function} fnCallback callback to thread worker
 			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionCalculateAndSaveToADS: function (oItem, fnCallback, itemIsFilelist) {
+			fnCalculateAndSaveToADS: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionCalculateAndSaveToADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
 
@@ -3221,16 +3275,20 @@
 			 * @param {function} fnCallback callback to thread worker
 			 * @param {boolean=} itemIsFilelist given oItem is a filelist, not the file itself
 			 */
-			fnActionDeleteADS: function (oItem, fnCallback, itemIsFilelist) {
+			fnDeleteADS: function (oItem, fnCallback, itemIsFilelist) {
 				var fnName = 'actions.fnActionDeleteADS';
 				logger.sverbose('%s -- I got called with: %s', fnName, oItem.realpath);
 
 				itemIsFilelist = !!itemIsFilelist; // convert undefined to false if necessary
 
 				stopwatch.start(fnName + oItem.realpath);
-				ADS.remove(oItem);
+				var removeResult = ADS.remove(oItem);
 				var elapsed = stopwatch.stop(fnName + oItem.realpath);
-				fnCallback(oItem.realpath, elapsed, true);
+				if (removeResult) {
+					fnCallback(oItem.realpath, elapsed, true);
+				} else {
+					fnCallback(oItem.realpath, elapsed, false, 'Remove from ADS failed');
+				}
 			},
 			/**
 			 * @param {DOpusItem} oItem DOpus Item object
@@ -3269,20 +3327,30 @@
 		return {
 			name: myName,
 			PUBLIC: PUBLIC,
+			/**
+			 * @param {string} name action name
+			 * @throws @see {DeveloperStupidityException}
+			 */
 			validate: function (name) {
 				var fnName = 'actions.validate';
 				if (!PUBLIC.hasOwnProperty(name)) {
-					abortWithFatalError(sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(name)));
+					var msg = sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(name));
+					abortWith(new DeveloperStupidityException(msg, fnName));
 				}
 			},
-			// another ugly solution
+			/**
+			 * another ugly solution
+			 * @param {function} fnFunction
+			 * @throws @see {DeveloperStupidityException}
+			 */
 			getName: function (fnFunction) {
 				var fnName = 'actions.getName';
 				for (var fn in this.PUBLIC) {
 					if (!this.PUBLIC.hasOwnProperty(fn)) continue;
-					if (fnFunction == this.PUBLIC[fn]) return fn;
+					if (fnFunction == this.PUBLIC[fn]) return fn; // note the == as opposed to ===
 				}
-				abortWithFatalError(sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(fnFunction)));
+				var msg = sprintf('%s -- Unrecognized action:\n%s', fnName, dumpObject(fnFunction));
+				abortWith(new DeveloperStupidityException(msg, fnName));
 			},
 			getFunc: function (name) {
 				this.validate(name);
@@ -3308,21 +3376,28 @@
 	 "Y8888P"     888      "Y88888P"  888        888P     Y888 d88P     888     888      "Y8888P"  888    888
 */
 {
-
-	function ____STOPWATCH____(){ 0 }
+	function ____STOPWATCH____(){ return; }
 	var stopwatch = (function (){
 		var myName = 'stopwatch';
 		var _running = {};
+		/**
+		 * @throws @see {InvalidParameterValueException}
+		 */
 		function ensureExists(name, action) {
 			var fnName = 'ensureExists';
 			if(!_running.hasOwnProperty(name)) {
-				abortWithFatalError(sprintf('%s -- Given stopwatch name %s is invalid for action %s', fnName, name, action));
+				var msg = sprintf('%s -- Given stopwatch name %s is invalid for action %s', fnName, name, action);
+				abortWith(new InvalidParameterValueException(msg, fnName));
 			}
 		}
+		/**
+		 * @throws @see {InvalidParameterValueException}
+		 */
 		function ensureNotExists(name, action) {
 			var fnName = 'ensureNotExists';
 			if(_running.hasOwnProperty(name)) {
-				abortWithFatalError(sprintf('%s -- Given stopwatch name %s is invalid for action %s', fnName, name, action));
+				var msg = sprintf('%s -- Given stopwatch name %s is invalid for action %s', fnName, name, action);
+				abortWith(new InvalidParameterValueException(msg, fnName));
 			}
 		}
 		return {
@@ -3438,8 +3513,7 @@
 	888        888   T88b  "Y88888P"   "Y8888P88 888   T88b 8888888888  "Y8888P"   "Y8888P"      8888888P"  d88P     888 888   T88b
 */
 {
-
-	function ____PROGRESS_BAR____(){ 0 }
+	function ____PROGRESS_BAR____(){ return; }
 	function initializeProgressBar(cmdData) {
 		// INITIALIZE PROGRESS BAR
 		if (!USE_PROGRESS_BAR) return;
@@ -3546,7 +3620,6 @@
 }
 
 
-
 /*
 	8888888888 8888888888 8888888888 8888888b.  888888b.          d8888  .d8888b.  888    d8P
 	888        888        888        888  "Y88b 888  "88b        d88888 d88P  Y88b 888   d8P
@@ -3558,8 +3631,7 @@
 	888        8888888888 8888888888 8888888P"  8888888P"  d88P     888  "Y8888P"  888    Y88b
 */
 {
-
-	function ____FEEDBACK____(){ 0 }
+	function ____FEEDBACK____(){ return; }
 	function showMessageDialog(dialog, msg, title, buttons) {
 		var dlgConfirm      = dialog || doh.dlg();
 		dlgConfirm.message  = msg;
@@ -3590,16 +3662,24 @@
 		logger.sverbose('%s -- soundFilePath: %s', 'playFeedbackSound', soundFile);
 		doh.cmd.RunCommand('Play QUIET "' + soundFile + '"');
 	}
-	function abortWithFatalError(msg) {
-		var err = 'Fatal error occurred:\n\n' + msg;
+
+	/**
+	 * Helper method to show an exception to the user before throwing it,
+	 * i.e. the exception must be still caught and handled.
+	 * @param {UserException} exception
+	 */
+	function abortWith(exception) {
+		cacheMgr.clearCache();
+		var err = exception.name + ' occurred in ' + exception.where + ':\n\n' + exception.message;
 		doh.out('');
 		doh.out('');
 		doh.out('');
 		doh.out('');
 		doh.out(err);
 		showMessageDialog(false, err);
-		throw new Error(err);
+		throw exception;
 	}
+
 	var busyIndicator = (function (){
 		var myName = 'busyIndicator';
 		var _busyind = null;
@@ -3634,8 +3714,7 @@
 	888         "Y88888P"  888   T88b 888       888 d88P     888     888         888     8888888888 888   T88b  "Y8888P"
 */
 {
-
-	function ____FORMATTERS____(){ 0 }
+	function ____FORMATTERS____(){ return; }
 	// turns 2^10 to "KB", 2^20 to "MB" and so on
 	/**
 	 * @returns {[string, number]}
@@ -3755,20 +3834,23 @@
 	 "Y88888P"      888     8888888 88888888
 */
 {
-
-	function ____UTIL____(){ 0 }
+	function ____UTIL____(){ return; }
 	function now() {
 		return new Date().getTime();
 	}
 	function getNewThreadID() {
 		var _now = now();
 		var blob = doh.dc.Blob;
-		blob.CopyFrom('' + _now + Math.floor(1000000 + Math.random() * 8999999));
+		blob.CopyFrom('' + _now + Math.floor(1000000000 + Math.random() * 8999999999));
 		var _nowMD5 = doh.fsu.Hash(blob, 'md5');
+		return 't_' + _nowMD5;
 		return 't_' + _now + '_' + _nowMD5;
+
 		// without some computation, the line below is not reliable enough
 		// I occasionally get duplicate IDs: same TS & same random number for different threads!  O.O
-		// doh.delay(1); // delay(1) seems to wait longer than 1 ms
+		// but on second thought it is possible, since now() is almost always the same for all threads
+		// and with 4 or 5 digits and many threads, a clash is bound to happen
+		// using a doh.delay(1); also seems to be very slow, since Delay(1) seems to wait longer than 1 ms
 		return 't_' + now() + '_' + Math.floor(1000 + Math.random() * 8999);
 	}
 	function getResVar(tid) {
@@ -3782,17 +3864,6 @@
 	function isObject(obj) {
 		return Object.prototype.toString.call(obj) === '[object Object]';
 	};
-
-	// Object.prototype.keys = function () {
-	// 	// WARNING: be careful after activating this!
-	// 	// for (var k in myObject) for ANY object will include this function by default
-	// 	// if this function needs to be skipped, use if (!myObject.hasOwnProperty(k)) continue;
-	// 	var out = [];
-	// 	for (var k in this) {
-	// 		if (this.hasOwnProperty(k)) out.push(k);
-	// 	}
-	// 	return out;
-	// };
 	function getObjKeys(obj) {
 		var out = [];
 		for (var k in obj) {
@@ -3803,34 +3874,6 @@
 	String.prototype.trim = function () {
 		return this.replace(/^\s+|\s+$/g, ''); // not even trim() JScript??
 	}
-
-
-	function createTempFileWithSize(size, count, outDir) {
-		var instr = '';
-
-		while (instr.length < size) {
-			instr += Math.floor(10000000 + Math.random() * 89999999);
-		}
-		instr = instr.slice(0, size);
-
-		var blob = doh.dc.Blob;
-		blob.CopyFrom(instr);
-		logger.sforce('instr: %s', instr);
-		if (size !== instr.length) {
-			abortWithFatalError('Could not generate requested test sample size');
-		}
-		var aFilenames = [];
-		for (var i = 0; i < count; i++) {
-			var filename = outDir + '\\' + Global.SCRIPT_NAME + '-benchmark-' + sprintf('%03d', i+1) + '.tmp.txt';
-			var numBytesWritten = FS.saveFile(filename, instr);
-			if (numBytesWritten !== size) {
-				abortWithFatalError('Number of bytes written does not match given input size for ' + filename);
-			}
-			aFilenames.push(filename);
-		}
-		return aFilenames;
-	}
-
 	/**
 	 * @param {Object} driveLetters object which maps driveLetter, e.g. Y: to the number of files found under it (this function ignores it)
 	 * @returns {string|false} drive type, e.g. HDD, SDD on success, false on error
@@ -3871,7 +3914,6 @@
 			if (!sContents) {
 				logger.snormal('%s -- Could not determine disk type of %s, assuming SSD', fnName, driveLetter);
 			} else {
-				// @ts-ignore - sContents is string! wth are you talking about tsc?
 				var driveType = sContents.replace(/.+\{MediaType=([^}]+)\}.+/mg, '$1').trim();
 				logger.sverbose('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
 				// if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
@@ -3899,7 +3941,7 @@
 	8888888P"   "Y88888P"  888         "Y88888P"   "Y8888P"      888    888 8888888888 88888888 888        8888888888 888   T88b  "Y8888P"
 */
 {
-
+	function ____DOPUS_HELPERS____(){ return; }
 	// I only wanted a little bit better CodeCompletion...
 	// ...4 hours later...
 	// at least I can reuse them now
@@ -3908,7 +3950,7 @@
 	 * @constructor
 	 */
 	function DOpusItem () {
-		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		abortWith(new NotForInstantiationException('You cannot instantitate this class, it is only for JSDOC', 'DOpusItem'));
 		/** @property {Date} access Returns the "last accessed" Date, in local time. */
 		this.access = new Date();
 		/** @property {Date} access_utc Returns the "last accessed" Date, in UTC. */
@@ -3996,7 +4038,7 @@
 	 * @constructor
 	 */
 	function DOpusVector () {
-		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		abortWith(new NotForInstantiationException('You cannot instantitate this class, it is only for JSDOC', 'DOpusVector'));
 		/** @property {number} capacity Returns the capacity of the Vector (the number of elements it can hold without having to reallocate memory). This is not the same as the number of elements it currently holds, which can be 0 even if the capacity is something larger. */
 		this.capacity = 0;
 		/** @property {number} count Returns the number of elements the Vector currently holds. */
@@ -4106,7 +4148,7 @@
 	 * @constructor
 	 */
 	function DOpusMap () {
-		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		abortWith(new NotForInstantiationException('You cannot instantitate this class, it is only for JSDOC', 'DOpusMap'));
 		/** @property {number} count   Returns the number of elements the Map currently holds. */
 		this.count = 0;
 		/** @property {boolean} empty  Returns True if the Map is empty, False if not. */
@@ -4150,7 +4192,7 @@
 	 * @constructor
 	 */
 	function DOpusPath () {
-		abortWithFatalError('You cannot instantitate this class, it is only for JSDOC');
+		abortWith(new NotForInstantiationException('You cannot instantitate this class, it is only for JSDOC', 'DOpusPath'));
 		/** @property {number} Returns the number of elements the Map currently holds*/
 		this.count = 0;
 		/**
@@ -4364,6 +4406,9 @@
 			loadResources: function(name) {
 				// @ts-ignore
 				Script.LoadResources(name);
+			},
+			getFileSize: function(path) {
+				return parseInt(this.getItem(path).size, 10);
 			}
 		}
 	}());
@@ -4385,8 +4430,7 @@
 	                                                                                              888P"
 */
 {
-
-	function ____CUSTOM_OBJECTS____(){ 0 }
+	function ____CUSTOM_OBJECTS____(){ return; }
 	// ManagerCommand
 	{
 		/**
@@ -4396,7 +4440,9 @@
 		 * @param {number} maxcount maximum number of threads to use
 		 * @param {function} fnFilter filter function, see filters.PUBLIC
 		 * @param {function} fnAction callback action function, see actions.PUBLIC
-		 * @param {string} collectionName collection name to use for results
+		 * @param {string} collNameSuccess collection name to use for success
+		 * @param {string=} collNameErrors collection name to use for errors
+		 * @param {string=} collNameSkipped collection name to use for skipped
 		 * @param {string=} fileName file name to use for results
 		 * @param {string=} fileFormat file format to use for results
 		 * @param {number=} benchSize benchmark input size
@@ -4404,23 +4450,27 @@
 		 * @constructor
 		 * @see filters.PUBLIC
 		 * @see actions.PUBLIC
+		 * @throws @see {InvalidParameterTypeException}
 		 */
-		function ManagerCommand(command, recurse, maxcount, fnFilter, fnAction, collectionName, fileName, fileFormat, benchSize, benchCount) {
+		function ManagerCommand(command, recurse, maxcount, fnFilter, fnAction, collNameSuccess, collNameErrors, collNameSkipped, fileName, fileFormat, benchSize, benchCount) {
 			if (typeof fnFilter !== 'function' || typeof fnAction !== 'function') {
-				abortWithFatalError('Given filter or action is not a function:\n' + fnFilter + '\n' + fnAction);
+				var fnName = funcNameExtractor(ManagerCommand);
+				abortWith(new InvalidParameterTypeException('Given filter or action is not a function:\n' + fnFilter + '\n' + fnAction, fnName));
 			}
-			this.command     = command;
-			this.recurse     = recurse;
-			this.maxcount    = maxcount;
-			this.filter      = fnFilter;
-			this.action      = fnAction;
-			this.collName    = collectionName;
-			this.fileName    = fileName;
-			this.fileFormat  = fileFormat;
-			this.benchSize   = benchSize;
-			this.benchCount  = benchCount;
-			this.filterName  = filters.getName(this.filter);
-			this.actionName  = actions.getName(this.action);
+			this.command         = command;
+			this.recurse         = recurse;
+			this.maxcount        = maxcount;
+			this.filter          = fnFilter;
+			this.action          = fnAction;
+			this.collNameSuccess = collNameSuccess;
+			this.collNameErrors  = collNameErrors || '';
+			this.collNameSkipped = collNameSkipped || '';
+			this.fileName        = fileName;
+			this.fileFormat      = fileFormat;
+			this.benchSize       = benchSize;
+			this.benchCount      = benchCount;
+			this.filterName      = filters.getName(this.filter);
+			this.actionName      = actions.getName(this.action);
 		}
 	}
 
@@ -4438,7 +4488,10 @@
 			this.err       = oFailValue;
 			this.skip      = oSkipValue;
 		}
+		// note this one does not allow any falsy value for OK at all
 		Result.prototype.isOK      = function () { return this.ok && !this.err && !this.skip }
+		// note this one allows falsy values - '', 0, {}, []... - for OK - USE SPARINGLY
+		Result.prototype.isValid   = function () { return !this.err && !this.skip }
 		Result.prototype.isErr     = function () { return this.err ? true : false }
 		Result.prototype.isSkipped = function () { return this.skip ? true : false }
 		Result.prototype.toString  = function () { return JSON.stringify(this, null, 4) }
@@ -4535,22 +4588,24 @@
 			if (!doh.isValidDOItem(oItem)) {
 				throw new Error('Expected DOpus item object');
 			}
-			this.item      = oItem;
-			this.fullpath  = ''+oItem.realpath || '';
-			this.size      = parseInt(0+oItem.size, 10) || 0;
-			this.mod_ts    = new Date(oItem.modify).getTime() || 0;
-			this.mod_date  = this.mod_ts.formatAsDateTimeCompact();
-			this.relpath   = ''+relpath || '';
-			this.name      = ''+oItem.name;
+			this.item          = oItem;
+			this.fullpath      = ''+oItem.realpath || '';
+			this.size          = parseInt(0+oItem.size, 10) || 0;
+			this.mod_ts        = new Date(oItem.modify).getTime() || 0;
+			this.mod_date      = this.mod_ts.formatAsDateTimeCompact();
+			this.relpath       = ''+relpath || '';
+			this.name          = ''+oItem.name;
 
-			this.hash      = hash || '';
-			this.algorithm = algorithm || '';
-			this.error     = error;
-			this.skipped   = skipped || false;
+			this.hash          = hash || '';
+			this.algorithm     = algorithm || '';
+			this.error         = error;
+			this.skipped       = skipped || false;
 
-			this.elapsed   = 0;
-			this.finished  = false;
-			this.finalized = false;
+			this.elapsed       = 0;
+			this.finished      = false;
+			this.finalized     = false;
+
+			this.compareToHash = '';
 		}
 		/**
 		 * @param {string} currentPath base path to use
@@ -4567,6 +4622,18 @@
 		 */
 		HashedItem.prototype.markFinished = function () {
 			this.finished = true;
+		}
+		/**
+		 * serialize item so that it can be stored in Script.Vars
+		 */
+		HashedItem.prototype.serialize = function () {
+			return JSON.stringify(this);
+		}
+		/**
+		 * deserialize item after it has been restored from Script.Vars
+		 */
+		HashedItem.prototype.deserialize = function () {
+			this.item = doh.getItem(this.fullpath);
 		}
 
 
@@ -4738,10 +4805,11 @@
 		}
 		/**
 		 * @param {string} algorithm
+		 * @throws @see {InvalidParameterValueException}
 		 */
 		HashedItemsCollection.prototype.setAlgorithmForAll = function (algorithm) {
 			if (!algorithm) {
-				abortWithFatalError('Given algorithm is invalid: ' + algorithm);
+				abortWith(new InvalidParameterValueException('Given algorithm is invalid: ' + algorithm, 'setAlgorithmForAll'));
 			}
 			for(var fp in this._myItems) {
 				if (!this._myItems.hasOwnProperty(fp)) continue;
@@ -5099,11 +5167,12 @@
 		/**
 		 * @returns {boolean} true if all knapsacks finished, must be marked by the knapsack
 		 * @see Knapsack
+		 * @throws @see {DeveloperStupidityException}
 		 */
 		KnapsacksCollection.prototype.allFinished = function () {
 			var fnName = 'KnapsacksCollection.allFinished';
 			if (this.countUnfinished < 0) {
-				abortWithFatalError(fnName + '():\nThis should never have happened, item count is negative: ' + this.countUnfinished);
+				abortWith(new DeveloperStupidityException('This should never have happened, item count is negative: ' + this.countUnfinished, fnName));
 			}
 			if (this.countUnfinished === 0) return true;
 
@@ -5173,6 +5242,123 @@
 		}
 	}
 
+
+	// Exceptions
+	{
+		// JScript does not support CustomClass.property
+		// and I needed something like an interface, where all Exceptions implement the same interface
+		// so unfortunately I had to implement this kinda ugly solution. Don't blame me, blame JScript.
+		// And I hope you realize what the consequences of the lack of a debugger and a proper call stack trace are.
+		/**
+		 * @param {string} fnCaller
+		 * @param {string} message
+		 * @param {string} where
+		 * @property {string} nameNew
+		 * @constructor
+		 */
+		function UserException(fnCaller, message, where) {
+			if (typeof fnCaller !== 'function') throw new Error('You must instantiate this class with a function');
+			this.name    = funcNameExtractor(fnCaller);
+			this.message = message + ' - added by UserException';
+			this.where   = typeof where === 'string' ? where : typeof where === 'function' ? funcNameExtractor(where) : where;
+			return this;
+		}
+
+		// dummy this.type = ''... assignments only for code-completion - @property tricks don't work
+		// and I'm too lazy to find a TypeScript & JSDoc combination which does not interfere with JScript
+
+		// also note if you see @throw @see {MyException} in other methods
+		// that's a trick to help VSCode, with @throw {MyException} alone VSCode cannot refactor the exception names in jsdoc
+
+		/** @constructor @param {string} message @param {string} where */
+		function NotImplementedYetException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, NotImplementedYetException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function NotForInstantiationException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, NotForInstantiationException, message, where);
+		}
+
+
+		/** @constructor* @param {string} message @param {string} where */
+		function DeveloperStupidityException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, DeveloperStupidityException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function ObjectKeyMissingException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, ObjectKeyMissingException, message, where);
+		}
+
+		/** @constructor @param {string} message @param {string} where */
+		function InvalidManagerCommandException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, InvalidManagerCommandException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function KnapsackingException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, KnapsackingException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function InvalidUserParameterException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, InvalidUserParameterException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function JSONParsingException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, JSONParsingException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function InvalidParameterTypeException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, InvalidParameterTypeException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function InvalidParameterValueException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, InvalidParameterValueException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function SanityCheckException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, SanityCheckException, message, where);
+		}
+
+		/** @constructor @param {string} message @param {string} where */
+		function CacheReadWriteException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, CacheReadWriteException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function StreamReadWriteException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, StreamReadWriteException, message, where);
+		}
+
+
+		/** @constructor @param {string} message @param {string} where */
+		function FileNotFoundException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, FileNotFoundException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function FileCreateException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, FileCreateException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function FileSaveException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, FileSaveException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function FileReadException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, FileReadException, message, where);
+		}
+
+		/** @constructor @param {string} message @param {string} where */
+		function InvalidFormatException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, InvalidFormatException, message, where);
+		}
+		/** @constructor @param {string} message @param {string} where */
+		function UnsupportedFormatException(message, where) {
+			this.message='';this.name='';this.where=''; UserException.call(this, UnsupportedFormatException, message, where);
+		}
+
+
+
+	}
+
+
 }
 
 
@@ -5188,20 +5374,32 @@
 	 "Y88888P"   "Y8888P88 88888888   888         8888888P" 8888888     888      "Y8888P"
 */
 {
-
-	function ____UGLY_BITS____(){ 0 }
-	// not the most elegant solution, but JScript/JS does not easily allow to determine function name from a given function object
-	// cannot parse 'anonymous' methods, incl. exposed method names in singletons, e.g. funcNameExtractor(actions.getFunc)
-	var reFuncNameExtractor = new RegExp(/^function\s+(\w+)\(.+/);
-	function funcNameExtractor(fnFunc) {
-		var fnName = 'funcNameExtractor';
-		if (typeof fnFunc !== 'function') {
-			abortWithFatalError(sprintf('%s -- Given parameter is not a recognized function\n%s', fnName, dumpObject(fnFunc)));
+	function ____UGLY_BITS____(){ return; }
+	// Not the most elegant solution, but JScript/JS does not easily allow to determine function name from a given function object.
+	// It cannot parse 'anonymous' methods, incl. exposed method names in singletons, e.g. funcNameExtractor(actions.getFunc).
+	// There is no debugger for DOpus user scripts, blame the universe not me.
+	var funcNameExtractor = (function () {
+		var reExtractor = new RegExp(/^function\s+(\w+)\(.+/),
+			fnName      = 'funcNameExtractor',
+		 	cache       = {};
+		/**
+		 * @param {function} fnFunc
+		 * @param {string=} parentName
+		 * @returns {string}
+		 * @throws @see {InvalidParameterTypeException}
+		 */
+		return function(fnFunc, parentName) {
+			if (typeof fnFunc !== 'function') {
+				abortWith(new InvalidParameterTypeException(sprintf('%s -- Given parameter is not a function\n%s', fnName, dumpObject(fnFunc)), fnName));
+			}
+			if (cache[fnFunc]) return cache[fnFunc];
+			var matches = fnFunc.toString().match(reExtractor),
+				out     = matches ? matches[1] : 'Anonymous -- ' + dumpObject(fnFunc, true).value.replace(/\n|^\s+|\s+$/mg, '');
+			if (parentName) out = parentName + '.' + out;
+			cache[fnFunc] = out;
+			return out;
 		}
-		var _matches = fnFunc.toString().match(reFuncNameExtractor);
-
-		return _matches ? _matches[1] : 'Anonymous -- ' + dumpObject(fnFunc, true).value.replace(/\n|^\s+|\s+$/mg, '');
-	};
+	}());
 
 	// poor man's debugger
 	/**
@@ -5263,8 +5461,7 @@
 	88888888 8888888 8888888P"   "Y8888P"
 */
 {
-
-	function ____LIBS____(){ 0 }
+	function ____LIBS____(){ return; }
 	// sprintf - BEGIN
 	// https://hexmen.com/blog/2007/03/14/printf-sprintf/
 	{
@@ -5498,8 +5695,7 @@
 	    888      "Y88888P"  8888888P"   "Y88888P"
 */
 {
-
-	function ____TODO____(){ 0 }
+	function ____TODO____(){ return; }
 	// TODO
 	{
 		/*
@@ -5519,25 +5715,45 @@
 			+ CODING: Consolidate MTActionResults & CommandResults!
 			+ CODING: Convert buildSummaryAndErrorTexts() & MTActionResults/MTActionResultFile to TYPEDEFs?
 			  done via CommandResults.getSummaries() instead
+			+ BUG: If multiple files are selected (some missing ADS) and ADS delete is performed, it says "some files are skipped"
+			+ BUG: Fix the annoying window flash when adding files to a collection - AddLine()s...Run() instead of individual RunCommand()s
+			- BUG: Fix random bug when DOpus tries to update the metadata of image files
+				when we are trying to reset the modification timestamp via 'SetAttr FILE... META "lastmodifieddate:..."'"
+				it was my stupidity :D
+				use SetAttr FILE... MODIFIED instead of SetAttr FILE... META
+			+ BUG: Improve error handling when files are marked as read-only
+			+ IMPROVE: implement a 'tail' function similar to unix tail command: FS.fileTail().read()
 
-			- IMPROVE: Implement Blake3
-			- IMPROVE: Implement Rhash
-			- BUG: IMPORT- better format detection in fileExchangeHandler.prepareForImport()?
-			- BUG: If multiple files are selected (some missing ADS) and ADS delete is performed, it says "some files are skipped"
-			- BUG: Auto-refresh when Smart Update or Delete ADS is performed (copy logic from MExt)
+
+
+			- BUG HIGHEST PRIO: Error handling - NO ERROR MESSAGE CAN MAKE THE SCRIPT, PROGRESS BAR, ETC. HANG
+				+ define all possible exceptions as constructors: FileUpdateException, InvalidFormatException...
+				+ replace all abortWithFatalError() with proper exception instances
+				- check the exception chains
 			- BUG: Fix random bug with ADS.Read when we get a file which has been already deleted, e.g. when the temp dir is displayed
-			- BUG: Fix the annoying window flash when adding files to a collection
+			- BUG: fix nasty file save bug when trying to save files with envvar-looking names, e.g. ThinApped programs
+				e.g. ThinAppedProg\Sandbox\%APPDATA%\somefile.txt
+
+			IMPROVE: change some singletons
+				from direct method definition in the returned object
+				to definitions in the private section and references to them in the returned object
+
+
+			- IMPROVE: Error messages & optics of the messages
+			- IMPROVE: Enable Collections by force for all non-success results: Find Missing&Dirty, Verify&Import Errors
+			- IMPROVE: Review abortWithFatalError() calls
+			- IMPROVE: Implement Disk Serial number detection and re-recognizing them fast!
+			- IMPROVE: IMPORT- better format detection in fileExchangeHandler.prepareForImport()?
+			- BUG?: Auto-refresh when Smart Update or Delete ADS is performed (copy logic from MExt)
+				Is this really necessary, auto-refresh columns seems to be working
 			- IMPROVE: review progress bar and switch to 'full' - 1 bar for files, 1 bar for bytes
 			- IMPROVE: Improve FileFormat & FileName dependency and detection
-			- IMPROVE: Improve error handling when files are marked as read-only
-			- IMPROVE: Implement blake3 & rhash hashing
+			- IMPROVE: Check all file open/save methods for extra long path length safety
 			- IMPROVE: Configuration variables - BIG TASK!
-			- IMPROVE: Implement external JSON file to customize columns
-			- IMPROVE: Implement Disk Serial number detection and re-recognizing them fast!
-			- IMPROVE: Error messages & optics of the messages
+			- IMPROVE: Implement external JSON file to customize columns?
+			- IMPROVE: Implement Blake3
+			- IMPROVE: Implement Rhash
 			- IMPROVE: What to do when all feedback options are disabled: Success & Error Messages, etc. => Sound Files
-
-
 			- CODING: convert progress bar methods to its own object
 			- CODING: review logger levels for all outputs
 			- CODING: review all @ts-ignore - especially DOpus map access stuff - convert cache to singleton if ncessary
@@ -5644,8 +5860,7 @@
 	888   T88b 8888888888 d88P     888 8888888P"  888       888 8888888888 Y8P 888       888 8888888P"
 */
 {
-
-	function ____README_MD____(){ 0 }
+	function ____README_MD____(){ return; }
 	{
 		/*
 
@@ -5757,7 +5972,7 @@
 			3. This is not a browser environment and due to only available method to us for multi-threading,
 			i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
 			DOpus variables only.
-			4. Debugging of user scripts without an IDE or browser support is a major PITA. DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all.
+			4. Debugging DOpus user scripts without an IDE or browser support as devs usually have when developing JavaScript is a major PITA! DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all. Nevertheless, because of the lack of a debugger some ugly stuff had to be done.
 
 
 
@@ -5801,8 +6016,7 @@
 	888   T88b 8888888888  "Y8888P"   "Y88888P"   "Y88888P"  888   T88b  "Y8888P"  8888888888  "Y8888P"
 */
 {
-	function ____RESOURCES____(){ 0 }
-
+	function ____RESOURCES____(){ return; }
 	String.prototype.substituteVars = function () {
 		return this.replace(/\${([^}]+)}/g, function (match, p1) {
 			return typeof eval(p1) !== 'undefined'
@@ -5879,4 +6093,3 @@
 		SCRIPT_RESOURCES[sr] = SCRIPT_RESOURCES[sr].replace(/^\t+/mg, '').slice(14,-3).trim();
 	}
 }
-
