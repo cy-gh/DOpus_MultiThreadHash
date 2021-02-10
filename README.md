@@ -75,7 +75,7 @@ Once you get used to the integration of extremely fast hashing and an excellent 
 
 ### ADS Overhead:
 
-For SHA1 hashes the amount of data is typically around 150-160 bytes. This information is NOT allocated in a separate cluster than the main file's own, i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192. 
+For SHA1 hashes the amount of data is typically around 150-160 bytes. This information is NOT allocated in a separate cluster than the main file's own, i.e. if your cluster size is 4096 bytes, a 1 byte file plus 160 bytes ADS will still allocate only 4096 bytes, not 8192.
 
 ### Recommended:
 
@@ -85,8 +85,8 @@ If you use DOpus text viewer plugin, activate '***Assume UTF-8 without BOM***' i
 - If you are using WinRAR you can activate '***Advanced -> Save file streams***' in archiving dialog and save it in your default profile as well. This will carry ADS hashes around.
 Unfortunately 7-Zip or DOpus created archives do NOT support this.
 - DO NOT USE EXACTFILE, EVER!
-  To my **absolute HORROR** I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only), because I was using it a lot. it does so only sporadically, which makes the situation even worse imo. When ExactFile hashes completely identical files in multi-threading the generated checksum file states: this 1 file has a different hash than the others, and when you repeat the hashing it shows the computes the correct hash again.
-  Completely unacceptable!
+To my **absolute HORROR** I found out that ExactFile occasionally computes hashes incorrectly (tested with SHA1 only), because I was using it a lot. it does so only sporadically, which makes the situation even worse imo. When ExactFile hashes completely identical files in multi-threading the generated checksum file states: this 1 file has a different hash than the others, and when you repeat the hashing it shows the computes the correct hash again.
+Completely unacceptable!
 
 
 
@@ -105,7 +105,7 @@ When you look at the code, you will see some non-typical, i.e. not state-of-the-
 3. This is not a browser environment and due to only available method to us for multi-threading,
 i.e. fire-and-forget, we cannot pass callback functions, etc. and must communicate via
 DOpus variables only.
-4. Debugging of user scripts without an IDE or browser support is a major PITA. DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all.
+4. Debugging DOpus user scripts without an IDE or browser support as devs usually have when developing JavaScript is a major PITA! DOpus developers probably never had such large scripts in mind when they introduced user scripts, so I cannot blame them at all. Nevertheless, because of the lack of a debugger some ugly stuff had to be done.
 
 
 
