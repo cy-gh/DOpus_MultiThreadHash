@@ -52,4 +52,18 @@ interface String {
      * my name is: ${Global.SCRIPT_NAME}
      */
     substituteVars(): string;
+
+    /**
+     * parses string as number in base 10
+     * e.g.
+     * cmdData.func.args.MAXCOUNT.asInt()
+     */
+    asInt(): number;
+}
+
+interface Result<T, E> {
+     ok: T;
+     err: E;
+     stack: array;
+     new <T, E>(oOKValue: T, oErrValue: E): Result;
 }
