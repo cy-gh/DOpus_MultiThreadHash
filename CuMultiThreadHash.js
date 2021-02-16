@@ -823,7 +823,6 @@
         {
             var unitMax      = selectedItemsSize.getUnit();
             var formattedMax = selectedItemsSize.formatAsSize(unitMax);
-            // var progbar      = initializeProgressBar(cmdData);
             var progbar      = new ProgressBar(cmdData, !command.noProgressBar, tsStart, selectedItemsSize, formattedMax, unitMax);
         }
 
@@ -837,9 +836,7 @@
         {
             try {
                 for (var kskeyWorker in selectedKnapsacked.unfinishedKS) { // knapsacks
-                    // if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskeyWorker)) continue; // skip prototype functions, etc. // TODO DELETE
                     var ksWorker = selectedKnapsacked.unfinishedKS[kskeyWorker];
-
                     // prepare the variables for this knapsack's worker
                     var torun = sprintf('%s %s THREADID="%s" %s ACTIONFUNC=%s', doh.dopusrt, WORKER_COMMAND, ksWorker.id, sendViaFilelist && 'VIAFILELIST' || '', fnActionName);
 
@@ -847,22 +844,18 @@
                     var filesMap = doh.dc.map();
                     var oHashedItems = ksWorker.itemsColl.getSuccessItems();
                     for (var hikey in oHashedItems) { // files
-                        // if (!oHashedItems.hasOwnProperty(hikey)) continue; // skip prototype functions, etc.
                         var oHashedItem = oHashedItems[hikey];
                         // create a new DOpus map for this file and put it into the knapsack map
                         filesMap.set(oHashedItem.fullpath, oHashedItem.convertToDOMap());
-                        // logger.sforce('%s -- oHashedItem.convertToDOMap().Get("filename"): %s', fnName, oHashedItem.convertToDOMap().get('filename'));
                     }
-
-                    // put this knapsack into thread pool
+                    // put this knapsack into thread pool and run
                     memory.setThreadVar(ksWorker.id, filesMap);
-
-                    // logger.snormal('%s -- Worker command to run: %s', fnName, torun);
+                    logger.sverbose('%s -- Worker command to run: %s', fnName, torun);
                     doh.cmd.runCommand(torun);
                 }
-            } catch (error) {
+            } catch (e) {
                 // TODO
-                logger.sforce('%s -- ERROR: %s', fnName, error.toString());
+                logger.sforce('%s -- ERROR: %s', fnName, e.toString());
                 return;
             }
         }
@@ -881,7 +874,6 @@
             unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
                 // doh.delay(sleepdur);
                 for (var kskeyWait in selectedKnapsacked.unfinishedKS) {
-                    // if (!selectedKnapsacked.unfinishedKS.hasOwnProperty(kskeyWait)) continue; // skip prototype functions, etc. // TODO DELETE
                     var ksWait   = selectedKnapsacked.unfinishedKS[kskeyWait],
                         threadID = ksWait.id,
                         ksMap    = memory.getThreadVar(threadID);
@@ -1390,7 +1382,6 @@
             logger.normal(SW.startAndPrint(fnName, 'Filtering'));
             var oSuccessItems = oItemsPreFilter.getSuccessItems();
             for (var key in oSuccessItems) {
-                // if (!oSuccessItems.hasOwnProperty(key)) continue; // skip prototype functions, etc. // TODO DELETE
                 if (!(fnItemFilter.call(fnItemFilter, oSuccessItems[key].item ))) { // IMPORTANT: this is the heart of filters
                     logger.sverbose('%s -- Filtering out %s', fnName, oSuccessItems[key].name);
                     oSuccessItems[key].skipped = true;
@@ -1490,7 +1481,6 @@
         /** @type {Array.<HashedItem>} */
         var aAllItemsSorted = [];
         for (key in oAllItems) {
-            // if (!oAllItems.hasOwnProperty(key)) continue; // skip prototype functions, etc. // TODO DELETE
             aAllItemsSorted.push(oAllItems[key]);
         }
 
@@ -1625,7 +1615,6 @@
                             i = 0;
                             for (key in oOverfilledItems) {
                                 if (i++ > iMax) break;
-                                // if (!oOverfilledItems.hasOwnProperty(key)) continue; // skip prototype functions, etc. // TODO DELETE
                                 oHashedItem = oOverfilledItems[key];
                                 ksArray[overfilledKS].delItem(oHashedItem);
                                 ksArray[underfilledKS].addItem(oHashedItem);
@@ -1722,7 +1711,6 @@
                 aSortHelper    = [],
                 fullpath;
             for (fullpath in oInternalJSON.items) {
-                // if (!oInternalJSON.items.hasOwnProperty(fullpath)) continue; // skip prototype functions, etc. // TODO DELETE
                 aSortHelper.push(fullpath);
             }
             aSortHelper.sort();
@@ -1758,7 +1746,6 @@
             }
             outstr += '\n';
             for (var kitem in oInternalJSON.items) {
-                // if (!oInternalJSON.items.hasOwnProperty(kitem)) continue; // skip prototype stuff // TODO DELETE
                 var item = oInternalJSON.items[kitem];
                 outstr += item.hash + ' *' + (item.relpath || '').normalizeTrailingBackslashes() + item.name + '\n';
             }
@@ -2003,7 +1990,6 @@
 
             var importErrors = [];
             for (var filepath in inPOJO.items) {
-                // if (!inPOJO.items.hasOwnProperty(filepath)) continue; // TODO DELETE
                 var oItem = doh.fsu.getItem(filepath);
                 if( ADS.save( oItem, new CachedItem(oItem, null, null, inPOJO.items[filepath].hash) ).isErr() ) {
                     importErrors.push(''+oItem.realpath);
@@ -2135,7 +2121,6 @@
         var currentPath   = doh.getCurrentPath(cmdData),
             oSuccessItems = itemsFiltered.getSuccessItems(); // process only success items!
         for (var k in oSuccessItems) {
-            // if (!oSuccessItems.hasOwnProperty(k)) continue; // TODO DELETE
             var oHashedItem = oSuccessItems[k],
                 oDOItem     = doh.fsu.getItem(oHashedItem.fullpath),
                 res         = ADS.read(oDOItem);
@@ -2250,7 +2235,7 @@
             if (!this.isValidPath(path)) { return ResultErr(); }
 
             var fh = doh.fsu.openFile(path); // default read mode
-            if(!fh.error) return ResultErr(sprintf('%s -- File exists but cannot be read - error: %s, file: %s', fnName, fh.error, path));
+            if(fh.error !== 0) return ResultErr(sprintf('%s -- File exists but cannot be read - error: %s, file: %s', fnName, fh.error, path));
 
             try {
                 var blob = fh.read();
@@ -2418,7 +2403,6 @@
 
             logger.snormal(SW.startAndPrint(fnName, 'Drive Type Detection'));
             for (var driveLetter in driveLetters) {
-                // if (!driveLetters.hasOwnProperty(driveLetter)) continue; // skip prototype functions, etc. // TODO DELETE
                 var tempPSOutFile = TEMPDIR + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
                 cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
                 logger.sverbose('%s -- Running: %s', fnName, cmd);
@@ -2583,6 +2567,9 @@
             doh.cmd.runCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '"');
             resetFileAttributes(oItem, oFileAttrib);
 
+            // use the original path without \\?\
+            memory.setCacheVar(''+oItem.realpath, JSON.stringify(oCachedItem));
+
             return res;
         }
 
@@ -2602,6 +2589,7 @@
             // check the file attributes: Read-Only & System
             var oFileAttrib = setupFileAttributes(oItem);
 
+            // use the original path without \\?\
             memory.deleteCacheVar(filePath);
 
             if (filePath.length > 240 ) {
@@ -3066,7 +3054,6 @@
         function getName(fnFunction) {
             var fnName = funcNameExtractor(getName, myName);
             for (var fn in PUBLIC) {
-                // if (!PUBLIC.hasOwnProperty(fn)) continue; // TODO DELETE
                 if (fnFunction == PUBLIC[fn]) return fn; // note the == as opposed to ===
             }
             abortWith(new DeveloperStupidityException(sprintf('%s -- Unrecognized filter:\n%s', fnName, dumpObject(fnFunction)), fnName));
@@ -3154,7 +3141,7 @@
             var res = ADS.read(oItem);
             if (res.isErr()) {
                 // TODO - Replicate this scenario and replace the message below
-                var errMsg = 'Cannot read data for: ' + oItem.realpath;
+                var errMsg = 'Cannot read data for: ' + oItem.realpath + ', err: ' + res.err;
                 logger.serror(errMsg);
                 fnCallback(oItem.realpath, 0, false, errMsg);
                 return;
@@ -3785,6 +3772,7 @@
 	 "Y88888P"      888     8888888 88888888
 */
 {
+
     function now() {
         return new Date().getTime();
     }
@@ -4267,7 +4255,6 @@
             /** @type {Object.<string, HashedItem>} */
             var out = {};
             for(var fp in this._myItems) {
-                // if (!this._myItems[fp]) continue; // TODO DELETE
                 if (fnFilter(this._myItems[fp])) out[fp] = this._myItems[fp];
             }
             return out;
@@ -4280,7 +4267,6 @@
         HashedItemsCollection.prototype._findMinByAttribute = function (fnFilter, startValue) {
             var lastFoundVal = startValue, lastFoundItem;
             for(var fp in this._myItems) {
-                // if (!this._myItems.hasOwnProperty(fp)) continue; // TODO DELETE
                 var _tmp = fnFilter(this._myItems[fp]);
                 if (_tmp <= lastFoundVal) { // use <= instead of < to guarantee there will be always a result
                     lastFoundVal  = _tmp;
@@ -4297,7 +4283,6 @@
         HashedItemsCollection.prototype._findMaxByAttribute = function (fnFilter, startValue) {
             var lastFoundVal = startValue, lastFoundItem;
             for(var fp in this._myItems) {
-                // if (!this._myItems.hasOwnProperty(fp)) continue; // TODO DELETE
                 var _tmp = fnFilter(this._myItems[fp]);
                 if (_tmp >= lastFoundVal) { // use >= instead of > to guarantee there will be always a result, e.g. to find 0 byte files if we start with 0
                     lastFoundVal  = _tmp;
@@ -4382,7 +4367,6 @@
         HashedItemsCollection.prototype.adjustRelativePaths = function (rootPath) {
             rootPath = rootPath.normalizeTrailingBackslashes();
             for(var fp in this._myItems) {
-                // if (!this._myItems.hasOwnProperty(fp)) continue; // TODO DELETE
                 var oHashedItem = this._myItems[fp];
                 var relativePathAndFileName = (''+oHashedItem.fullpath).replace(rootPath, '');
                 oHashedItem.relpath = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oHashedItem.name));
@@ -4397,7 +4381,6 @@
                 abortWith(new InvalidParameterValueException('Given algorithm is invalid: ' + algorithm, 'setAlgorithmForAll'));
             }
             for(var fp in this._myItems) {
-                // if (!this._myItems.hasOwnProperty(fp)) continue; // TODO DELETE
                 this._myItems[fp].algorithm = algorithm;
             }
         };
@@ -4545,7 +4528,6 @@
 
             // remove some internal fields
             for (var ohi in oSuccess) {
-                // if (!oSuccess.hasOwnProperty(ohi)) continue; // skip prototype functions, etc. // TODO DELETE
                 var oHashedItem = oSuccess[ohi];
                 delete oHashedItem.error;     // this will be falsy for all success items
                 delete oHashedItem.skipped;   // this will be falsy for all success items
@@ -4620,7 +4602,6 @@
 
             if (dumpItemResults) {
                 for (var f in this.items) {
-                    // if (!this.items.hasOwnProperty(f)) continue; // TODO DELETE
                     var el = this.items[f];
                     var itemSummaryMsg = sprintf(
                         '%s -- Worker finished: %b, size: %15d, elapsed: %8d ms, file: %s -- %s',
@@ -4693,7 +4674,6 @@
             // not marked as finished yet, check all subitems
             var oItems = this.itemsColl.getItems();
             for (var k in oItems) {
-                // if (!oItems.hasOwnProperty(k)) continue; // skip prototype functions, etc. // TODO DELETE
                 if (!oItems[k].finished) return false;
             }
             // all items report back as finished
@@ -4761,16 +4741,13 @@
             // 	if (!this._myItems.hasOwnProperty(ks)) continue; // skip prototype functions, etc.
             // 	var oKnapsack = this._myItems[ks];
             for (var ks in this.unfinishedKS) {
-                // if (!this.unfinishedKS.hasOwnProperty(ks)) continue; // skip prototype functions, etc. // TODO DELETE
                 var oKnapsack = this.unfinishedKS[ks];
 
                 if (oKnapsack.isFinished()) {
                     // move knapsack from unfinished to finished and update stats
                     this.finishedKS[ oKnapsack.id ] = oKnapsack;
-                    // logger.snormal('%s -- KS %s finished - BEFORE this.countFinished: %d, this.countUnfinished: %d', fnName, oKnapsack.id, this.countFinished, this.countUnfinished);
                     this.sizeFinished   += oKnapsack.size; this.countFinished   += oKnapsack.count;
                     this.sizeUnfinished -= oKnapsack.size; this.countUnfinished -= oKnapsack.count;
-                    // logger.snormal('%s -- KS %s finished - AFTER  this.countFinished: %d, this.countUnfinished: %d', fnName, oKnapsack.id, this.countFinished, this.countUnfinished);
                     delete this.unfinishedKS[ oKnapsack.id ];
                 }
             }
@@ -4786,8 +4763,6 @@
          * @returns {CommandResults}
 		 */
         KnapsacksCollection.prototype.getAsCommandResults = function (rootPath, algorithm, tsStart, tsFinish) {
-            // var fnName = 'KnapsacksCollection.getAsCommandResults'; // TODO DELETE
-
             var oHashedItemsColl  = new HashedItemsCollection(),
                 slowestKSDuration = 0,
                 slowestKSSize     = 0;
@@ -4795,7 +4770,6 @@
             // a threadID points to 1 knapsack
             var oFinishedKS = this.finishedKS;
             for (var kskey in oFinishedKS) { // knapsacks
-                // if (!oFinishedKS.hasOwnProperty(kskey)) continue; // skip prototype functions, etc. // TODO DELETE
                 var ksCurrent = oFinishedKS[kskey],
                     ksMap     = memory.getThreadVar(ksCurrent.id);
 
