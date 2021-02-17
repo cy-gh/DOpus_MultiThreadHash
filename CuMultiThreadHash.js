@@ -87,16 +87,6 @@
         var DEFAULT_ALGORITHM = ALGORITHMS.SHA1;
         var CURRENT_ALGORITHM = DEFAULT_ALGORITHM.name; // TODO - might be converted to a config parameter or command parameter
 
-        // hashing bigger files first usually increases the speed up to 25% for mixed groups of files
-        // but makes little difference if file sizes are very close to each other (usually few big files)
-        /** @type {boolean} */
-        var PROCESS_LARGEST_FILES_FIRST  = true;
-        /** @type {boolean} */
-        var PROCESS_SMALLEST_FILES_FIRST = false; // guaranteed to be slower, only added because it was easy :)
-
-        // avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack because of other overly large files
-        /** @type {boolean} */
-        var AVOID_OVERFILLED_KNAPSACKS = true;
 
         // for a small number of files this makes very little, < 3%, difference to overall performance
         // for a large number of files, especially small ones, this slows down a lot, e.g. from 100% speed down to 70%!
@@ -249,25 +239,6 @@
         // so the only safe location is not Script.Vars but DOpus.Vars
         _setScriptPathVars(initData);
         playFeedbackSound('Success'); // TODO REMOVE
-
-
-
-        // var niyex = new NotImplementedYetException('Copy to clip', 'Init');
-        // var fuex = new FileSaveException('Y:\\something.txt', 'Init');
-
-
-        // doh.out(JSON.stringify(niyex, null, 4));
-        // doh.out(JSON.stringify(fuex, null, 4));
-        // logger.sforce('%s -- niyex: %s, instanceof self: %b, instanceof base: %b', 'fnName', niyex.where, niyex instanceof FileSaveException, niyex instanceof UserException);
-        // logger.sforce('%s -- fuex: %s, instanceof self: %b, instanceof base: %b', 'fnName', fuex.where, fuex instanceof FileSaveException, fuex instanceof UserException);
-
-        // var X = FS.fileTail('Y:\\CollectiveOutput.txt', 15000, 1000);
-        // do {
-        // 	var linesRead = X.read();
-        // 	if (!linesRead.isOK()) continue;
-        // 	logger.sforce('lines: %s', linesRead.ok);
-        // } while(linesRead.isValid());
-        // // do not use while(Result.isOK()), isValid() allows 0,'',{}... as OK value whereas isOK() does not
 
         _initializeCommands(initData);
         _initializeColumns(initData);
@@ -442,7 +413,7 @@
         _addCommand('ADSExportFrom',
             onDOpusADSExportFrom,
             initData,
-            'SKIP_PRECHECK/S,FORMAT/K,USE_FORWARD_SLASH/S,FILE/O',
+            'SKIP_PRECHECK/S,USE_FORWARD_SLASH/S,FILE/O',
             'Orange_ExportFromADS',
             'MTH Export from ADS',
             'Exports stored ADS hashes of selected objects to a file; if filename is supplied and file exists it will be overwritten'
@@ -450,7 +421,7 @@
         _addCommand('ADSImportInto',
             onDOpusADSImportInto,
             initData,
-            'FORMAT/K,FILE/O',
+            'FILE/O',
             'Orange_ImportIntoADS',
             'MTH Import into ADS',
             'Imports hashes from selected file to ADS for all matched files by name; the current lister tab path is used to resolve relative paths'
@@ -458,7 +429,7 @@
         _addCommand('OnTheFlyCalculateAndExport',
             onDOpusOnTheFlyCalculateAndExport,
             initData,
-            'FORMAT/K,FILE/O',
+            'FILE/O',
             'Orange_OntheflyCalculateAndExport',
             'MTH On-The-Fly Calculate && Export',
             'Calculates hashes anew without using ADS; if filename is supplied and file exists it will be overwritten'
@@ -466,7 +437,7 @@
         _addCommand('OnTheFlyVerifyFromFile',
             onDOpusOnTheFlyVerifyFromFile,
             initData,
-            'FORMAT/K,FILE/O',
+            'FILE/O',
             'Orange_OntheflyCompareExternalFileToADS',
             'MTH On-The-Fly Verify (no ADS import)',
             'Verifies hashes in external file against all matched files by relative path & name; the current lister tab path is used to resolve relative paths'
@@ -581,7 +552,6 @@
         var filename        = cmdData.func.args.FILE;
         abortWith(new NotImplementedYetException('', fnName));
         fileExchangeHandler.verifyFrom(cmdData, format, filename);
-
     }
 }
 
@@ -1424,8 +1394,6 @@
 
         logger.normal(SW.startAndPrint(fnName, 'Knapsacking'));
 
-        var oHashedItem, kal, i, ks, key;
-
         numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
         // SPLIT FILES INTO KNAPSACKS
         {
@@ -1441,9 +1409,6 @@
             // if we have less or equal files than available thread count we will create one knapsack for each file (#KS <= #CPU)
             // if we have more than available thread count we will create only so many knapsacks as available threads (#KS = #CPU)
             var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
-
-            // create the collection
-            var outObj = new KnapsacksCollection(now().toString());
 
             // we will not use a knapsack algorithm in the classical sense per se
             // since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
@@ -1474,173 +1439,57 @@
             }
         }
 
-
-        // start allocating files to knapsacks
+        // get the items we can process
         var oAllItems = oHashedItemsCollection.getSuccessItems();
 
+        // sort by largest first
+        // hashing bigger files first usually increases the speed up to 25% for mixed groups of files
+        // but makes little difference if file sizes are very close to each other (usually few big files)
         /** @type {Array.<HashedItem>} */
         var aAllItemsSorted = [];
-        for (key in oAllItems) {
-            aAllItemsSorted.push(oAllItems[key]);
+        for (var key in oAllItems) aAllItemsSorted.push(oAllItems[key]);
+        aAllItemsSorted.sort(function(oHI1, oHI2){ return oHI2.size - oHI1.size; });
+
+        // start allocating items into knapsacks
+        var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
+        for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
+            var oHashedItem = aAllItemsSorted[kal];
+            // find a suitable knapsack:
+            // - start with the 1st available knapsack, index: 0, this will be the outer marker
+            // - iterate over each file
+            // - if the knapsack has free capacity, put the file
+            // - if the capacity is exceeded after putting the file, increase the outer marker by 1
+            //   so that we never reuse it
+            // - iterate with the next file until we visit all the knapsacks
+            //   and set the inner pointer to the value of outer pointer
+            //
+            // example, if you have 4 threads, and 12 files:
+            // assume we put 4 files in the first round to 4 knapsacks
+            // the inner pointer moves between index 0 and 3
+            // in the 2nd round we put the 5th file and 1st knapsack (index 0) is over-capacity now
+            // that means in the 3rd round we will skip it
+            // and the inner pointer will move between 1 and 3
+            // as soon as 2nd (index 1) knapsack is over-capacity, inner pointer will move between 2 & 3 and so on.
+            var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
+            var ks = ksArray[nextKS];
+
+            ks.addItem(oHashedItem);
+            ksPointerUnderCapacity++;
+            if (ks.size >= idealKnapsackSize && maxNeeded > 1) {
+                logger.sverbose('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
+                ksNextStartingPoint = nextKS + 1;
+            }
+            ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
+            if (ksPointerUnderCapacity < ksNextStartingPoint) {
+                ksPointerUnderCapacity = ksNextStartingPoint;
+            }
         }
-
-        if (PROCESS_LARGEST_FILES_FIRST||PROCESS_SMALLEST_FILES_FIRST) {
-
-            // NEW LOGIC - SORTED BY SIZE
-            // turns out this is far less complicated than the old logic, and just as fast, if not faster
-            aAllItemsSorted.sort(function(oHI1, oHI2){
-                if (PROCESS_SMALLEST_FILES_FIRST) return oHI1.size - oHI2.size; // smallest first
-                if (PROCESS_LARGEST_FILES_FIRST)  return oHI2.size - oHI1.size; // largest first
-            });
-
-            var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
-            for (kal = 0; kal < aAllItemsSorted.length; kal++) {
-                oHashedItem = aAllItemsSorted[kal];
-                // find a suitable knapsack:
-                // - start with the 1st available knapsack, index: 0, this will be the outer marker
-                // - iterate over each file
-                // - if the knapsack has free capacity, put the file
-                // - if the capacity is exceeded after putting the file, increase the outer marker by 1
-                //   so that we never reuse it
-                // - iterate with the next file until we visit all the knapsacks
-                //   and set the inner pointer to the value of outer pointer
-                //
-                // example, if you have 4 threads, and 12 files:
-                // assume we put 4 files in the first round to 4 knapsacks
-                // the inner pointer moves between index 0 and 3
-                // in the 2nd round we put the 5th file and 1st knapsack (index 0) is over-capacity now
-                // that means in the 3rd round we will skip it
-                // and the inner pointer will move between 1 and 3
-                // as soon as 2nd (index 1) knapsack is over-capacity, inner pointer will move between 2 & 3 and so on.
-                var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
-                ks = ksArray[nextKS];
-
-                ks.addItem(oHashedItem);
-                ksPointerUnderCapacity++;
-                if (ks.size >= idealKnapsackSize && maxNeeded > 1) {
-                    logger.sverbose('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
-                    ksNextStartingPoint = nextKS + 1;
-                }
-                ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
-                if (ksPointerUnderCapacity < ksNextStartingPoint) {
-                    ksPointerUnderCapacity = ksNextStartingPoint;
-                }
-            }
-
-
-        } else {
-
-            // OLD LOGIC - UNSORTED INPUTS
-            // turns out sorting by size is much easier and less complicated than this
-            logger.normal(SW.startAndPrint(fnName + ' -- 1st Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', oHashedItemsCollection.countSuccess, oHashedItemsCollection.sizeSuccess, numThreads)));
-
-            knapsackAllocLoop: for (kal = 0; kal < aAllItemsSorted.length; kal++) {
-                oHashedItem = aAllItemsSorted[kal];
-
-                // find a suitable knapsack, i.e. if we put this file it should not exceed the avarage capacity
-                // note that here we loop over the knapsacks sequentially and by the sizes sorted large to small
-                // that means:
-                // 1. the higher knapsacks (with lower index) will always get the largest files
-                // 2. if the bottom knapsacks have all free capacity for incoming files
-                //    the ones with lower index among them will always get the incoming file
-                //    so it is perfectly possible that some knapsacks will be empty at the end
-                // ...and this is why this is a cheapass pseudo-knapsack implementation, but it's faaaast AF!
-                //
-                // under certain conditions the knapsacks could be filled very unevenly
-                // at worst, NUM_THREADS-1 larger than average files will end up in their own solitary knapsacks with only 1 element
-                // and the rest of smaller files will end up, crammed into the other half of knapsacks
-                // but of course due to the nature of that most consumer, if not all to my knowledge, hashing algorithms work single-threaded
-                // not even multi-threading will help you when you have to at the very least wait for the longest running thread
-                // ...now you know
-                //
-                for (i = 0; i < maxNeeded; i++) {
-                    ks = ksArray[i];
-                    if (ks.size  + oHashedItem.size <= idealKnapsackSize) {
-                        // we found a home for this item
-                        ks.addItem(oHashedItem); continue knapsackAllocLoop;
-                    }
-                }
-
-                // file did not fit into any knapsack
-                // if a file size is larger than ideal capacity, we put it into first knapsack with least items
-                var minimumItemsFound = knapsackMaxElements;
-                var minimumFilledKnapsackNumber = -1;
-                for (i = 0; i < maxNeeded; i++) {
-                    ks = ksArray[i];
-                    if (ks.count < minimumItemsFound){
-                        minimumItemsFound = ks.count;
-                        minimumFilledKnapsackNumber = i;
-                    }
-                }
-                if (minimumFilledKnapsackNumber != -1) {
-                    ksArray[minimumFilledKnapsackNumber].addItem(oHashedItem);
-                } else {
-                    var msg = sprintf('%s -- THIS SHOULD HAVE NEVER HAPPENED - Found no home for file: %s, size: %d', fnName, oHashedItem['path'], oHashedItem['size']);
-                    abortWith(new KnapsackingException(msg, fnName));
-                }
-            }
-            logger.normal(SW.stopAndPrint(fnName + ' -- 1st Stage'));
-
-
-            // OPTIONAL - avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack
-            logger.normal(SW.startAndPrint(fnName + ' -- 2nd Stage', sprintf('Count: %d, Size: %d, Num Threads: %d', outObj.countTotal, outObj.sizeTotal, numThreads)));
-            {
-                if (AVOID_OVERFILLED_KNAPSACKS) {
-                    // optional: avoid 1 overfilled but under-capacity knapsack and 1 empty knapsack, because of 1 other over-limit knapsack
-                    // this does not reduce the file size in this knapsack much, but the file count noticably
-                    // and might help reduce the file access time overhead in this thread
-                    // the Robin Hood algorithm!
-                    var underfilledKS = -1;
-                    var iter = 0, iterMax = maxNeeded;
-                    while(underfilledKS === -1 && iter++ < iterMax) {
-                        // determine underfilled and overfilled as long as there are empty knapsacks
-                        var overfilledKS = -1, currentMax = -1;
-                        for (i = 0; i < maxNeeded; i++) {
-                            ks = ksArray[i];
-                            if (currentMax < ks.count && ks.size <= idealKnapsackSize ) {
-                                currentMax = ks.count;
-                                overfilledKS = i;
-                            }
-                            if (ks.count === 0) {
-                                underfilledKS = i;
-                            }
-                        }
-                        // there are still underfilled & overfilled knapsacks
-                        if (overfilledKS !== -1 && underfilledKS !== -1) {
-                            logger.sverbose('\t%s -- Overfilled & underfilled found - Before: Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-
-                            // move items from overfilled to underfilled
-                            var oOverfilledItems = ksArray[overfilledKS].itemsColl.getItems();
-                            var iMax = Math.floor(getKeys(oOverfilledItems).length / 2);
-                            i = 0;
-                            for (key in oOverfilledItems) {
-                                if (i++ > iMax) break;
-                                oHashedItem = oOverfilledItems[key];
-                                ksArray[overfilledKS].delItem(oHashedItem);
-                                ksArray[underfilledKS].addItem(oHashedItem);
-                            }
-                            logger.sverbose('\t%s -- Overfilled & underfilled found - After : Overfilled (#%02d: %d) --> Underfilled (#%02d: %d)', fnName, overfilledKS, ksArray[overfilledKS].count , underfilledKS, ksArray[underfilledKS].count);
-                        }
-                        underfilledKS = 0;
-                        for (i = 0; i < maxNeeded; i++) {
-                            ks = ksArray[i];
-                            if (ks.count === 0) {
-                                underfilledKS = -1;
-                            }
-                        }
-                    }
-                }
-            }
-            logger.normal(SW.stopAndPrint(fnName + ' -- 2nd Stage'));
-
-        }
-
 
 
 
         logger.normal(SW.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
         var ksColl = new KnapsacksCollection(now().toString());
-        for (i = 0; i < ksArray.length; i++) {
+        for (var i = 0; i < ksArray.length; i++) {
             ks = ksArray[i];
             logger.snormal('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
             ksColl.addKnapsack(ksArray[i]);
@@ -1690,34 +1539,15 @@
         var SHA1_MD5_SPLITTER = new RegExp(/^([a-zA-Z0-9]+)\b\s+\*(.+)/);
         /**
 		 * @param {string} filename
-		 * @returns {Result} format on success, false if unknown
+		 * @returns {Result.<string, boolean>} format on success, false if unknown
 		 */
         function detectFormatFromName(filename) {
             var oItem = doh.fsu.getItem(filename);
-            if (!oItem) return ResultErr();
             switch(oItem.ext.toLowerCase()) {
             case ALGORITHMS.MD5.fileExt:    return ResultOk(ALGORITHMS.MD5.name);
             case ALGORITHMS.SHA1.fileExt:   return ResultOk(ALGORITHMS.SHA1.name);
             case ALGORITHMS.BLAKE3.fileExt: return ResultOk(ALGORITHMS.BLAKE3.name);
             default:                        return ResultErr();
-            }
-        }
-        /**
-		 * sorts output by path - only needed for on the fly export
-		 * @param {CommandResults} oInternalJSON
-		 */
-        function sortByKey(oInternalJSON) {
-            var oUnsortedItems = oInternalJSON.items,
-                aSortHelper    = [],
-                fullpath;
-            for (fullpath in oInternalJSON.items) {
-                aSortHelper.push(fullpath);
-            }
-            aSortHelper.sort();
-            oInternalJSON.items = {};
-            for (var i = 0; i < aSortHelper.length; i++) {
-                fullpath = aSortHelper[i];
-                oInternalJSON.items[fullpath] = oUnsortedItems[fullpath];
             }
         }
         /**
@@ -1758,7 +1588,6 @@
 		 * @param {string=} algorithm
 		 * @returns {CommandResults}
 		 * @throws @see {InvalidFormatException}
-		 * @throws @see {FileReadException}
 		 */
         function convertForImportFromClassical(sContents, currentPath, algorithm) {
             var fnName = funcNameExtractor(convertForImportFromClassical, myName);
@@ -1786,9 +1615,6 @@
                 logger.sverbose('%s -- Hash: %s, RelPath: %s, FullPath: %s', fnName, hash, relpath, fullpath);
 
                 var oItem = doh.fsu.getItem(fullpath);
-                if (!doh.isValidDOItem(oItem)) {
-                    abortWith(new FileReadException('Cannot get DOpus Item for: ' + fullpath + ' -- ' + oItem.modify, fnName));
-                }
                 if (!FS.isValidPath(''+oItem.realpath)) {
                     oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm, false, 'Not found: ' + oItem.realpath)); // skipped
                 } else {
@@ -1837,12 +1663,23 @@
                 if (!oPath.result) return;
                 outFilename = ''+oPath;
             }
-            // sort by path
-            var SORT_BY_PATH = true;
-            if (SORT_BY_PATH) {
-                //oInternalJSONFormat =
-                sortByKey(oInternalJSONFormat);
+
+            /** @param {CommandResults} oInternalJSON */
+            function sortByPath(oInternalJSON) {
+                var oUnsortedItems = oInternalJSON.items,
+                    aSortHelper    = [],
+                    fullpath;
+                for (fullpath in oInternalJSON.items) {
+                    aSortHelper.push(fullpath);
+                }
+                aSortHelper.sort();
+                oInternalJSON.items = {};
+                for (var i = 0; i < aSortHelper.length; i++) {
+                    fullpath = aSortHelper[i];
+                    oInternalJSON.items[fullpath] = oUnsortedItems[fullpath];
+                }
             }
+            sortByPath(oInternalJSONFormat);
 
             // convert to output format
             var outContents = '';
@@ -1880,7 +1717,6 @@
             var fnName = funcNameExtractor(prepareForImport, myName);
 
             var currentPath = doh.getCurrentPath(cmdData),
-                dialog      = cmdData.func.dlg(),
                 inFilename  = '';
 
             var ext = format || CURRENT_ALGORITHM,
@@ -1908,7 +1744,7 @@
             }
             if (!inFilename) {
                 // show an Open Dialog
-                var oPath = dialog.open('Open', currentPath, '*.' + ext);
+                var oPath = cmdData.func.dlg().open('Open', currentPath, '*.' + ext);
                 if (!oPath.result) return;
                 inFilename = ''+oPath;
             }
@@ -2013,6 +1849,7 @@
             var fnName = funcNameExtractor(verifyFrom, myName);
 
             var inPOJO = prepareForImport(cmdData, format, filename);
+
             // user aborted
             if (!inPOJO) return;
             // we have a valid POJO in internal format
@@ -2040,17 +1877,15 @@
         function isValidFormat(format) {
             return (format && ALGORITHMS[format.toUpperCase()]);
         }
-        function isValidExtension(extension) {
-            for (var f in ALGORITHMS) {
-                if (extension && ALGORITHMS[f].fileExt === extension.toLowerCase()) return true;
+        function isValidExtension(fileExt) {
+            for (var k in ALGORITHMS) {
+                if (fileExt && ALGORITHMS[k].fileExt === fileExt.toLowerCase()) return true;
             }
             return false;
         }
         function getValidFormats() {
             var outstr = '';
-            for(var k in ALGORITHMS) {
-                outstr += k + '\n';
-            }
+            for(var k in ALGORITHMS) outstr += k + '\n';
             return outstr;
         }
 
@@ -2075,33 +1910,35 @@
     function _getHashesOfAllSelectedFiles(cmdData, algorithm) {
         var fnName = funcNameExtractor(_getHashesOfAllSelectedFiles);
 
-        var skipCheck = cmdData.func.args.got_arg.SKIP_PRECHECK || false,
-            tsStart   = now();
-
         // check if tab is up-to-date
         if (doh.isTabDirty(cmdData)) {
-            showMessageDialog(cmdData.func.dlg(), 'Lister tab contents are not up-to-date, please refresh first');
-            return;
+            return ResultErr(showMessageDialog(cmdData.func.dlg(),
+                'Lister tab contents are not up-to-date, please refresh first',
+                'Tab dirty'));
         }
 
+        var skipCheck    = cmdData.func.args.got_arg.SKIP_PRECHECK || false,
+            tsStart      = now(),
+            fnFilter     = filters.PUBLIC.fnAcceptUptodateOnly,
+            fnFilterName = filters.getName(fnFilter),
+            itemsFiltered;
+
         // check if all files have valid hashes
-        var fnFilter = filters.PUBLIC.fnAcceptUptodateOnly, fnFilterName = filters.getName(fnFilter);
-        var itemsFiltered;
-        // busyIndicator.start(cmdData.func.sourcetab, sprintf('%s -- Filter: %s', fnName, fnFilterName));
         var busyIndicator = new BusyIndicator(cmdData.func.sourcetab, sprintf('%s -- Filter: %s', fnName, fnFilterName)).start();
         if (EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED && doh.getSelItemsCount(cmdData) === 0) {
-            logger.sverbose('%s -- Nothing selected, using all items', fnName);
+            // Nothing selected, using all items
             itemsFiltered = applyFilterToSelectedItems(doh.getAllItems(cmdData), true, fnFilter);
         } else {
-            logger.sverbose('%s -- Some items selected, using selected only', fnName);
+            // Some items selected, using selected only
             itemsFiltered = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
         }
         busyIndicator.stop();
 
         // if precheck is active and some hashes are missing or dirty, show and quit
         if (!skipCheck && itemsFiltered.countSkipped) {
-            showMessageDialog(cmdData.func.dlg(), 'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.\n\nAlternatively, you can use\nthe Skip Check parameter (NOT RECOMMENDED)');
-            return;
+            return ResultErr(showMessageDialog(cmdData.func.dlg(),
+                'Some selected files are skipped,\nbecause of no or outdated hashes.\nPlease update first, e.g. via Smart Update.\n\nAlternatively, you can use\nthe Skip Check parameter (NOT RECOMMENDED)',
+                'Files skipped'));
         }
 
         // check if we have any items to process further
@@ -2125,21 +1962,16 @@
                 oDOItem     = doh.fsu.getItem(oHashedItem.fullpath),
                 res         = ADS.read(oDOItem);
 
-            if (res.isErr()) { abortWith(new StreamReadWriteException('Cannot read stream data for: ' + oHashedItem.fullpath, fnName)); return; } // return needed for VSCode/TSC
+            if (res.isErr()) abortWith(new StreamReadWriteException('Cannot read stream data for: ' + oHashedItem.fullpath, fnName));
 
-            var oADSData = res.ok;
-
-            // copy the 2 most important fields
-            oHashedItem.hash      = oADSData.hash;
-            oHashedItem.algorithm = oADSData.algorithm;
-            // enrich with useful info
-            oHashedItem.relpath   = (''+oDOItem.path).normalizeTrailingBackslashes().replace(currentPath, '');
-            oHashedItem.name      = ''+oDOItem.name;
+            // copy the 2 most important fields & adjust the relative path
+            oHashedItem.hash      = res.ok.hash;
+            oHashedItem.algorithm = res.ok.algorithm;
+            oHashedItem.relpath   = oHashedItem.fullpath.normalizeTrailingBackslashes().replace(currentPath, '');
         }
 
         // calculate the command results and return
-        var oCR = new CommandResults(itemsFiltered, doh.getCurrentPath(cmdData), algorithm, tsStart, now());
-        logger.sverbose('%s -- oCR:\n%s', fnName, JSON.stringify(oCR, null, 4));
+        var oCR = new CommandResults(itemsFiltered, currentPath, algorithm, tsStart, now());
         return ResultOk(oCR);
     }
 }
@@ -2267,7 +2099,6 @@
 		 * @param {string} path file path to save
 		 * @param {string} contents contents
 		 * @returns {Result.<number, string>} number of bytes written on success, error string on error
-		 * @throws @see {FileSaveException}
 		 */
         function saveFile(path, contents) {
             var fnName = funcNameExtractor(saveFile, myName);
@@ -2285,7 +2116,7 @@
                 var blob = doh.dc.blob();
                 blob.copyFrom(contents, FORMAT_FOR_COPY);  // seems to use implicitly utf-16, only available optional param is utf8
                 var numBytesWritten = fh.write(blob);
-                logger.sforce('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
+                logger.snormal('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
                 blob.free();
                 fh.close();
                 return ResultOk(numBytesWritten);
@@ -3787,6 +3618,37 @@
         // logger.sforce('%s -- keys: %s', 'getKeys', JSON.stringify(out, null, 4));
         return out;
     }
+    /** @param {Object.<string, any>} obj @param {boolean=} descending @returns {object} */
+    // eslint-disable-next-line no-unused-vars
+    function sortByKey(obj, descending) {
+        var unsorted   = obj,
+            sortHelper = [];
+        for (var key in obj) sortHelper.push(key);
+        sortHelper.sort(function(a, b){
+            return ( a < b ? -1 : a > b ? 1 : 0 ) * ( descending ? -1 : 1 );
+        });
+        obj = {};
+        for (var i = 0; i < sortHelper.length; i++) {
+            obj[sortHelper[i]] = unsorted[sortHelper[i]];
+        }
+        return obj;
+    }
+    /** @param {Object.<any, any>} obj @param {string} field @param {boolean=} descending @returns {object} */
+    // eslint-disable-next-line no-unused-vars
+    function sortByValField(obj, field, descending) {
+        var unsorted   = obj,
+            sortHelper = [];
+        for (var key in obj) sortHelper.push(obj[key][field]);
+        sortHelper.sort(function(a, b){
+            return ( a < b ? -1 : a > b ? 1 : 0 ) * ( descending ? -1 : 1 );
+        });
+        obj = {};
+        for (var i = 0; i < sortHelper.length; i++) {
+            obj[sortHelper[i]] = unsorted[sortHelper[i]];
+        }
+        return obj;
+    }
+
     String.prototype.trim = function () {
         return this.replace(/^\s+|\s+$/g, ''); // not even trim() JScript??
     };
@@ -3826,7 +3688,7 @@
             shell  : shell,
             dopusrt: dopusrt,
 
-            /** @param {string} string */
+            /** @param {any} string */
             out: function (string) {
                 dop.output(string);
             },
@@ -4829,19 +4691,13 @@
         function NotImplementedYetException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, NotImplementedYetException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function DeveloperStupidityException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, DeveloperStupidityException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function InvalidManagerCommandException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, InvalidManagerCommandException, message, where);
-        }
-        /** @constructor @param {string} message @param {string|function} where */
-        function KnapsackingException(message, where) {
-            this.message='';this.name='';this.where=''; UserException.call(this, KnapsackingException, message, where);
         }
         /** @constructor @param {string} message @param {string|function} where */
         function InvalidUserParameterException(message, where) {
@@ -4863,29 +4719,18 @@
         function SanityCheckException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, SanityCheckException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function StreamReadWriteException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, StreamReadWriteException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function FileCreateException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, FileCreateException, message, where);
         }
-        // /** @constructor @param {string} message @param {string|function} where */
-        // function FileSaveException(message, where) {
-        //     this.message='';this.name='';this.where=''; UserException.call(this, FileSaveException, message, where);
-        // }
         /** @constructor @param {string} message @param {string|function} where */
         function FileReadException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, FileReadException, message, where);
         }
-        // /** @constructor @param {string} message @param {string|function} where */
-        // function FileDecodeException(message, where) {
-        //     this.message='';this.name='';this.where=''; UserException.call(this, FileDecodeException, message, where);
-        // }
-
         /** @constructor @param {string} message @param {string|function} where */
         function InvalidFormatException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, InvalidFormatException, message, where);
@@ -4894,12 +4739,10 @@
         function UnsupportedFormatException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, UnsupportedFormatException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function ThreadPoolMissException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, ThreadPoolMissException, message, where);
         }
-
         /** @constructor @param {string} message @param {string|function} where */
         function InvalidNumberException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, InvalidNumberException, message, where);
