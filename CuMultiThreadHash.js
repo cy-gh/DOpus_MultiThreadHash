@@ -1,9 +1,10 @@
-﻿///<reference path="./CuMultiThreadHash.d.ts" />
-///<reference path="./_DOpusDefinitions.d.ts" />
-// @ts-check
+﻿// @ts-check
 /* eslint quotes: ['error', 'single'] */
 /* eslint-disable no-inner-declarations */
 /* global ActiveXObject Enumerator DOpus Script */
+/* eslint indent: [2, 4, {"SwitchCase": 1}] */
+///<reference path="./_DOpusDefinitions.d.ts" />
+///<reference path="./CuMultiThreadHash.d.ts" />
 
 
 // JScript cannot include external files and this development has grown very big for 1 file.
@@ -24,6 +25,9 @@
 	 "Y8888P88 88888888  "Y88888P"  8888888P"  d88P     888 88888888
 */
 {
+    function Initialize() {
+    }
+
     {
         // the gigantic ASCII figlets are just for VSCode minimap :) - by https://textart.io/figlet
 
@@ -115,7 +119,7 @@
 
         // collection names for find commands & files which reported an error
         /** @type {boolean} */
-        var COLLECTIONS_ENABLED = false;
+        var COLLECTIONS_ENABLED = true;
         /** @type {string} */
         var COLL_DUMMY          = ''; // needed only used for benchmark action
         /** @type {string} */
@@ -154,6 +158,8 @@
         // automatically add file with the latest date-time to generated export file names
         /** @type {boolean} */
         var APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES = true;
+        /** @type {boolean} */
+        var SKIP_SAVE_DIALOG_AND_OVERWRITE = true;
 
         // if Export from ADS is clicked but nothing is selected, use all items in the currently displayed tab
         /** @type {boolean} */
@@ -161,6 +167,9 @@
         // if Import into ADS is clicked and a single file is selected, use it as source
         /** @type {boolean} */
         var IMPORT_USE_SELECTED_FILE_AS_SOURCE = true;
+        // if Export from ADS is clicked and a single directory/file is selected, use it as target name
+        /** @type {boolean} */
+        var IMPORT_USE_SELECTED_ITEM_AS_TARGET = true;
 
         // try to determine disk type where selected files reside, i.e. HDD or SSD
         // if you are using no HDDs at all, e.g. on a laptop, no external disks, etc. there is no need to activate this
@@ -194,6 +203,7 @@
 */
 {
     // called by DOpus
+    /** @param {DOpusScriptInitData} initData */
     // eslint-disable-next-line no-unused-vars
     function OnInit(initData) {
         initData.name           = Global.SCRIPT_NAME;
@@ -208,28 +218,32 @@
 
         logger.setLevel(logger.levels.ERROR);
 
-        // return;
-        // cacheMgr.clearCache();
-        /*
-			How to initialize:
 
-			'////////////////////////////////////////////////
-			' The following options are user configurable via the Configure button under the scripts listing in Prefs
-			'////////////////////////////////////////////////
-			' Set DEBUG flag to True in order to enable logging messages to the Opus Output Window
-			initData.config.DEBUG = False
-			'////////////////////////////////////////////////
-			' Set DEBUG_CLEAR flag to True in order to clear log messages from the Opus Output Window between script runs
-			initData.config.DEBUG_CLEAR = False
-			'////////////////////////////////////////////////
-			' Set descriptions for all script options
-			initData.config_desc = DOpus.NewMap("DEBUG", "Set this option to True to enable logging to the Opus script log.", _
-												"DEBUG_CLEAR", "Set this option to True clear messages logged to the Opus script log between script runs.")
-
-            How to use:
-			If ((Script.config.DEBUG) Or (SCRIPT_DEBUG)) And (Script.config.DEBUG_CLEAR) Then DOpus.ClearOutput
-        */
-
+        // // collection names for find commands & files which reported an error
+        // /** @type {boolean} */
+        // initData.config.COLLECTIONS_ENABLED = true;
+        // /** @type {string} */
+        // initData.config.COLL_DUMMY          = ''; // needed only used for benchmark action
+        // /** @type {string} */
+        // initData.config.COLL_SUCCESS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
+        // /** @type {string} */
+        // initData.config.COLL_DIRTY          = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
+        // /** @type {string} */
+        // initData.config.COLL_MISSING        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
+        // /** @type {string} */
+        // initData.config.COLL_ERRORS         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
+        // /** @type {string} */
+        // initData.config.COLL_UPTODATE       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Up-to-date hashes';
+        // /** @type {string} */
+        // initData.config.COLL_IMPORT_ERRORS  = Global.SCRIPT_NAME_SHORT + ' - ' + 'Import errors';
+        // /** @type {string} */
+        // initData.config.COLL_VERIFY_MISSING = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify missing files';
+        // initData.config_desc = DOpus.create().map(
+        //     'COLLECTIONS_ENABLED', 'Enable collections',
+        //     'COLL_SUCCESS', 'Collection for successful items, e.g. for verification',
+        //     'COLL_DIRTY', 'Collection for files with outdated hashes',
+        //     'COLL_MISSING', 'Collection for files without hashes');
+        // how to use: Script.config.COLLECTIONS_ENABLED, Script.config.sleepdur...
 
         doh.clear();
 
@@ -238,12 +252,14 @@
         // even if they are put into Script.Vars, because they get cleared once the script is unloaded from memory
         // so the only safe location is not Script.Vars but DOpus.Vars
         _setScriptPathVars(initData);
-        playFeedbackSound('Success'); // TODO REMOVE
+        playSound('Success'); // TODO REMOVE
 
         _initializeCommands(initData);
         _initializeColumns(initData);
         return false;
     }
+
+
     /**
 	 * Sets a global variable in the global DOpus memory with the fullpath of this script
 	 * so that we can determine if we are in development or released OSP mode
@@ -253,6 +269,8 @@
         var oItem = doh.fsu.getItem(initData.file);
         doh.setGlobalVar('Global.SCRIPT_ITEM', oItem);
     }
+
+
     /**
 	 * Reads the fullpath, path name and isOSP flag of this script
 	 * @returns {{fullpath: string, path: string, isOSP: boolean}}
@@ -266,6 +284,8 @@
             isOSP   : (''+oThisScriptsPath.ext).toLowerCase() === '.osp'
         };
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {string} name column name
@@ -274,6 +294,8 @@
         // return Global.SCRIPT_NAME_SHORT + ' ' + name;
         return '#' + name;
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {string} name column name
@@ -281,6 +303,8 @@
     function _getColumnNameFor(name) {
         return Global.SCRIPT_NAME_SHORT + '_' + name;
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * helper method to get the Icon Name for development and OSP version
@@ -291,6 +315,8 @@
         // #MTHasher is defined in the Icons.XML file
         return ( myInfo.isOSP ? ('#MTHasher:' + iconName) : (myInfo.path + 'Icons\\MTH_32_' + iconName + '.png') );
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {string} name command name, prefix will be added automatically
@@ -312,6 +338,8 @@
         cmd.desc        = desc || label;
         cmd.hide        = typeof hide !== 'undefined' && hide || false;
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {string} name column name
@@ -333,6 +361,8 @@
         col.autorefresh = autorefresh;
         col.multicol    = multicol;
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {DOpusScriptInitData} initData DOpus InitData
@@ -370,7 +400,7 @@
             'MAXCOUNT/N,RECURSE/S,' +
 				'CALCULATE_ONLY/S,HARD_UPDATE_ADS/S,SMART_UPDATE_ADS/S,VERIFY_FROM_ADS/S,DELETE_ADS/S,' +
 				'FIND_DIRTY/S,FIND_MISSING/S,' +
-				'VERIFY_FROM/S,FILE/O,FORMAT/O,' +
+				'VERIFY_FROM/S,FILE/O,' +
 				'BENCHMARK/S,BENCHMARK_SIZE/O,BENCHMARK_COUNT/O,NO_PROGRESS_BAR/S',
             'Green_SmartUpdate',
             'MTH Manager',
@@ -398,9 +428,17 @@
             onDOpusCmdMHTClearCache,
             initData,
             '',
-            'Red_DeleteADS',
+            'Red_ClearCache',
             'MTH Clear Cache',
             'Clears internal cache'
+        );
+        _addCommand('DeleteADS',
+            onDOpusCmdMHTDeleteADS,
+            initData,
+            '',
+            'Red_DeleteADS',
+            'MTH Delete ADS',
+            'Deletes stored ADS'
         );
         _addCommand('CopyToClipboard',
             onDOpusCopyToClipboard,
@@ -426,23 +464,9 @@
             'MTH Import into ADS',
             'Imports hashes from selected file to ADS for all matched files by name; the current lister tab path is used to resolve relative paths'
         );
-        _addCommand('OnTheFlyCalculateAndExport',
-            onDOpusOnTheFlyCalculateAndExport,
-            initData,
-            'FILE/O',
-            'Orange_OntheflyCalculateAndExport',
-            'MTH On-The-Fly Calculate && Export',
-            'Calculates hashes anew without using ADS; if filename is supplied and file exists it will be overwritten'
-        );
-        _addCommand('OnTheFlyVerifyFromFile',
-            onDOpusOnTheFlyVerifyFromFile,
-            initData,
-            'FILE/O',
-            'Orange_OntheflyCompareExternalFileToADS',
-            'MTH On-The-Fly Verify (no ADS import)',
-            'Verifies hashes in external file against all matched files by relative path & name; the current lister tab path is used to resolve relative paths'
-        );
     }
+
+
     /**
 	 * internal method called by OnInit() directly or indirectly
 	 * @param {object} initData DOpus InitData
@@ -497,61 +521,183 @@
 */
 {
     // CLEAR CACHE
-    // called by user command, button, etc.
+
+    /** @returns void */
     function onDOpusCmdMHTClearCache() {
         memory.clearCache();
     }
+
+    /** @param {DOpusScriptCommandData} cmdData DOpus command data */
+    function onDOpusCmdMHTDeleteADS(cmdData) {
+        var fnName = funcNameExtractor(onDOpusCmdMHTDeleteADS);
+
+        var fnFilter = filters.PUBLIC.fnAcceptWithHashes;
+        var busyIndicator = new BusyIndicator(cmdData.func.sourceTab, sprintf('%s -- Filter: %s', fnName, fnFilter)).start();
+        var selectedFiltered = applyFilterToSelectedItems(doh.getSelItems(cmdData), true, fnFilter);
+
+        var oItems = selectedFiltered.getSuccessItems();
+        if (oItems) {
+            var oDOpusItemCollection = new DOpusItemsVector();
+            for (var filepath in oItems) {
+                oDOpusItemCollection.addItem(doh.fsu.getItem(filepath));
+            }
+            ADS.remove(oDOpusItemCollection);
+            playSound('Success');
+        } else {
+            playSound('Warn');
+        }
+        busyIndicator.stop();
+
+    }
+
+    /** @param {DOpusScriptCommandData} cmdData DOpus command data */
     function onDOpusCopyToClipboard(cmdData) {
-        var res = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
-        if (res.isErr()) { return; }
-        doh.cmd.runCommand('Clipboard SET ' + JSON.stringify(res.ok, null, 4));
+        var resHashes = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
+        if (resHashes.isErr())
+            // a message dialog is automatically shown in _getHashesOfAllSelectedFiles()
+            return;
+        doh.cmd.runCommand('Clipboard SET ' + JSON.stringify(resHashes.ok, null, 4));
     }
-    /**
-	 * @param {object} cmdData DOpus command data
-	 * @throws @see {InvalidFormatException} if given format is invalid
-	 * @throws @see {FileCreateException} if file cannot be saved
-	 */
+
+
+    /** @param {DOpusScriptCommandData} cmdData DOpus command data */
     function onDOpusADSExportFrom(cmdData) {
-        var fnName = funcNameExtractor(onDOpusADSExportFrom);
         // check command parameters
-        var format          = cmdData.func.args.FORMAT;
-        var filename        = cmdData.func.args.FILE;
+        // var filename        = cmdData.func.args.FILE;
         var useForwardSlash = cmdData.func.args.got_arg.USE_FORWARD_SLASH;
-        if (!format || !fileExchangeHandler.isValidFormat(format)) {
-            abortWith(new InvalidFormatException('No or invalid format supplied for FORMAT parameter,\nvalid formats are:\n' + fileExchangeHandler.getValidFormats(), fnName));
+
+        var resFilename = _getFileName(cmdData, false);
+        if (resFilename.isErr()) {
+            playFeedbackSound(resFilename);
+            return showMessageDialog(cmdData.func.dlg(), 'Cannot continue without a valid file/path', 'Invalid path');
         }
+
         // get the hashes
-        var res1 = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
-        if (res1.isErr()) { return; }
-        var res2 = fileExchangeHandler.exportTo(cmdData, format, filename, res1.ok, useForwardSlash);
-        if (!res2.isOk()) {
-            abortWith(new FileCreateException('File could not be saved:\n' + res2.err, fnName));
-            // showMessageDialog(cmdData.func.dlg(), 'File could not be saved:\n' + res2.err, 'Save Error');
+        var resHashes = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
+        if (resHashes.isErr()) return; // a message dialog is automatically shown in _getHashesOfAllSelectedFiles()
+
+        // save the file
+        var resExport = fileImportExport.exportTo(cmdData, resHashes.ok, useForwardSlash);
+        playFeedbackSound(resExport);
+        if (resExport.isErr()) {
+            return showMessageDialog(cmdData.func.dlg(), 'File could not be saved:\n' + resExport.err, 'Save error' );
         }
+
     }
+
+
+    /** @param {DOpusScriptCommandData} cmdData DOpus command data */
     function onDOpusADSImportInto(cmdData) {
-        fileExchangeHandler.importFrom(cmdData, cmdData.func.args.FORMAT, cmdData.func.args.FILE);
+        var resFilename = _getFileName(cmdData);
+        if (resFilename.isErr()) {
+            playFeedbackSound(resFilename);
+            return showMessageDialog(cmdData.func.dlg(), 'Cannot continue without a valid file/path', 'Invalid path');
+        }
+        var resImport = fileImportExport.importFrom(cmdData);
+        playFeedbackSound(resImport);
     }
+
+
     /**
-	 * @param {object} cmdData DOpus command data
-	 * @throws @see {NotImplementedYetException}
+	 * @param {DOpusScriptCommandData} cmdData DOpus command data
+     * @param {boolean} [forOpen=true] true if file is meant for saving, i.e. does not need to exist before the action
+     * @param {string=} suggestedNameSuffix for saving files
+     * @return {Result.<{name: string, format: string}, boolean>} filename & format on success
 	 */
-    function onDOpusOnTheFlyCalculateAndExport(cmdData) {
-        var fnName = funcNameExtractor(onDOpusOnTheFlyCalculateAndExport);
-        abortWith(new NotImplementedYetException('', fnName));
-        return cmdData.dummy;
-    }
-    /**
-	 * @param {object} cmdData DOpus command data
-	 * @throws @see {NotImplementedYetException}
-	 */
-    function onDOpusOnTheFlyVerifyFromFile(cmdData) {
-        var fnName = funcNameExtractor(onDOpusOnTheFlyVerifyFromFile);
-        // check command parameters
-        var format          = cmdData.func.args.FORMAT;
-        var filename        = cmdData.func.args.FILE;
-        abortWith(new NotImplementedYetException('', fnName));
-        fileExchangeHandler.verifyFrom(cmdData, format, filename);
+    function _getFileName(cmdData, forOpen, suggestedNameSuffix) {
+        var fnName = funcNameExtractor(_getFileName);
+
+        var file = cmdData.func.args.got_arg.FILE ? cmdData.func.args.FILE : '';
+        forOpen = typeof forOpen === 'undefined' ? true : !!forOpen;
+
+        var currentPath = doh.getCurrentPath(cmdData),
+            filename    = '',
+            basename    = '',
+            detectedFormat,
+            oPath;
+
+        /**
+		 * @param {string} filename
+		 * @returns {Result.<string, string>} format on success, given file's extension if unsupported
+		 */
+        function detectFormatFromName(filename) {
+            var oItem = doh.fsu.getItem(filename);
+            switch(oItem.ext.toLowerCase()) {
+                case ALGORITHMS.MD5.fileExt:    return ResultOk(ALGORITHMS.MD5.name);
+                case ALGORITHMS.SHA1.fileExt:   return ResultOk(ALGORITHMS.SHA1.name);
+                case ALGORITHMS.BLAKE3.fileExt: return ResultOk(ALGORITHMS.BLAKE3.name);
+                default:                        return ResultErr(oItem.ext);
+            }
+        }
+
+
+        if (typeof file === 'string' && file) {
+            // validate given filename
+            if(forOpen) {
+                if(!FS.isValidPath(file)) {
+                    if (!FS.isValidPath(currentPath + file)) {
+                        return ResultErr(sprintf('%s -- Given path %s is invalid', fnName, file));
+                    } else {
+                        filename = currentPath + file;
+                    }
+                } else {
+                    filename = file;
+                }
+            } else {
+                if (!FS.isValidPath(''+doh.fsu.getItem(file).path)) {
+                    if (!FS.isValidPath(''+doh.fsu.getItem(currentPath + file).path)) {
+                        return ResultErr(sprintf('%s -- Given path %s cannot be used (missing parent folders are not automatically created)', fnName, file));
+                    }
+                    else {
+                        filename = currentPath + file;
+                    }
+                } else {
+                    filename = file;
+                }
+            }
+        } else if (forOpen) {
+            if (IMPORT_USE_SELECTED_FILE_AS_SOURCE && doh.getSelItemsCount(cmdData) === 1 && doh.getSelFilesCount(cmdData) === 1) {
+                // if a single file is selected use it as source
+                filename = ''+doh.getSelFileAsItem(cmdData).realpath;
+                logger.snormal('%s -- Using selected file as input: %s', fnName, filename);
+            }
+            detectedFormat = detectFormatFromName(filename);
+            if (detectedFormat.isErr()) {
+                // show an Open Dialog
+                oPath = cmdData.func.dlg().open('Open', currentPath);
+                if (oPath.result) filename = ''+oPath;
+            }
+        } else if (!forOpen) {
+            if (IMPORT_USE_SELECTED_ITEM_AS_TARGET && doh.getSelItemsCount(cmdData) === 1 && doh.getSelDirsCount(cmdData) === 1) {
+                // if a single directory is selected use it as target name
+                basename = ''+doh.getSelectedAsItem(cmdData).name_stem;
+                logger.sforce('%s -- Using selected item name in output: %s', fnName, basename);
+            } else {
+                // if no or multiple items are selected use the current path as base name
+                basename = (''+currentPath).replace(/[\\:]/g, '_').replace(/_*$/, '').replace(/_+/, '_') + (cmdData.func.args.got_arg.USE_FORWARD_SLASH ? '_FS' : '');
+                logger.sforce('%s -- Using current directory name in output: %s', fnName, basename);
+            }
+            suggestedNameSuffix = suggestedNameSuffix ? ' - ' + suggestedNameSuffix : '';
+            filename = currentPath + basename + suggestedNameSuffix + ALGORITHMS[CURRENT_ALGORITHM].fileExt;
+            logger.sforce('%s -- Using filename for output: %s', fnName, filename);
+
+            if (!SKIP_SAVE_DIALOG_AND_OVERWRITE) {
+                // show a Save Dialog
+                oPath = cmdData.func.dlg().save('Save', filename);
+                if (!oPath.result) abortWith(new UserAbortedException('User aborted', fnName));
+                filename = ''+oPath;
+            }
+        }
+
+        // check if file can be used
+        if (filename) {
+            detectedFormat = detectFormatFromName(filename);
+            if (detectedFormat.isErr()) {
+                return ResultErr(sprintf('%s -- Given file %s cannot be used, unsupported format/extension', fnName, file));
+            }
+        }
+
+        return filename ? ResultOk({name: filename, format: detectedFormat.ok}) : ResultErr(true);
     }
 }
 
@@ -600,37 +746,37 @@
             var key = e.item();
             var outstr, differentModifDate, differentSize;
             switch(key) {
-            case _getColumnNameFor('NeedsUpdate'):
-                differentModifDate = new Date(item.modify).valueOf() !== itemProps.last_modify;
-                differentSize      = parseInt(item.size, 10)         !== itemProps.last_size;
+                case _getColumnNameFor('NeedsUpdate'):
+                    differentModifDate = new Date(item.modify).valueOf() !== itemProps.last_modify;
+                    differentSize      = parseInt(item.size, 10)         !== itemProps.last_size;
 
-                outstr = differentModifDate || differentSize ? 'Yes' : 'No';
-                scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
-                scriptColData.columns(key).value = outstr;
-                break;
+                    outstr = differentModifDate || differentSize ? 'Yes' : 'No';
+                    scriptColData.columns(key).group = 'Needs update: ' + (outstr ? 'Yes' : 'No');
+                    scriptColData.columns(key).value = outstr;
+                    break;
 
-            case _getColumnNameFor('NeedsUpdateVerbose'):
-                differentModifDate = new Date(item.modify).valueOf() !== itemProps.last_modify;
-                differentSize      = parseInt(item.size, 10)         !== itemProps.last_size;
-                outstr = differentModifDate || differentSize ? 'Yes' : 'No';
-                if (differentModifDate && differentSize) {
-                    outstr += ' (date & size)';
-                } else if (differentModifDate) {
-                    outstr += ' (date)';
-                } else if (differentSize) {
-                    outstr += ' (size)';
-                }
-                scriptColData.columns(key).group = 'Needs update (Verbose): ' + (outstr ? 'Yes' : 'No');
-                scriptColData.columns(key).value = outstr;
-                break;
+                case _getColumnNameFor('NeedsUpdateVerbose'):
+                    differentModifDate = new Date(item.modify).valueOf() !== itemProps.last_modify;
+                    differentSize      = parseInt(item.size, 10)         !== itemProps.last_size;
+                    outstr = differentModifDate || differentSize ? 'Yes' : 'No';
+                    if (differentModifDate && differentSize) {
+                        outstr += ' (date & size)';
+                    } else if (differentModifDate) {
+                        outstr += ' (date)';
+                    } else if (differentSize) {
+                        outstr += ' (size)';
+                    }
+                    scriptColData.columns(key).group = 'Needs update (Verbose): ' + (outstr ? 'Yes' : 'No');
+                    scriptColData.columns(key).value = outstr;
+                    break;
 
-            case _getColumnNameFor('ADSDataRaw'):
-                scriptColData.columns(key).value = JSON.stringify(itemProps);
-                break;
+                case _getColumnNameFor('ADSDataRaw'):
+                    scriptColData.columns(key).value = JSON.stringify(itemProps);
+                    break;
 
-            case _getColumnNameFor('ADSDataFormatted'):
-                scriptColData.columns(key).value = JSON.stringify(itemProps, null, '\t');
-                break;
+                case _getColumnNameFor('ADSDataFormatted'):
+                    scriptColData.columns(key).value = JSON.stringify(itemProps, null, '\t');
+                    break;
             } // switch
         } // for enum
         var ts2 = new Date().getTime();
@@ -650,6 +796,8 @@
 	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
 */
 {
+
+
     // called by custom DOpus command
     /**
 	 *
@@ -662,15 +810,70 @@
 
         doh.clear();
 
+        logger.sforce('%s -- Global.SCRIPT_DESC: %s', fnName, Global.SCRIPT_DESC);
+
         // VALIDATE PARAMETERS & SET FILTERS, ACTIONS AND COLLECTIONS
         {
-            var command        = getManagerCommand(cmdData),
-                commandName    = command.command,
+            /**
+             * @typedef SWITCH
+             * @type {object}
+             * @property {string} name
+             * @property {function} filter
+             * @property {function} action
+             * @property {string} collSuccess
+             * @property {string=} collErrors
+             * @property {string=} collSkipped
+             * @property {number=} maxCount
+             */
+            /**
+             * @type {Object.<string, SWITCH>}
+             */
+            var VALID_SWITCHES = {
+                CALCULATE_ONLY   : { name: 'CALCULATE_ONLY',    filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateOnly,            collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
+                HARD_UPDATE_ADS  : { name: 'HARD_UPDATE_ADS',   filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
+                SMART_UPDATE_ADS : { name: 'SMART_UPDATE_ADS',  filter: filters.PUBLIC.fnAcceptMissingOrDirty, action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
+                VERIFY_FROM_ADS  : { name: 'VERIFY_FROM_ADS',   filter: filters.PUBLIC.fnAcceptUptodateOnly,   action: actions.PUBLIC.fnCalculateAndCompareToADS, collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
+                DELETE_ADS       : { name: 'DELETE_ADS',        filter: filters.PUBLIC.fnAcceptWithHashes,     action: actions.PUBLIC.fnDeleteADS,                collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE, maxCount: 1 },
+                FIND_DIRTY       : { name: 'FIND_DIRTY',        filter: filters.PUBLIC.fnAcceptDirtyOnly,      action: actions.PUBLIC.fnNull,                     collSuccess: COLL_DIRTY },
+                FIND_MISSING     : { name: 'FIND_MISSING',      filter: filters.PUBLIC.fnRejectWithHashes,     action: actions.PUBLIC.fnNull,                     collSuccess: COLL_MISSING },
+                COPY_TO_CLIPBOARD: { name: 'COPY_TO_CLIPBOARD', filter: filters.PUBLIC.fnRejectAnyFile,        action: actions.PUBLIC.fnNOT_IMPLEMENTED_YET,      collSuccess: COLL_DUMMY },
+                VERIFY_FROM      : { name: 'VERIFY_FROM',       filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCompareAgainstHash,       collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_VERIFY_MISSING },
+                BENCHMARK        : { name: 'BENCHMARK',         filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnBenchmark,                collSuccess: COLL_DUMMY }
+            };
+            var cargs     = cmdData.func.args;
+            // if dirs are selected process children files
+            var recurse   = cargs.got_arg.RECURSE || true;
+            // maxiumum number of threads, default: all available
+            var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || MAX_AVAILABLE_CORE_COUNT;
+            // file to use for on-the-fly export & verify
+            var file      = cargs.got_arg.FILE && cargs.FILE.toString() || '';
+            // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
+            var benchsize = cargs.got_arg.BENCHMARK_SIZE && cargs.BENCHMARK_SIZE.toString().asInt() || Math.pow(2, 16);
+            // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
+            var benchcount= cargs.got_arg.BENCHMARK_COUNT && cargs.BENCHMARK_COUNT.toString().asInt() || 500;
+            // whether progress bar should be disabled, default false (=progbar enabled)
+            var noprogbar = cargs.got_arg.NO_PROGRESS_BAR || false;
+
+            for (var sw in VALID_SWITCHES) {
+                if (cargs.got_arg[sw]) {
+                    var oSW = VALID_SWITCHES[sw];
+                    var command = new ManagerCommand(sw, recurse, oSW.maxCount || maxcount, oSW.filter, oSW.action, oSW.collSuccess, oSW.collErrors, oSW.collSkipped, '');
+                    if (file)       command.fileName      = file;       // do not add filename unless given
+                    if (benchsize)  command.benchSize     = benchsize;
+                    if (benchcount) command.benchCount    = benchcount;
+                    if (noprogbar)  command.noProgressBar = noprogbar;
+                    logger.snormal('%s -- Switch: %s, Command: %s', fnName, sw, command.toString());
+                }
+            }
+            if(!command) abortWith(new InvalidManagerCommandException('No valid command is given', fnName));
+            var commandName    = command.command,
                 fnFilter       = command.filter,
                 fnFilterName   = command.filterName,
                 fnAction       = command.action,
                 fnActionName   = command.actionName;
+
         }
+
 
         // benchmarking, runaway stoppers for while loops, progress bar abort
         var tsStart         = now(),
@@ -683,8 +886,8 @@
 
         // SELECTION & FILTERING
         {
-            var busyIndicator = new BusyIndicator(cmdData.func.sourcetab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName)).start();
-            /** @type {HashedItemsCollection} */
+            var busyIndicator = new BusyIndicator(cmdData.func.sourceTab, sprintf('%s -- Filter: %s, Action: %s', fnName, fnFilterName, fnActionName)).start();
+            /** @type {ThreadedItemsCollection} */
             var selectedFiltered;
             // if (command.command === 'VERIFY_FROM' ) {
             if (fnAction === actions.PUBLIC.fnBenchmark) {
@@ -692,20 +895,20 @@
                 return;
             } else if (fnAction === actions.PUBLIC.fnCompareAgainstHash) {
                 // get the given file or user-selected file contents in internal format
-                var extFileAsPOJO = fileExchangeHandler.verifyFrom(cmdData, '', command.fileName);
+                var extFileAsPOJO = fileImportExport.verifyFrom(cmdData);
                 if (!extFileAsPOJO.items) {
                     abortWith(new InvalidFormatException('Nothing to do, parsing results:' + JSON.stringify(extFileAsPOJO, null, 4), fnName));
                 }
 
                 // populate the collection which will replace the typical user-selected files collection, e.g. in next block with applyFilterToSelectedItems()
-                selectedFiltered = new HashedItemsCollection();
+                selectedFiltered = new ThreadedItemsCollection();
                 // for (var itemPath in extFileAsPOJO.items) {
                 //     if (!extFileAsPOJO.items.hasOwnProperty(itemPath)) continue; // skip prototype functions, etc.
                 for (var itemPath in getKeys(extFileAsPOJO.items)) {
                     var item = extFileAsPOJO.items[itemPath];
                     var oItem = doh.getItem(itemPath);
                     if (!oItem) { abortWith(new InvalidParameterTypeException('Item is not valid for path: ' + itemPath, fnName)); return; } // return needed for VSCode/TSC
-                    selectedFiltered.addItem(new HashedItem(oItem, '', item.hash, extFileAsPOJO.Algorithm));
+                    selectedFiltered.addItem(new ThreadedItem(oItem, '', item.hash, extFileAsPOJO.Algorithm));
                 }
                 logger.sverbose('%s -- hic:\n%s', fnName, JSON.stringify(selectedFiltered, null, 4));
             } else {
@@ -715,21 +918,19 @@
             var selectedItemsSize  = selectedFiltered.sizeSuccess;
             busyIndicator.stop();
 
-            // // TODO - RECHECK if this still applies
-            // // if a collection name is set, we only need to show the selection & filtering results, e.g. Dirty, Missing...
-            // if (collectionName) {
-            // 	busyIndicator.start(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName));
-            // 	logger.normal(stopwatch.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
+            // for Find Dirty & Find Missing we only need to show the selection & filtering results
+            if (commandName === VALID_SWITCHES.FIND_DIRTY.name || commandName === VALID_SWITCHES.FIND_MISSING.name) {
+                var collectionName = command.collNameSuccess;
+                busyIndicator = new BusyIndicator(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName)).start();
+                logger.normal(SW.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
 
-            // 	// addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
-            // 	addFilesToCollection(getObjKeys(selectedFiltered.getSuccessItems()), collectionName);
+                // addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+                addFilesToCollection(getKeys(selectedFiltered.getSuccessItems()), collectionName);
 
-            // 	logger.normal(stopwatch.stopAndPrint(fnName, 'Populating collection'));
-            // 	busyIndicator.stop();
-            // 	return;
-            // }
-            // // TODO - RECHECK if this still applies
-
+                logger.normal(SW.stopAndPrint(fnName, 'Populating collection'));
+                busyIndicator.stop();
+                return;
+            }
 
 
             // if some hashes are missing or dirty, show and quit
@@ -804,30 +1005,37 @@
 
         // SEND SELECTED FILES TO WORKER THREADS
         {
+            logger.normal(SW.startAndPrint(fnName, 'Worker launch'));
             try {
+                // doh.cmd.clearFiles();
                 for (var kskeyWorker in selectedKnapsacked.unfinishedKS) { // knapsacks
                     var ksWorker = selectedKnapsacked.unfinishedKS[kskeyWorker];
                     // prepare the variables for this knapsack's worker
-                    var torun = sprintf('%s %s THREADID="%s" %s ACTIONFUNC=%s', doh.dopusrt, WORKER_COMMAND, ksWorker.id, sendViaFilelist && 'VIAFILELIST' || '', fnActionName);
+                    var torun = sprintf('%s %s THREADID="%s" ACTIONFUNC=%s %s', doh.dopusrt, WORKER_COMMAND, ksWorker.id, fnActionName, sendViaFilelist && 'VIAFILELIST' || '');
 
                     // put all files in this knapsack into a map
                     var filesMap = doh.dc.map();
-                    var oHashedItems = ksWorker.itemsColl.getSuccessItems();
-                    for (var hikey in oHashedItems) { // files
-                        var oHashedItem = oHashedItems[hikey];
+
+                    var oThreadedItems = ksWorker.itemsColl.getSuccessItems();
+
+                    for (var tikey in oThreadedItems) { // files
+                        var oThreadedItem = oThreadedItems[tikey];
                         // create a new DOpus map for this file and put it into the knapsack map
-                        filesMap.set(oHashedItem.fullpath, oHashedItem.convertToDOMap());
+                        filesMap.set(oThreadedItem.fullpath, oThreadedItem.convertToDOMap());
                     }
                     // put this knapsack into thread pool and run
                     memory.setThreadVar(ksWorker.id, filesMap);
                     logger.sverbose('%s -- Worker command to run: %s', fnName, torun);
                     doh.cmd.runCommand(torun);
+                    // doh.cmd.addLine(torun);
                 }
+                // doh.cmd.run();
             } catch (e) {
                 // TODO
                 logger.sforce('%s -- ERROR: %s', fnName, e.toString());
                 return;
             }
+            logger.normal(SW.stopAndPrint(fnName,'Worker launch'));
         }
 
 
@@ -839,7 +1047,7 @@
             logger.sforce('');
             logger.sforce('');
 
-            logger.normal(SW.startAndPrint(fnName, 'Progress Bar'));
+            logger.normal(SW.startAndPrint(fnName, 'Worker loop'));
             var finished_bytes_so_far = 0;
             unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
                 // doh.delay(sleepdur);
@@ -858,7 +1066,7 @@
                         } else {
                             // EXTREMELY IMPORTANT
                             // find this item in the knapsack items collection and mark it as finished
-                            // this automatically bubbles up from HashedItem to HashedItemsCollection to Knapsack to KnapsacksCollection
+                            // this automatically bubbles up from ThreadedItem to ThreadedItemsCollection to Knapsack to KnapsacksCollection
                             // and that's how selectedKnapsacked.allFinished() above works!
                             ksWait.itemsColl.getByPath(ksItem('filepath')).markFinished();
 
@@ -868,13 +1076,14 @@
 
                             // UPDATE THE PROGRESS BAR not for each file
                             finished_bytes_so_far += ksItem('filesize');
-                            // userAborted = updateProgressBar(progbar, tsStart, ksItem('filename'), finished_bytes_so_far, selectedItemsSize, formattedMax, unitMax);
                             userAborted = progbar.update(ksItem('filename'), finished_bytes_so_far);
                             if (userAborted) { break unfinished; }
                         }
                     }
                 }
             }
+            logger.normal(SW.stopAndPrint(fnName, 'Worker loop'));
+
             logger.sforce('');
             logger.sforce('');
             logger.sforce('%s -- All workers finished: %s', fnName, selectedKnapsacked.allFinished());
@@ -885,16 +1094,12 @@
             }
             logger.sforce('');
             logger.sforce('');
-            logger.normal(SW.stopAndPrint(fnName, 'Progress Bar'));
-
-
         }
 
 
         // LAST CLEANUP ACTIONS
         {
             doh.delay(10);
-            // finalizeProgressBar(progbar);
             progbar.finalize();
             var tsFinish = now();
         }
@@ -906,7 +1111,7 @@
             // convert the KnapsacksCollection object to a new CommandResults object
             // these 2 objects are normally not directly compatible
             // since actionResults works using multiple threads/knapsacks and DOpus maps for information exchange between manager & workers
-            // whereas HashedItemCollection has a flattened structure with simple JavaScript objects
+            // whereas CommandResults has a flattened structure with simple JavaScript objects
             logger.normal(SW.startAndPrint(fnName, 'Command Results Preparation'));
             var oCommandResults = selectedKnapsacked.getAsCommandResults(rootPath, CURRENT_ALGORITHM, tsStart, tsFinish);
             logger.normal(SW.stopAndPrint(fnName, 'Command Results Preparation'));
@@ -923,44 +1128,16 @@
         }
 
 
-        // doh.clear();
         // ON-THE-FLY EXPORT AND ALIKE
         {
             if (command.fileName || command.fileFormat) {
-                var saveResult = fileExchangeHandler.exportTo(cmdData, command.fileFormat||CURRENT_ALGORITHM, command.fileName, oCommandResults, false);
-                if (!saveResult.isOk()) {
+                var saveResult = fileImportExport.exportTo(cmdData, oCommandResults, false);
+                if (saveResult.isErr()) {
                     showMessageDialog(cmdData.func.dlg(), 'File could not be saved:\n' + saveResult.err, 'Save Error');
                 }
             }
         }
 
-
-        // a not so fortunate experiment - I did not like how it looks and seems to be over-complicating things
-        // TODO maybe I'll come back to this later
-        /*
-			doh.loadResources(SCRIPT_RESOURCES.SummaryDialog);
-			var dlg = cmdData.func.dlg();
-			dlg.window   = cmdData.func.sourcetab;
-			dlg.template = 'SummaryDialog';
-			dlg.detach   = true;
-			dlg.Show();
-
-			dlg.Control('txtOperation').value                 = command.command;
-			dlg.Control('txtStart').value                     = actionResults.summary.tsstart.formatAsHms();
-			dlg.Control('txtFinish').value                    = actionResults.summary.tsfinish.formatAsHms();
-			dlg.Control('txtSuccess').value                   = '???';
-			dlg.Control('txtErrors').value                    = actionResults.summary.errors;
-			dlg.Control('txtSkipped').value                   = actionResults.summary.unfinished;
-
-			dlg.Control('txtMaxElapsedPerThreadSize').value   = actionResults.summary.maxelapsedthread + ' ms (' + actionResults.summary.maxelapsedthread.formatAsDuration() + ' s)';
-			dlg.Control('txtMaxElapsedPerFileName').value     = actionResults.summary.longestfilename;
-			dlg.Control('txtMaxElapsedPerFileSize').value     = actionResults.summary.longestfilesize + ' B (' + actionResults.summary.longestfilesize.formatAsSize() + ')';
-			dlg.Control('txtMaxElapsedPerFileDuration').value = actionResults.summary.maxelapsedfile + ' s (' + actionResults.summary.maxelapsedfile.formatAsDuration() + ' s)';
-			dlg.Control('txtTotalFilesAfterFiltering').value  = actionResults.summary.totalfiles;
-			dlg.Control('txtTotalSizeAfterFiltering').value   = actionResults.summary.totalsize + ' B (' + actionResults.summary.totalsize.formatAsSize() + ')';
-			dlg.Control('txtTotalElapsed').value              = actionResults.summary.totalelapsed + ' ms (' + actionResults.summary.totalelapsed.formatAsDuration() + ' s)';
-			dlg.Control('txtAverageSpeed').value              = actionResults.summary.avgspeed.formatAsSize() + '/s';
-		*/
 
         // FROM THIS POINT ON, DO WHAT YOU WANT...
         {
@@ -975,81 +1152,52 @@
                     Global.SCRIPT_NAME + ' - Results');
             } else {
                 if (oSummaries.errorsSummary) {
-                    playFeedbackSound('Warn');
+                    playSound('Warn');
                 } else {
-                    playFeedbackSound('Success');
+                    playSound('Success');
                 }
             }
-
         }
 
     }
-    /**
-	 * @param {DOpusScriptCommandData} cmdData DOpus command data
-	 * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
-	 * @throws @see {InvalidManagerCommandException}
-	 */
-    function getManagerCommand(cmdData) {
-        var fnName = funcNameExtractor(getManagerCommand);
 
 
-        var cargs     = cmdData.func.args;
-        // if dirs are selected process children files
-        var recurse   = cargs.got_arg.RECURSE || true;
-        // maxiumum number of threads, default: all available
-        var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || MAX_AVAILABLE_CORE_COUNT;
-        // file to use for on-the-fly export & verify
-        var file      = cargs.got_arg.FILE && cargs.FILE.toString() || '';
-        // file format to use for on-the-fly export (but not verify)
-        var format    = cargs.got_arg.FORMAT && cargs.FORMAT.toString() || '';
-        // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
-        var benchsize = cargs.got_arg.BENCHMARK_SIZE && cargs.BENCHMARK_SIZE.toString().asInt() || Math.pow(2, 16);
-        // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
-        var benchcount= cargs.got_arg.BENCHMARK_COUNT && cargs.BENCHMARK_COUNT.toString().asInt() || 500;
-        // whether progress bar should be disabled, default false (=progbar enabled)
-        var noprogbar = cargs.got_arg.NO_PROGRESS_BAR || false;
+    // /**
+    //  * @param {DOpusScriptCommandData} cmdData DOpus command data
+    //  * @returns {ManagerCommand} manager command with attribs: maxcount, recurse, command, filter, action...
+    //  * @throws @see {InvalidManagerCommandException}
+    //  */
+    // function getManagerCommand(cmdData) {
+    //     var fnName = funcNameExtractor(getManagerCommand);
+    //     var cargs     = cmdData.func.args;
+    //     // if dirs are selected process children files
+    //     var recurse   = cargs.got_arg.RECURSE || true;
+    //     // maxiumum number of threads, default: all available
+    //     var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || MAX_AVAILABLE_CORE_COUNT;
+    //     // file to use for on-the-fly export & verify
+    //     var file      = cargs.got_arg.FILE && cargs.FILE.toString() || '';
+    //     // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
+    //     var benchsize = cargs.got_arg.BENCHMARK_SIZE && cargs.BENCHMARK_SIZE.toString().asInt() || Math.pow(2, 16);
+    //     // number of benchmarking iterations per algorithm -> this many files of specified size will be created under TEMPDIR
+    //     var benchcount= cargs.got_arg.BENCHMARK_COUNT && cargs.BENCHMARK_COUNT.toString().asInt() || 500;
+    //     // whether progress bar should be disabled, default false (=progbar enabled)
+    //     var noprogbar = cargs.got_arg.NO_PROGRESS_BAR || false;
+    //     for (var sw in VALID_SWITCHES) {
+    //         if (cargs.got_arg[sw]) {
+    //             var oSW = VALID_SWITCHES[sw];
+    //             var ma = new ManagerCommand(sw, recurse, oSW.maxCount || maxcount, oSW.filter, oSW.action, oSW.collSuccess, oSW.collErrors, oSW.collSkipped, '');
+    //             if (file)       ma.fileName      = file;       // do not add filename unless given
+    //             if (benchsize)  ma.benchSize     = benchsize;
+    //             if (benchcount) ma.benchCount    = benchcount;
+    //             if (noprogbar)  ma.noProgressBar = noprogbar;
+    //             logger.snormal('%s -- Switch: %s, Command: %s', fnName, sw, ma.toString());
+    //             return ma;
+    //         }
+    //     }
+    //     abortWith(new InvalidManagerCommandException('No valid command is given', fnName));
+    // }
 
 
-        /**
-		 * @typedef SWITCH
-		 * @type {object}
-		 * @property {function} filter
-		 * @property {function} action
-		 * @property {string} collSuccess
-		 * @property {string=} collErrors
-		 * @property {string=} collSkipped
-		 */
-        /**
-		 * @type {Object.<string, SWITCH>}
-		 */
-        var VALID_SWITCHES = {
-            'CALCULATE_ONLY'         : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateOnly,            collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
-            'HARD_UPDATE_ADS'        : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
-            'SMART_UPDATE_ADS'       : { filter: filters.PUBLIC.fnAcceptMissingOrDirty, action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
-            'VERIFY_FROM_ADS'        : { filter: filters.PUBLIC.fnAcceptUptodateOnly,   action: actions.PUBLIC.fnCalculateAndCompareToADS, collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
-            'DELETE_ADS'             : { filter: filters.PUBLIC.fnAcceptWithHashes,     action: actions.PUBLIC.fnDeleteADS,                collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
-            'FIND_DIRTY'             : { filter: filters.PUBLIC.fnAcceptDirtyOnly,      action: actions.PUBLIC.fnNull,                     collSuccess: COLL_DIRTY },
-            'FIND_MISSING'           : { filter: filters.PUBLIC.fnRejectWithHashes,     action: actions.PUBLIC.fnNull,                     collSuccess: COLL_MISSING },
-            // 'COPY_TO_CLIPBOARD'      : { filter: filters.PUBLIC.fnRejectAnyFile,        action: actions.PUBLIC.fnNOT_IMPLEMENTED_YET },
-            'VERIFY_FROM'            : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCompareAgainstHash,       collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_VERIFY_MISSING },
-            'BENCHMARK'              : { filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnBenchmark,                collSuccess: COLL_DUMMY }
-        };
-
-        for (var sw in VALID_SWITCHES) {
-            if (cargs.got_arg[sw]) {
-                var oSW = VALID_SWITCHES[sw];
-                var ma = new ManagerCommand(sw, recurse, maxcount, oSW.filter, oSW.action, oSW.collSuccess, oSW.collErrors, oSW.collSkipped, '');
-                if (file)       ma.fileName      = file;       // do not add filename unless given
-                if (format)     ma.fileFormat    = format;     // do not add format unless given
-                if (benchsize)  ma.benchSize     = benchsize;
-                if (benchcount) ma.benchCount    = benchcount;
-                if (noprogbar)  ma.noProgressBar = noprogbar;
-                logger.snormal('%s -- Switch: %s, Command: %s', fnName, sw, ma.toString());
-                return ma;
-            }
-        }
-        abortWith(new InvalidManagerCommandException('No valid command is given', fnName));
-    }
     /**
 	 * @param {string[]} filepathsArray JS array, line item objects must be file paths
 	 * @param {string} collectionName collection name to add to
@@ -1074,6 +1222,8 @@
         doh.cmd.run();
         doh.cmd.clear();
     }
+
+
     /**
 	 * Runs a single-threaded hashing benchmark for all available algorithms
 	 * @example hashPerformanceTest(Math.pow(2, 20), 5000); return;
@@ -1172,7 +1322,7 @@
             actionfunc : cmdData.func.args.ACTIONFUNC,
             viaFilelist: cmdData.func.args.VIAFILELIST
         };
-        logger.normal(SW.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, viafilelist: %b, action: %s', param.threadID, param.viaFilelist, param.actionfunc) ));
+        logger.verbose(SW.startAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID %s, viafilelist: %b, action: %s', param.threadID, param.viaFilelist, param.actionfunc) ));
 
         // convert function name to function
         var fnActionFunc = actions.getFunc(param.actionfunc);
@@ -1260,7 +1410,7 @@
             }
 
         }
-        logger.normal(SW.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, aborted: %b', param.threadID, aborted)));
+        logger.verbose(SW.stopAndPrint(fnName + ' ' + param.threadID, '', sprintf('threadID: %s, aborted: %b', param.threadID, aborted)));
     }
     /**
 	 * called by onDOpusCmdMTHWorker - do not call directly
@@ -1300,7 +1450,7 @@
 	 * @param {object} enumerableItems DOpus enumerable items, e.g. scriptCmdData.func.sourcetab.selected
 	 * @param {boolean} recurse process subdirs
 	 * @param {function} fnItemFilter function to select only certain items
-	 * @returns {HashedItemsCollection} filtered items
+	 * @returns {ThreadedItemsCollection} filtered items
 	 * @throws @see {FileReadException}
 	 */
     function applyFilterToSelectedItems(enumerableItems, recurse, fnItemFilter) {
@@ -1310,7 +1460,7 @@
         var icnt, imax = 100000;
         // PRESELECT ALL FILES
         {
-            var oItemsPreFilter = new HashedItemsCollection();
+            var oItemsPreFilter = new ThreadedItemsCollection();
 
             logger.normal(SW.startAndPrint(fnName, 'File Selection'));
             // first collect all the path & size information for the selected items
@@ -1332,12 +1482,12 @@
                     while (!fEnum.complete && icnt++ < imax) {
                         var subitem = fEnum.next();
                         if (!doh.isFile(subitem) && doh.isValidDOItem(subitem)) continue;
-                        oItemsPreFilter.addItem(new HashedItem(subitem));
+                        oItemsPreFilter.addItem(new ThreadedItem(subitem));
                     }
                     fEnum.close();
                 } else {
                     // type: file
-                    oItemsPreFilter.addItem(new HashedItem(selitem));
+                    oItemsPreFilter.addItem(new ThreadedItem(selitem));
                 }
             }
             logger.normal(SW.stopAndPrint(fnName, 'File Selection'));
@@ -1346,7 +1496,7 @@
         // COLLECT FILES USING GIVEN FILTER
         // WARNING: fnItemFilter runs after all files are selected, not during the determination of files
         {
-            var oItemsPostFilter = new HashedItemsCollection();
+            var oItemsPostFilter = new ThreadedItemsCollection();
             // apply filter to all candidates
 
             logger.normal(SW.startAndPrint(fnName, 'Filtering'));
@@ -1383,13 +1533,13 @@
     /**
 	 * Distributes given items to the requested/available knapsacks
 	 *
-	 * @param {HashedItemsCollection} oHashedItemsCollection JS array, e.g. results after filtering
+	 * @param {ThreadedItemsCollection} oThreadedItemsCollection JS array, e.g. results after filtering
 	 * @param {number} numThreads maximum number of threads/knapsacks to use, default: all available cores
 	 * @returns {KnapsacksCollection} knapsacked items
 	 * @throws @see {KnapsackingException}
      * @throws @see {SanityCheckException}
 	 */
-    function knapsackItems(oHashedItemsCollection, numThreads) {
+    function knapsackItems(oThreadedItemsCollection, numThreads) {
         var fnName = funcNameExtractor(knapsackItems);
 
         logger.normal(SW.startAndPrint(fnName, 'Knapsacking'));
@@ -1408,17 +1558,17 @@
             // find out how many knapsacks at max we need
             // if we have less or equal files than available thread count we will create one knapsack for each file (#KS <= #CPU)
             // if we have more than available thread count we will create only so many knapsacks as available threads (#KS = #CPU)
-            var maxNeeded = Math.min(oHashedItemsCollection.countSuccess, numThreads);
+            var maxNeeded = Math.min(oThreadedItemsCollection.countSuccess, numThreads);
 
             // we will not use a knapsack algorithm in the classical sense per se
             // since we do not have 2+ competing factors, but only 1: size, size, size! (that's still 1)
             // thus we will implement a cheapass knapsack algorithm but a very fast one to compute
 
             // calculate the ideal knapsack size
-            var idealKnapsackSize = Math.ceil(oHashedItemsCollection.sizeSuccess / maxNeeded);       // e.g. 24 MB over 24 threads = 1 MB... ideally!
+            var idealKnapsackSize = Math.ceil(oThreadedItemsCollection.sizeSuccess / maxNeeded);       // e.g. 24 MB over 24 threads = 1 MB... ideally!
 
             // at the very max each knapsack will have this many elements
-            var knapsackMaxElements = Math.ceil(oHashedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
+            var knapsackMaxElements = Math.ceil(oThreadedItemsCollection.countSuccess / maxNeeded);    // e.g. 246 files over 24 threads = max 11 items per knapsack
 
             logger.snormal('\t%s -- Knapsack Count: %d, Ideal Max Elements/Knapsack: %d (%d*%d=%d >= %d), Ideal Size: %d (%s)',
                 fnName,
@@ -1427,7 +1577,7 @@
                 maxNeeded,
                 knapsackMaxElements,
                 maxNeeded*knapsackMaxElements,
-                oHashedItemsCollection.countSuccess,
+                oThreadedItemsCollection.countSuccess,
                 idealKnapsackSize,
                 idealKnapsackSize.formatAsSize());
 
@@ -1440,12 +1590,13 @@
         }
 
         // get the items we can process
-        var oAllItems = oHashedItemsCollection.getSuccessItems();
+        var oAllItems = oThreadedItemsCollection.getSuccessItems();
 
+        logger.normal(SW.startAndPrint(fnName + ' -- 1st Stage', 'Filling knapsacks'));
         // sort by largest first
         // hashing bigger files first usually increases the speed up to 25% for mixed groups of files
         // but makes little difference if file sizes are very close to each other (usually few big files)
-        /** @type {Array.<HashedItem>} */
+        /** @type {Array.<ThreadedItem>} */
         var aAllItemsSorted = [];
         for (var key in oAllItems) aAllItemsSorted.push(oAllItems[key]);
         aAllItemsSorted.sort(function(oHI1, oHI2){ return oHI2.size - oHI1.size; });
@@ -1453,7 +1604,7 @@
         // start allocating items into knapsacks
         var ksNextStartingPoint = 0, ksPointerUnderCapacity = 0;
         for (var kal = 0; kal < aAllItemsSorted.length; kal++) {
-            var oHashedItem = aAllItemsSorted[kal];
+            var oThreadedItem = aAllItemsSorted[kal];
             // find a suitable knapsack:
             // - start with the 1st available knapsack, index: 0, this will be the outer marker
             // - iterate over each file
@@ -1473,10 +1624,10 @@
             var nextKS = Math.max(ksNextStartingPoint, ksPointerUnderCapacity);
             var ks = ksArray[nextKS];
 
-            ks.addItem(oHashedItem);
+            ks.addItem(oThreadedItem);
             ksPointerUnderCapacity++;
             if (ks.size >= idealKnapsackSize && maxNeeded > 1) {
-                logger.sverbose('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oHashedItem.size).formatAsSize(), (ks.size-oHashedItem.size <= idealKnapsackSize), oHashedItem.size.formatAsSize());
+                logger.sverbose('%s -- This one [%2d] is full now: %s - Was before: %s (undercap: %b) and I added: %s', fnName, nextKS, ks.size.formatAsSize(), (ks.size-oThreadedItem.size).formatAsSize(), (ks.size-oThreadedItem.size <= idealKnapsackSize), oThreadedItem.size.formatAsSize());
                 ksNextStartingPoint = nextKS + 1;
             }
             ksPointerUnderCapacity = ksPointerUnderCapacity % maxNeeded;
@@ -1484,27 +1635,28 @@
                 ksPointerUnderCapacity = ksNextStartingPoint;
             }
         }
+        logger.normal(SW.stopAndPrint(fnName + ' -- 1st Stage', 'Filling knapsacks'));
 
 
 
-        logger.normal(SW.startAndPrint(fnName + ' -- 3rd Stage', 'Filling knapsack collection'));
+        logger.normal(SW.startAndPrint(fnName + ' -- 2nd Stage', 'Filling knapsack collection'));
         var ksColl = new KnapsacksCollection(now().toString());
         for (var i = 0; i < ksArray.length; i++) {
             ks = ksArray[i];
-            logger.snormal('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
+            logger.sverbose('\t%s -- i: %2d, id: %s, ksCount: %7d, ksSize: %15d / %s (ideal %+15d / %s)', fnName, i, ks.id, ks.count, ks.size, ks.size.formatAsSize(), (ks.size - idealKnapsackSize), (ks.size - idealKnapsackSize).formatAsSize());
             ksColl.addKnapsack(ksArray[i]);
         }
-        logger.normal(SW.stopAndPrint(fnName + ' -- 3rd Stage'));
+        logger.normal(SW.stopAndPrint(fnName + ' -- 2nd Stage', 'Filling knapsack collection'));
 
         // FS.saveFile('Y:\\ksColl.json', JSON.stringify(ksColl, null, 4));
 
         // SANITY CHECK - NO FILE GETS LEFT BEHIND!
         {
-            if (ksColl.countTotal !== oHashedItemsCollection.countSuccess || ksColl.sizeTotal !== oHashedItemsCollection.sizeSuccess) {
+            if (ksColl.countTotal !== oThreadedItemsCollection.countSuccess || ksColl.sizeTotal !== oThreadedItemsCollection.sizeSuccess) {
                 abortWith(new SanityCheckException(
                     sprintf('%s -- Some items could not be placed in knapsacks!\nInCount/OutCount: %d/%d\nInSize/OutSize: %d/%d', fnName,
-                        oHashedItemsCollection.countSuccess, ksColl.countTotal,
-                        oHashedItemsCollection.sizeSuccess, ksColl.sizeTotal),
+                        oThreadedItemsCollection.countSuccess, ksColl.countTotal,
+                        oThreadedItemsCollection.sizeSuccess, ksColl.sizeTotal),
                     fnName));
             }
         }
@@ -1527,60 +1679,52 @@
 	8888888 888       888 888         "Y88888P"  888   T88b    888  d88P        8888888888 d88P   Y88b 888         "Y88888P"  888   T88b    888
 */
 {
-    var fileExchangeHandler = (function (){
-        var myName = 'fileExchangeHandler';
-        // // TODO refactor this!
-        // /** @enum {Array} */
-        // var VALID_FORMATS_AND_EXTS = {
-        // 	MD5     : ['MD5',  '.md5'],
-        // 	SHA1    : ['SHA1', '.sha1'],
-        // 	JSON    : ['JSON', '.json']
-        // };
+    var fileImportExport = (function (){
+        var myName = 'fileImportExport';
+
         var SHA1_MD5_SPLITTER = new RegExp(/^([a-zA-Z0-9]+)\b\s+\*(.+)/);
+
         /**
-		 * @param {string} filename
-		 * @returns {Result.<string, boolean>} format on success, false if unknown
-		 */
-        function detectFormatFromName(filename) {
-            var oItem = doh.fsu.getItem(filename);
-            switch(oItem.ext.toLowerCase()) {
-            case ALGORITHMS.MD5.fileExt:    return ResultOk(ALGORITHMS.MD5.name);
-            case ALGORITHMS.SHA1.fileExt:   return ResultOk(ALGORITHMS.SHA1.name);
-            case ALGORITHMS.BLAKE3.fileExt: return ResultOk(ALGORITHMS.BLAKE3.name);
-            default:                        return ResultErr();
-            }
-        }
-        /**
-		 * @param {CommandResults} oInternalJSON
-		 * @param {string=} format not used at the moment, all currently recognized formats use the same structure
+		 * @param {CommandResults} oCmdRes
+		 * @param {string} format only used for Blake3 at the moment
 		 * @returns {string}
 		 */
-        function convertForExportToClassical(oInternalJSON, format) {
-            var fnName = funcNameExtractor(convertForExportToClassical);
-            if (!format) {
-                abortWith(new InvalidParameterValueException('Format is not used at the moment but will be in the future', fnName));
-            }
-            var outstr = '', kheader;
-            for (kheader in oInternalJSON) {
-                if (typeof oInternalJSON[kheader] !== 'string' && typeof oInternalJSON[kheader] !== 'number') continue; // skip objects, arrays, functions...
-                outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSON[kheader]) + '\n';
+        function convertForExportToClassical(oCmdRes, format) {
+            var outstr = '', kheader, kitem;
+
+            // essential info
+            for (kheader in oCmdRes) {
+                if (typeof oCmdRes[kheader] !== 'string' && typeof oCmdRes[kheader] !== 'number') continue; // skip objects, arrays, functions...
+                outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oCmdRes[kheader]) + '\n';
                 if (kheader === 'Generated_By') outstr += ';\n';
             }
             outstr += ';\n';
+            // extended info
             if (EXPORT_EXTENDED_DATA) {
-                for (kheader in oInternalJSON.ExtInfo) {
-                    if (typeof oInternalJSON.ExtInfo[kheader] !== 'string' && typeof oInternalJSON.ExtInfo[kheader] !== 'number') continue; // skip objects, arrays, functions...
-                    outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oInternalJSON.ExtInfo[kheader]) + '\n';
+                for (kheader in oCmdRes.ExtInfo) {
+                    if (typeof oCmdRes.ExtInfo[kheader] !== 'string' && typeof oCmdRes.ExtInfo[kheader] !== 'number') continue; // skip objects, arrays, functions...
+                    outstr += sprintf('; %-35s: %s', kheader.replace(/_/g, ' '), oCmdRes.ExtInfo[kheader]) + '\n';
                 }
                 outstr += ';\n';
             }
             outstr += '\n';
-            for (var kitem in oInternalJSON.items) {
-                var item = oInternalJSON.items[kitem];
+            // hash results
+            for (kitem in oCmdRes.items) {
+                var item = oCmdRes.items[kitem];
                 outstr += item.hash + ' *' + (item.relpath || '').normalizeTrailingBackslashes() + item.name + '\n';
+            }
+
+            if (format === ALGORITHMS.BLAKE3.name.toLowerCase()) {
+                outstr = outstr
+                    .replace(/^(\w+)\s+\*(.+)$/mg, '$1  $2') // convert classical style to Blake3 style
+                    .replace(/^;.*$\n/mg, '')                // remove all comments
+                    .replace(/\\/mg, '/')                    // b3sum always uses forward slash
+                    .trim();
             }
             return outstr;
         }
+
+
         /**
 		 * generic checksum file parser for sha, md5, etc.
 		 * @param {string} sContents file contents
@@ -1592,12 +1736,12 @@
         function convertForImportFromClassical(sContents, currentPath, algorithm) {
             var fnName = funcNameExtractor(convertForImportFromClassical, myName);
 
-            var oHashedItemsColl = new HashedItemsCollection(),
-                lines            = sContents ? sContents.split(/\n/) : [],
-                hash             = '',
-                relpath          = '',
-                fullpath         = '',
-                tsStart          = now();
+            var oThreadedItemsColl = new ThreadedItemsCollection(),
+                lines              = sContents ? sContents.split(/\n/) : [],
+                hash               = '',
+                relpath            = '',
+                fullpath           = '',
+                tsStart            = now();
 
             for (var i = 0; i < lines.length; i++) {
                 // empty & comment lines
@@ -1616,53 +1760,43 @@
 
                 var oItem = doh.fsu.getItem(fullpath);
                 if (!FS.isValidPath(''+oItem.realpath)) {
-                    oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm, false, 'Not found: ' + oItem.realpath)); // skipped
+                    oThreadedItemsColl.addItem(new ThreadedItem(oItem, relpath, hash, algorithm, false, 'Not found: ' + oItem.realpath)); // skipped
                 } else {
-                    oHashedItemsColl.addItem(new HashedItem(oItem, relpath, hash, algorithm));
+                    oThreadedItemsColl.addItem(new ThreadedItem(oItem, relpath, hash, algorithm));
                 }
             }
-            var outPOJO = new CommandResults(oHashedItemsColl, currentPath, algorithm, tsStart, now());
+            var outPOJO = new CommandResults(oThreadedItemsColl, currentPath, algorithm, tsStart, now());
             return outPOJO;
         }
+
+
         /**
 		 * @param {object} cmdData DOpus Command data
-		 * @param {string} format file format to use one of VALID_FORMATS_AND_EXTS
-		 * @param {string} filename given filename, or a calculated output file name
 		 * @param {CommandResults} oInternalJSONFormat internal json format
 		 * @param {boolean=} useForwardSlash if / instead of \ should be used in generated output
 		 * @returns {{filename: string, contents: string}}
-		 * @throws @see {InvalidUserParameterException}
+		 * @throws @see {UserAbortedException}
 		 * @throws @see {UnsupportedFormatException}
 		 */
-        function prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
+        function prepareForExport(cmdData, oInternalJSONFormat, useForwardSlash) {
             var fnName = funcNameExtractor(prepareForExport, myName);
 
-            var currentPath = doh.getCurrentPath(cmdData),
-                dialog      = cmdData.func.dlg(),
-                outFilename = '';
 
-            if (filename && typeof filename !== 'boolean') {
-                // validate given filename - but we may not check for existence!
-                var oItem = doh.fsu.getItem(filename);
-                if (!oItem.path) {
-                    oItem = doh.fsu.getItem(currentPath + filename);
-                }
-                if (!oItem.path) {
-                    abortWith(new InvalidUserParameterException('Given filepath ' + filename + ' is not valid', fnName));
-                }
-                outFilename = ''+oItem.realpath;
-            } else {
-                // determine suggested file name & show a Save Dialog
-                var defaultName = (''+currentPath).replace(/[\\:]/g, '_').replace(/_*$/, '').replace(/_+/, '_') + (useForwardSlash ? '_FS' : ''),
-                    nameSuffix  = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES ? ' - ' + now().formatAsDateTimeCompact() : APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES ? ' - ' + oInternalJSONFormat.ExtInfo.Latest_File_DateTime_Timestamp.formatAsDateTimeCompact() : '',
-                    ext         = ALGORITHMS[format.toUpperCase()].fileExt;
-                outFilename     = currentPath + defaultName + nameSuffix + ext;
-                logger.snormal('%s -- currentPath: %s, Format: %s, useForwardSlash: %b, Suggested File Name: %s', fnName, currentPath, format, useForwardSlash, outFilename);
-
-                var oPath = dialog.save('Save As', outFilename, null, '*.' + ext);
-                if (!oPath.result) return;
-                outFilename = ''+oPath;
+            // determine suggested file name
+            var nameSuffix = '';
+            if (APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES) {
+                nameSuffix = oInternalJSONFormat.ExtInfo.Latest_File_DateTime_Timestamp.formatAsDateTimeCompact();
+            } else if (APPEND_CURRENT_DATETIME_TO_EXPORT_FILES) {
+                nameSuffix = now().formatAsDateTimeCompact();
             }
+            logger.sforce('%s -- nameSuffix: %s', fnName, nameSuffix);
+
+            var resFilename = _getFileName(cmdData, false, nameSuffix);
+            if (resFilename.isErr()) {
+                return;
+                // TODO check if a simple return is ok
+            }
+            var outFilename = resFilename.ok.name;
 
             /** @param {CommandResults} oInternalJSON */
             function sortByPath(oInternalJSON) {
@@ -1684,18 +1818,18 @@
             // convert to output format
             var outContents = '';
 
-            switch(format.toUpperCase()) {
-            case ALGORITHMS.MD5.name:
-                outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.MD5.name.toLowerCase()); break;
-            case ALGORITHMS.SHA1.name:
-                outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.SHA1.name.toLowerCase()); break;
-            case ALGORITHMS.BLAKE3.name:
-                useForwardSlash = true;
-                outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.BLAKE3.name.toLowerCase());
-                outContents = outContents.replace(/^(\w+)\s+\*(.+)$/mg, '$1  $2').replace(/^;.*$\n/mg, '').trim();
-                break;
-            default:
-                abortWith(new UnsupportedFormatException('Given format ' + format + ' is unknown or not yet implemented', fnName));
+
+            // switch(format.toUpperCase()) {
+            switch(resFilename.ok.format.toUpperCase()) {
+                case ALGORITHMS.MD5.name:
+                    outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.MD5.name.toLowerCase()); break;
+                case ALGORITHMS.SHA1.name:
+                    outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.SHA1.name.toLowerCase()); break;
+                case ALGORITHMS.BLAKE3.name:
+                    outContents = convertForExportToClassical(oInternalJSONFormat, ALGORITHMS.BLAKE3.name.toLowerCase());
+                    break;
+                default:
+                    abortWith(new UnsupportedFormatException('Given format ' + resFilename.ok.format + ' is unknown or not yet implemented', fnName));
             }
             if (useForwardSlash) outContents = outContents.replace(/\\/mg, '/');
 
@@ -1703,105 +1837,65 @@
 
             return { filename: outFilename, contents: outContents };
         }
+
+
         /**
 		 * @param {object} cmdData DOpus Command data
-		 * @param {string=} format file format to use one of VALID_FORMATS_AND_EXTS
-		 * @param {string=} filename given filename, or a calculated output file name
 		 * @returns {CommandResults}
 		 * @throws @see {InvalidUserParameterException}
 		 * @throws @see {InvalidFormatException}
 		 * @throws @see {FileReadException}
 		 * @throws @see {UnsupportedFormatException}
 		 */
-        function prepareForImport(cmdData, format, filename) {
+        function prepareForImport(cmdData) {
             var fnName = funcNameExtractor(prepareForImport, myName);
 
-            var currentPath = doh.getCurrentPath(cmdData),
-                inFilename  = '';
+            var currentPath = doh.getCurrentPath(cmdData);
 
-            var ext = format || CURRENT_ALGORITHM,
-                detectedFormat;
-            if (filename) {
-                // validate given filename
-                if(!FS.isValidPath(filename)) {
-                    if (!FS.isValidPath(currentPath + filename)) {
-                        abortWith(new InvalidUserParameterException('Given filepath ' + filename + ' is not valid', fnName));
-                    } else {
-                        inFilename = currentPath + filename;
-                    }
-                }
-            } else if (IMPORT_USE_SELECTED_FILE_AS_SOURCE && doh.getSelItemsCount(cmdData) === 1 && doh.getSelFilesCount(cmdData) === 1) {
-                // if a single file is selected use it as source
-                var oItem = doh.getSelFileAsItem(cmdData);
-                inFilename = ''+oItem.realpath;
-                logger.snormal('%s -- Using selected file as input: %s', fnName, inFilename);
-                // check if file can be used
-                detectedFormat = detectFormatFromName(inFilename);
-                if (!detectedFormat) {
-                    logger.snormal('%s -- Selected file\'s format is not recognized: %s', fnName, detectedFormat);
-                    inFilename = '';
-                }
+            var resFilename = _getFileName(cmdData, true);
+            if (resFilename.isErr()) {
+                return;
+                // TODO check if a simple return is ok
             }
-            if (!inFilename) {
-                // show an Open Dialog
-                var oPath = cmdData.func.dlg().open('Open', currentPath, '*.' + ext);
-                if (!oPath.result) return;
-                inFilename = ''+oPath;
-            }
-            logger.snormal('%s -- inFilename: %s', fnName, inFilename);
+            var inFilename = resFilename.ok.name,
+                inFormat   = resFilename.ok.format;
 
-            // determine format
-            if (!format) {
-                detectedFormat = detectFormatFromName(inFilename);
-                logger.snormal('%s -- Detected format: %s', fnName, detectedFormat);
-                if (detectedFormat.isOk()) format = detectedFormat.ok;
-            }
             // check if given format is valid
-            detectedFormat = detectFormatFromName(inFilename);
-            if (!detectedFormat.isOk()) {
-                abortWith(new InvalidFormatException('Unrecognized format: ' + format, fnName)); return; // return is needed only for tsc
-            } else if (format.toLowerCase() !== detectedFormat.ok.toLowerCase()) {
-                abortWith(new InvalidFormatException('Given filename & format do not match\nGiven: ' + format + ', Detected: ' + detectedFormat, fnName));
-            }
-            if (detectedFormat.ok.toUpperCase() !== CURRENT_ALGORITHM.toUpperCase()) {
-                abortWith(new InvalidFormatException('Cannot import format ' + format + ',\ncurrent algorithm is ' + CURRENT_ALGORITHM.toUpperCase() + '.', fnName));
+            if (inFormat.toUpperCase() !== CURRENT_ALGORITHM.toUpperCase()) {
+                abortWith(new InvalidFormatException('Cannot import format ' + inFormat + ',\ncurrent algorithm is ' + CURRENT_ALGORITHM.toUpperCase() + '.', fnName));
             }
             // read file
-            var res = FS.readFile(inFilename);
-            if (res.isErr()) abortWith(new FileReadException('Cannot read file: ' + inFilename, fnName));
+            var resReadFile = FS.readFile(inFilename);
+            if (resReadFile.isErr()) abortWith(new FileReadException('Cannot read file: ' + inFilename, fnName));
 
-            logger.snormal('%s -- Using filename: %s, format: %s', fnName, inFilename, format);
-            logger.sverbose('%s -- Input:\n%s', fnName, res.ok);
-
-            var fileContents = res.ok;
+            logger.snormal('%s -- Using filename: %s', fnName, inFilename);
+            logger.sverbose('%s -- Input:\n%s', fnName, resReadFile.ok);
+            var fileContents = resReadFile.ok;
 
             // convert to internal format and fill in values
             var outPOJO;
-            switch(format.toUpperCase()) {
-            case ALGORITHMS.MD5.name:
-                outPOJO = convertForImportFromClassical(fileContents, currentPath, ALGORITHMS.MD5.name.toLowerCase()); break;
-            case ALGORITHMS.SHA1.name:
-                outPOJO = convertForImportFromClassical(fileContents, currentPath, ALGORITHMS.SHA1.name.toLowerCase()); break;
-            default:
-                abortWith(new UnsupportedFormatException('Given format ' + format + ' is unknown or not yet implemented', fnName));
+            switch(inFormat.toUpperCase()) {
+                case ALGORITHMS.MD5.name:
+                    outPOJO = convertForImportFromClassical(fileContents, currentPath, ALGORITHMS.MD5.name.toLowerCase()); break;
+                case ALGORITHMS.SHA1.name:
+                    outPOJO = convertForImportFromClassical(fileContents, currentPath, ALGORITHMS.SHA1.name.toLowerCase()); break;
+                default:
+                    abortWith(new UnsupportedFormatException('Given format ' + inFormat + ' is unknown or not yet implemented', fnName));
             }
             return outPOJO;
         }
 
 
-
         /**
 		 * @param {object} cmdData DOpus Command data
-		 * @param {string} format file format to use one of VALID_FORMATS_AND_EXTS
-		 * @param {string} filename given filename, or a calculated output file name
+         * @returns {Result.<boolean, boolean>}
 		 */
-        function importFrom(cmdData, format, filename) {
+        function importFrom(cmdData) {
             var fnName = funcNameExtractor(importFrom, myName);
 
-            var inPOJO = prepareForImport(cmdData, format, filename);
+            var inPOJO = prepareForImport(cmdData);
+            if (!inPOJO) return ResultOk(true);// user aborted
 
-            // user aborted
-            if (!inPOJO) return;
             // we have a valid POJO in internal format
             var msg    = '',
                 res    = null,
@@ -1821,14 +1915,18 @@
             }
             if (!res) {
                 logger.snormal('%s -- User cancelled: %b ...exiting', fnName, !res);
-                return; // user cancelled
+                return ResultOk(true); // user cancelled
             }
+
 
             var importErrors = [];
             for (var filepath in inPOJO.items) {
                 var oItem = doh.fsu.getItem(filepath);
                 if( ADS.save( oItem, new CachedItem(oItem, null, null, inPOJO.items[filepath].hash) ).isErr() ) {
                     importErrors.push(''+oItem.realpath);
+                    logger.sforce('%s -- cannot update: %s', fnName, filepath);
+                } else {
+                    logger.sforce('%s -- updated: %s, hash: %s', fnName, filepath, inPOJO.items[filepath].hash);
                 }
             }
             if (importErrors.length) {
@@ -1838,17 +1936,18 @@
                 }
                 addFilesToCollection(importErrors, COLL_IMPORT_ERRORS);
             }
+            return !importErrors.length ? ResultOk(true) : ResultErr(true);
         }
+
+
         /**
 		 * @param {object} cmdData DOpus Command data
-		 * @param {string} format file format to use one of VALID_FORMATS_AND_EXTS
-		 * @param {string} filename given filename, or a calculated output file name
 		 * @returns {CommandResults}
 		 */
-        function verifyFrom(cmdData, format, filename) {
+        function verifyFrom(cmdData) {
             var fnName = funcNameExtractor(verifyFrom, myName);
 
-            var inPOJO = prepareForImport(cmdData, format, filename);
+            var inPOJO = prepareForImport(cmdData);
 
             // user aborted
             if (!inPOJO) return;
@@ -1858,31 +1957,27 @@
             }
             return inPOJO;
         }
+
+
         /**
 		 * @param {object} cmdData DOpus Command data
-		 * @param {string} format file format to use one of VALID_FORMATS_AND_EXTS
-		 * @param {string} filename given filename, or a calculated output file name
 		 * @param {CommandResults} oInternalJSONFormat
 		 * @param {boolean=} useForwardSlash
 		 * @returns {Result} number of bytes written, false on error
 		 */
-        function exportTo(cmdData, format, filename, oInternalJSONFormat, useForwardSlash) {
-            var res1 = prepareForExport(cmdData, format, filename, oInternalJSONFormat, useForwardSlash);
-            if (!res1 || !res1.filename) { return ResultErr(); }
-            // if the filename is not valid (e.g. just the name) use it as a relative path
-            // if (!doh.getItem(res1.filename)) res1.filename = doh.getCurrentPath(cmdData) + res1.filename;
-            var res2 = FS.saveFile(res1.filename, res1.contents);
-            return res2 ? ResultOk(res2) : ResultErr(res2);
+        function exportTo(cmdData, oInternalJSONFormat, useForwardSlash) {
+            var resFilenameAndContents = prepareForExport(cmdData, oInternalJSONFormat, useForwardSlash);
+            if (!resFilenameAndContents || !resFilenameAndContents.filename) { return ResultErr(); }
+
+            var resSaveFile = FS.saveFile(resFilenameAndContents.filename, resFilenameAndContents.contents);
+            return resSaveFile ? ResultOk(resSaveFile) : ResultErr(resSaveFile);
         }
+
+
         function isValidFormat(format) {
             return (format && ALGORITHMS[format.toUpperCase()]);
         }
-        function isValidExtension(fileExt) {
-            for (var k in ALGORITHMS) {
-                if (fileExt && ALGORITHMS[k].fileExt === fileExt.toLowerCase()) return true;
-            }
-            return false;
-        }
+
         function getValidFormats() {
             var outstr = '';
             for(var k in ALGORITHMS) outstr += k + '\n';
@@ -1895,11 +1990,11 @@
             verifyFrom          : verifyFrom,
             exportTo            : exportTo,
             isValidFormat       : isValidFormat,
-            isValidExtension    : isValidExtension,
-            getValidFormats     : getValidFormats,
-            detectFormatFromName: detectFormatFromName
+            getValidFormats     : getValidFormats
         };
     }());
+
+
 
     /**
 	 * @param {object} cmdData DOpus CommandData
@@ -1958,16 +2053,16 @@
         var currentPath   = doh.getCurrentPath(cmdData),
             oSuccessItems = itemsFiltered.getSuccessItems(); // process only success items!
         for (var k in oSuccessItems) {
-            var oHashedItem = oSuccessItems[k],
-                oDOItem     = doh.fsu.getItem(oHashedItem.fullpath),
+            var oThreadedItem = oSuccessItems[k],
+                oDOItem     = doh.fsu.getItem(oThreadedItem.fullpath),
                 res         = ADS.read(oDOItem);
 
-            if (res.isErr()) abortWith(new StreamReadWriteException('Cannot read stream data for: ' + oHashedItem.fullpath, fnName));
+            if (res.isErr()) abortWith(new StreamReadWriteException('Cannot read stream data for: ' + oThreadedItem.fullpath, fnName));
 
             // copy the 2 most important fields & adjust the relative path
-            oHashedItem.hash      = res.ok.hash;
-            oHashedItem.algorithm = res.ok.algorithm;
-            oHashedItem.relpath   = oHashedItem.fullpath.normalizeTrailingBackslashes().replace(currentPath, '');
+            oThreadedItem.hash      = res.ok.hash;
+            oThreadedItem.algorithm = res.ok.algorithm;
+            oThreadedItem.relpath   = oThreadedItem.fullpath.normalizeTrailingBackslashes().replace(currentPath, '');
         }
 
         // calculate the command results and return
@@ -1998,7 +2093,7 @@
             NORMAL:  2,
             VERBOSE: 3
         };
-        var _level = VALID_LEVELS.ERROR;
+        var _level = VALID_LEVELS.NORMAL;
         function _setLevel(level) {
             // if valid level use new, if not use old
             _level = typeof level === 'number' && level >= VALID_LEVELS.NONE && level <= VALID_LEVELS.VERBOSE ? level : _level;
@@ -2044,7 +2139,7 @@
         var myName = 'FS';
 
         // blob.copyFrom() and stringTools.decode() use different names
-        var FORMAT_FOR_COPY   = 'utf8',
+        var // FORMAT_FOR_COPY   = 'utf8',
             FORMAT_FOR_DECODE = 'utf-8';
 
         /**
@@ -2113,11 +2208,12 @@
                 return ResultErr(sprintf('%s -- FSUtil.OpenFile() error: %s, file: %s', fnName, fh.error, path));
             }
             try {
-                var blob = doh.dc.blob();
-                blob.copyFrom(contents, FORMAT_FOR_COPY);  // seems to use implicitly utf-16, only available optional param is utf8
-                var numBytesWritten = fh.write(blob);
-                logger.snormal('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
-                blob.free();
+                var numBytesWritten = fh.write(contents);
+                // var blob = doh.dc.blob();
+                // blob.copyFrom(contents, FORMAT_FOR_COPY);  // seems to use implicitly utf-16, only available optional param is utf8
+                // var numBytesWritten = fh.write(blob);
+                // logger.snormal('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
+                // blob.free();
                 fh.close();
                 return ResultOk(numBytesWritten);
             } catch(e) {
@@ -2295,28 +2391,19 @@
 
         /**
 		 * @param {DOpusItem} oItem
-		 * @returns {DOpusFileAttr} previous file attributes
+		 * @returns {{setAttr: string, clearAttr: string}} strings to restore previous file attributes
 		 */
-        function setupFileAttributes(oItem) {
+        function getFileAttributes(oItem) {
             // check the file attributes: Read-Only & System
             var oFile = oItem.open('m');
-            if (oItem.fileattr.readonly) oFile.setAttr('-r');
-            if (oItem.fileattr.system)   oFile.setAttr('-s');
-            if (oItem.fileattr.hidden)   oFile.setAttr('-h');
-            return oItem.fileattr;
+            var sSetAttr = '', sClearAttr = '';
+            if (oItem.fileattr.archive)  { sClearAttr = 'a'; }
+            if (oItem.fileattr.readonly) { oFile.setAttr('-r'); sSetAttr += 'r'; }
+            if (oItem.fileattr.system)   { oFile.setAttr('-s'); sSetAttr += 's';}
+            if (oItem.fileattr.hidden)   { oFile.setAttr('-h'); sSetAttr += 'h'; }
+            return { setAttr: sSetAttr, clearAttr: sClearAttr };
         }
 
-        /**
-		 * @param {DOpusItem} oItem
-		 * @param {DOpusFileAttr} oFileAttrib previous file attributes
-		 */
-        function resetFileAttributes(oItem, oFileAttrib) {
-            var oFile = oItem.open('m');
-            oFile.setAttr(oFileAttrib.archive  ? '+a' : '-a');
-            oFile.setAttr(oFileAttrib.readonly ? '+r' : '-r');
-            oFile.setAttr(oFileAttrib.system   ? '+s' : '-s');
-            oFile.setAttr(oFileAttrib.hidden   ? '+h' : '-h');
-        }
 
         /**
 		 * checks if given item has a hash stream
@@ -2384,7 +2471,7 @@
             logger.sverbose('%s -- Saving %s to %s, with original modification date: %s', fnName, JSON.stringify(oCachedItem), targetPath, origModDate);
 
             // check the file attributes: Read-Only & System
-            var oFileAttrib = setupFileAttributes(oItem);
+            var oFileAttrib = getFileAttributes(oItem);
 
             if (filePath.length > 240 ) {
                 filePath   = '\\\\?\\' + filePath;
@@ -2395,8 +2482,7 @@
             if (res.isErr()) return ResultErr(sprintf('%s -- Cannot save to %s', fnName, targetPath));
 
             // reset the file date & attributes
-            doh.cmd.runCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '"');
-            resetFileAttributes(oItem, oFileAttrib);
+            doh.cmd.runCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '" ATTR ' + oFileAttrib.setAttr + ' CLEARATTR ' + oFileAttrib.clearAttr);
 
             // use the original path without \\?\
             memory.setCacheVar(''+oItem.realpath, JSON.stringify(oCachedItem));
@@ -2407,30 +2493,44 @@
         /**
 		 * deletes ADS data, directly deletes "file:stream"
 		 * removes item from cache if enabled
-		 * @param {DOpusItem} oItem DOpus Item object
+		 * @param {DOpusItem|DOpusItemsVector} oItemOrItems DOpus Item object
 		 */
-        function remove(oItem) {
+        function remove(oItemOrItems) {
             var fnName = funcNameExtractor(remove, myName);
 
-            var filePath    = ''+oItem.realpath,
-                targetPath  = filePath + ':' + hashStreamName,
-                origModDate = DateToDOpusFormat(oItem.modify);
-            logger.sverbose('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
-
-            // check the file attributes: Read-Only & System
-            var oFileAttrib = setupFileAttributes(oItem);
-
-            // use the original path without \\?\
-            memory.deleteCacheVar(filePath);
-
-            if (filePath.length > 240 ) {
-                filePath   = '\\\\?\\' + filePath;
-                targetPath = '\\\\?\\' + targetPath;
+            /** @type {DOpusVector.<DOpusItem>} */
+            var vec;
+            if(oItemOrItems instanceof DOpusItemsVector) {
+                vec = oItemOrItems.getItems();
+            } else {
+                vec = new DOpusItemsVector().addItem(oItemOrItems).getItems();
             }
-            doh.cmd.runCommand('Delete /quiet /norecycle "' + targetPath + '"');
-            doh.cmd.runCommand('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '"');
-            // reset the file attributes if necessary: Read-Only & System
-            resetFileAttributes(oItem, oFileAttrib);
+
+            doh.cmd.clearFiles();
+            for(var i = 0; i < vec.length; i++) {
+                /** @type {DOpusItem} */
+                var oItem = vec[i];
+
+                var filePath    = ''+oItem.realpath,
+                    targetPath  = filePath + ':' + hashStreamName,
+                    origModDate = DateToDOpusFormat(oItem.modify);
+                logger.sverbose('%s -- Deleting %s and resetting modification date to: %s', fnName, oItem.realpath, origModDate);
+
+                // get the current file attributes: Read-Only, System, Archive, Hidden
+                var oFileAttrib = getFileAttributes(oItem);
+
+                // use the original path without \\?\
+                memory.deleteCacheVar(filePath);
+
+                if (filePath.length > 240 ) {
+                    filePath   = '\\\\?\\' + filePath;
+                    targetPath = '\\\\?\\' + targetPath;
+                }
+                // delete the ADS stream, reset the modification date & file attributes
+                doh.cmd.addLine('Delete /quiet /norecycle "' + targetPath + '"');
+                doh.cmd.addLine('SetAttr FILE="' + filePath + '" MODIFIED "' + origModDate + '" ATTR ' + oFileAttrib.setAttr + ' CLEARATTR ' + oFileAttrib.clearAttr);
+            }
+            if (vec.length) doh.cmd.run();
         }
 
         return {
@@ -2614,21 +2714,21 @@
         var msg;
         algo = algo || CURRENT_ALGORITHM;
         switch(algo.toUpperCase()) {
-        case 'BLAKE3':
-            return calculateFileHashWithExtBlake(oItem, itemIsFilelist, fnCallback);
-        case 'SHA1':
-        case 'MD5':
-        case 'CRC32':
-        case 'CRC32_PHP':
-        case 'CRC32_PHP_REV':
-            return calculateFileHashWithDOpus(oItem, algo);
-        case 'SHA256':
-        case 'SHA512':
-            msg = 'DO NOT USE!\n\nCurrent DOpus version as of 20210120 has a bug\nwith hashing files >=512 MB using SHA256 or SHA512.\nSee: https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6';
-            abortWith(new InvalidUserParameterException(msg, fnName)); break;
-        default:
-            msg = 'Given algorithm is not (yet) implemented, but you can easily use an external app if you want.';
-            abortWith(new NotImplementedYetException(msg, fnName));
+            case 'BLAKE3':
+                return calculateFileHashWithExtBlake(oItem, itemIsFilelist, fnCallback);
+            case 'SHA1':
+            case 'MD5':
+            case 'CRC32':
+            case 'CRC32_PHP':
+            case 'CRC32_PHP_REV':
+                return calculateFileHashWithDOpus(oItem, algo);
+            case 'SHA256':
+            case 'SHA512':
+                msg = 'DO NOT USE!\n\nCurrent DOpus version as of 20210120 has a bug\nwith hashing files >=512 MB using SHA256 or SHA512.\nSee: https://resource.dopus.com/t/column-sha-256-and-sha-512/33525/6';
+                abortWith(new InvalidUserParameterException(msg, fnName)); break;
+            default:
+                msg = 'Given algorithm is not (yet) implemented, but you can easily use an external app if you want.';
+                abortWith(new NotImplementedYetException(msg, fnName));
         }
     }
     /**
@@ -3021,19 +3121,20 @@
 		 */
         // eslint-disable-next-line no-unused-vars
         function fnDeleteADS(oItem, fnCallback, itemIsFilelist) {
-            var fnName = funcNameExtractor(fnDeleteADS, myName);
+            // var fnName = funcNameExtractor(fnDeleteADS, myName);
 
-            SW.start(fnName + oItem.realpath);
+            // SW.start(fnName + oItem.realpath);
             ADS.remove(oItem);
-            var elapsed = SW.stop(fnName + oItem.realpath);
-            fnCallback(oItem.realpath, elapsed, true);
+            // var elapsed = SW.stop(fnName + oItem.realpath);
+            // fnCallback(oItem.realpath, elapsed, true);
+            fnCallback(oItem.realpath, 0, true);
         }
         /**
 		 * @param {DOpusItem} oItem DOpus Item object
 		 * @param {function} fnCallback callback to thread worker
 		 * @param {boolean} itemIsFilelist given oItem is a filelist, not the file itself
-		 * @param {string} hash used e.g. for verifying using external files, then it will be filled by the knapsack (as HashedItem) then by the manager (as a DOpus Map) already
-		 * @param {string=} algorithm used e.g. for verifying using external files, then it will be filled by the knapsack (as HashedItem) then by the manager (as a DOpus Map) already
+		 * @param {string} hash used e.g. for verifying using external files, then it will be filled by the knapsack (as ThreadedItem) then by the manager (as a DOpus Map) already
+		 * @param {string=} algorithm used e.g. for verifying using external files, then it will be filled by the knapsack (as ThreadedItem) then by the manager (as a DOpus Map) already
 		 */
         function fnCompareAgainstHash(oItem, fnCallback, itemIsFilelist, hash, algorithm) {
             // TODO - review!
@@ -3288,7 +3389,7 @@
         this.progbar.abort = true;
         // this.progbar.full  = true;
         this.progbar.bytes = true;
-        this.progbar.init(cmdData.func.sourcetab, '');       // window title
+        this.progbar.init(cmdData.func.sourceTab, '');       // window title
         this.progbar.setStatus('Running workers');           // header
         this.progbar.addFiles(1, 100);                       // Leo's sample: add '1' fictitious file which acts as 0-100% progress
         this.progbar.show();
@@ -3317,23 +3418,23 @@
         if (!this.enabled) return userAborted;
 
         switch (this.progbar.getAbortState()) {
-        case 'a':
-            memory.setAbortStatus(true);
-            userAborted = true;
-            break;
-        case 'p':
-            while (this.progbar.getAbortState() !== '') {
-                memory.setPauseStatus(true);
-                // if (sleepdur) doh.delay(sleepdur);
-                doh.delay(500);
-                if (this.progbar.getAbortState() === 'a') {
-                    memory.setAbortStatus(true);
-                    userAborted = true;
-                    break;
+            case 'a':
+                memory.setAbortStatus(true);
+                userAborted = true;
+                break;
+            case 'p':
+                while (this.progbar.getAbortState() !== '') {
+                    memory.setPauseStatus(true);
+                    // if (sleepdur) doh.delay(sleepdur);
+                    doh.delay(500);
+                    if (this.progbar.getAbortState() === 'a') {
+                        memory.setAbortStatus(true);
+                        userAborted = true;
+                        break;
+                    }
                 }
-            }
-            memory.setPauseStatus(false);
-            break;
+                memory.setPauseStatus(false);
+                break;
         }
         // return userAborted;
         // logger.forceSprintf('%s -- totalbytes: %d, selected_bytes_cnt: %d', fnName, totalbytes, this.selected_bytes_cnt);
@@ -3420,10 +3521,10 @@
         return ret;
     }
     /**
-	 * @param {string} soundFile
+	 * @param {string} soundFile 'Success', 'Error', 'Warn'
 	 */
-    function playFeedbackSound(soundFile) {
-        var fnName = funcNameExtractor(playFeedbackSound);
+    function playSound(soundFile) {
+        var fnName = funcNameExtractor(playSound);
 
         var myProps   = _getScriptPathVars(),
             soundsDir = myProps.path + Global.SCRIPT_NAME + 'Sounds\\',
@@ -3440,6 +3541,15 @@
         soundFile = soundsDir + Global.SCRIPT_NAME + '_' + soundFile + '.wav';
         logger.sverbose('%s -- soundFilePath: %s', 'playFeedbackSound', soundFile);
         doh.cmd.runCommand('Play QUIET "' + soundFile + '"');
+    }
+
+    /** @param {Result.<any, any>} oResult */
+    function playFeedbackSound(oResult) {
+        if (oResult.isErr()) {
+            playSound('Warn');
+        } else {
+            playSound('Success');
+        }
     }
 
     /**
@@ -3779,13 +3889,13 @@
                     return (e && typeof e.atEnd === 'function' && typeof e.moveNext === 'function');
                 } catch(e) { return false; }
             },
-            /** current tab's path, always with trailing slash @param {DOpusScriptCommandData} cmdData */
+            /** @param {DOpusScriptCommandData} cmdData @returns {string} current tab's path, always with trailing slash */
             getCurrentPath: function (cmdData) {
-                return (''+cmdData.func.sourcetab.path).normalizeTrailingBackslashes();
+                return (''+cmdData.func.sourceTab.path).normalizeTrailingBackslashes();
             },
             /** @param {DOpusScriptCommandData} cmdData */
             isTabDirty: function (cmdData) {
-                return !!cmdData.func.sourcetab.dirty;
+                return !!cmdData.func.sourceTab.dirty;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getProgressBar: function (cmdData) {
@@ -3793,31 +3903,39 @@
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getAllItems: function (cmdData) {
-                return cmdData.func.sourcetab.all;
+                return cmdData.func.sourceTab.all;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getAllDirs: function (cmdData) {
-                return cmdData.func.sourcetab.dirs;
+                return cmdData.func.sourceTab.dirs;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getAllFiles: function (cmdData) {
-                return cmdData.func.sourcetab.files;
+                return cmdData.func.sourceTab.files;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getSelItems: function (cmdData) {
-                return cmdData.func.sourcetab.selected;
+                return cmdData.func.sourceTab.selected;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getSelDirs: function (cmdData) {
-                return cmdData.func.sourcetab.selected_dirs;
+                return cmdData.func.sourceTab.selected_dirs;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getSelFiles: function (cmdData) {
-                return cmdData.func.sourcetab.selected_files;
+                return cmdData.func.sourceTab.selected_files;
             },
-            /** get single selected file directly as item @param {DOpusScriptCommandData} cmdData */
+            /** @param {DOpusScriptCommandData} cmdData */
             getSelFileAsItem: function (cmdData) {
-                return doh.fsu.getItem(new Enumerator(cmdData.func.sourcetab.selected_files).item());
+                return doh.fsu.getItem(new Enumerator(cmdData.func.sourceTab.selected_files).item());
+            },
+            /** @param {DOpusScriptCommandData} cmdData */
+            getSelDirAsItem: function (cmdData) {
+                return doh.fsu.getItem(new Enumerator(cmdData.func.sourceTab.selected_dirs).item());
+            },
+            /** @param {DOpusScriptCommandData} cmdData */
+            getSelectedAsItem: function (cmdData) {
+                return doh.fsu.getItem(new Enumerator(cmdData.func.sourceTab.selected).item());
             },
             /** all items, dirs, files - selstats takes checkbox mode into account @param {DOpusScriptCommandData} cmdData */
             getAllItemsCount: function (cmdData) {
@@ -3825,11 +3943,11 @@
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getAllDirsCount: function (cmdData) {
-                return cmdData.func.sourcetab.selstats.dirs;
+                return cmdData.func.sourceTab.selstats.dirs;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getAllFilesCount: function (cmdData) {
-                return cmdData.func.sourcetab.selstats.files;
+                return cmdData.func.sourceTab.selstats.files;
             },
             /** selected items, dirs, files - selstats takes checkbox mode into account @param {DOpusScriptCommandData} cmdData */
             getSelItemsCount: function (cmdData) {
@@ -3837,11 +3955,11 @@
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getSelDirsCount: function (cmdData) {
-                return cmdData.func.sourcetab.selstats.seldirs;
+                return cmdData.func.sourceTab.selstats.selDirs;
             },
             /** @param {DOpusScriptCommandData} cmdData */
             getSelFilesCount: function (cmdData) {
-                return cmdData.func.sourcetab.selstats.selfiles;
+                return cmdData.func.sourceTab.selstats.selFiles;
             },
             /** gets global (DOpus.Vars) var @param {any} key */
             getGlobalVar: function(key) {
@@ -4012,11 +4130,11 @@
     }
 
 
-    // HashedItem & HashedItemsCollection
+    // ThreadedItem & ThreadedItemsCollection
     {
 
         /**
-		 * Hashed Item
+		 * Threaded Item
 		 * @param {DOpusItem} oItem DOpus Item object
 		 * @param {string=} relpath relative path
 		 * @param {string=} hash hash value
@@ -4024,7 +4142,7 @@
 		 * @param {any=} error any error message string or object
 		 * @param {any=} skipped amy message if item was skipped by filters
 		 */
-        function HashedItem(oItem, relpath, hash, algorithm, error, skipped) {
+        function ThreadedItem(oItem, relpath, hash, algorithm, error, skipped) {
             this.item          = oItem;
             this.fullpath      = ''+oItem.realpath || '';
             this.size          = parseInt(''+oItem.size, 10) || 0;
@@ -4049,7 +4167,7 @@
 		 * @param {string} currentPath base path to use
 		 * @returns {string} relative path
 		 */
-        HashedItem.prototype.getRelativeToPath = function (currentPath) {
+        ThreadedItem.prototype.getRelativeToPath = function (currentPath) {
             if (currentPath) {
                 this.relpath = this.fullpath.replace(currentPath, '') || this.relpath;
             }
@@ -4058,13 +4176,13 @@
         /**
 		 * mark item as finished - relevant for thread monitoring
 		 */
-        HashedItem.prototype.markFinished = function () {
+        ThreadedItem.prototype.markFinished = function () {
             this.finished = true;
         };
         /**
 		 * @returns {DOpusMap}
 		 */
-        HashedItem.prototype.convertToDOMap = function () {
+        ThreadedItem.prototype.convertToDOMap = function () {
             // create a new DOpus map for this file
             var newMap = doh.dc.map();
             newMap.set('filename',     this.name);
@@ -4084,15 +4202,15 @@
         var TS_MAX_VALID = 253402214400000; // 9999-12-31
         var TS_MIN_VALID = 0;               // 1970-01-01
         /**
-		 * General Purpose Hashed Items Collection
+		 * General Purpose Threaded Items Collection
 		 * @constructor
 		 */
-        function HashedItemsCollection() {
+        function ThreadedItemsCollection() {
             /**
 			 * apparently either one works: https://stackoverflow.com/a/51075508
-			 * type {Object.<string, HashedItem>}
-			 * type {{string, HashedItem}}
-			 * @type {Object.<string, HashedItem>}
+			 * type {Object.<string, ThreadedItem>}
+			 * type {{string, ThreadedItem}}
+			 * @type {Object.<string, ThreadedItem>}
 			 */
             this._myItems     = {};
 
@@ -4111,10 +4229,10 @@
         /**
 		 * do not call directly!
 		 * @param {function} fnFilter filter
-		 * @returns {Object.<string, HashedItem>}
+		 * @returns {Object.<string, ThreadedItem>}
 		 */
-        HashedItemsCollection.prototype._filterByAttribute = function (fnFilter) {
-            /** @type {Object.<string, HashedItem>} */
+        ThreadedItemsCollection.prototype._filterByAttribute = function (fnFilter) {
+            /** @type {Object.<string, ThreadedItem>} */
             var out = {};
             for(var fp in this._myItems) {
                 if (fnFilter(this._myItems[fp])) out[fp] = this._myItems[fp];
@@ -4126,7 +4244,7 @@
 		 * @param {function} fnFilter filter
 		 * @param {number} startValue start value, e.g. TS_MAX_VALID, largest file size, etc.
 		 */
-        HashedItemsCollection.prototype._findMinByAttribute = function (fnFilter, startValue) {
+        ThreadedItemsCollection.prototype._getMinByAttribute = function (fnFilter, startValue) {
             var lastFoundVal = startValue, lastFoundItem;
             for(var fp in this._myItems) {
                 var _tmp = fnFilter(this._myItems[fp]);
@@ -4142,7 +4260,7 @@
 		 * @param {function} fnFilter filter
 		 * @param {number} startValue start value, e.g. TS_MIN_VALID, smallest file size (0), etc.
 		 */
-        HashedItemsCollection.prototype._findMaxByAttribute = function (fnFilter, startValue) {
+        ThreadedItemsCollection.prototype._getMaxByAttribute = function (fnFilter, startValue) {
             var lastFoundVal = startValue, lastFoundItem;
             for(var fp in this._myItems) {
                 var _tmp = fnFilter(this._myItems[fp]);
@@ -4154,91 +4272,91 @@
             return lastFoundItem;
         };
         /**
-		 * @param {HashedItem} oHashedItem item to add
-		 * @see HashedItem
+		 * @param {ThreadedItem} oThreadedItem item to add
+		 * @see ThreadedItem
          * @throws @see {SanityCheckException}
 		 */
-        HashedItemsCollection.prototype.addItem = function (oHashedItem) {
-            var fnName = 'HashedItemsCollection.prototype.addItem';
-            if (this._myItems[oHashedItem.fullpath]) {
-                abortWith(new SanityCheckException('Item cannot be added, already in collection: ' + oHashedItem.name, fnName));
+        ThreadedItemsCollection.prototype.addItem = function (oThreadedItem) {
+            var fnName = 'ThreadedItemsCollection.prototype.addItem';
+            if (this._myItems[oThreadedItem.fullpath]) {
+                abortWith(new SanityCheckException('Item cannot be added, already in collection: ' + oThreadedItem.name, fnName));
             }
             // add the item to the list
-            this._myItems[oHashedItem.fullpath] = oHashedItem;
-            this.sizeTotal += oHashedItem.size; this.countTotal++;
+            this._myItems[oThreadedItem.fullpath] = oThreadedItem;
+            this.sizeTotal += oThreadedItem.size; this.countTotal++;
 
             // increment the drive letter count for this file
-            var driveLet = oHashedItem.fullpath.slice(0,2);
+            var driveLet = oThreadedItem.fullpath.slice(0,2);
             if (!this.driveLetters[driveLet]) this.driveLetters[driveLet] = 0;
             this.driveLetters[driveLet]++;
 
             // adjust the success, error & skipped counters
-            if (oHashedItem.skipped) {
-                this.sizeSkipped += oHashedItem.size; this.countSkipped++;
-            } else if (oHashedItem.error) {
-                this.sizeError   += oHashedItem.size; this.countError++;
+            if (oThreadedItem.skipped) {
+                this.sizeSkipped += oThreadedItem.size; this.countSkipped++;
+            } else if (oThreadedItem.error) {
+                this.sizeError   += oThreadedItem.size; this.countError++;
             } else {
-                this.sizeSuccess += oHashedItem.size; this.countSuccess++;
+                this.sizeSuccess += oThreadedItem.size; this.countSuccess++;
             }
         };
         /**
-		 * @param {HashedItem} oHashedItem item to delete
-		 * @see HashedItem
+		 * @param {ThreadedItem} oThreadedItem item to delete
+		 * @see ThreadedItem
          * @throws @see {SanityCheckException}
 		 */
-        HashedItemsCollection.prototype.delItem = function (oHashedItem) {
-            var fnName = 'HashedItemsCollection.prototype.delItem';
-            if (!this._myItems[oHashedItem.fullpath]) {
-                abortWith(new SanityCheckException('Item cannot be deleted, not in collection: ' + oHashedItem.name, fnName));
+        ThreadedItemsCollection.prototype.delItem = function (oThreadedItem) {
+            var fnName = 'ThreadedItemsCollection.prototype.delItem';
+            if (!this._myItems[oThreadedItem.fullpath]) {
+                abortWith(new SanityCheckException('Item cannot be deleted, not in collection: ' + oThreadedItem.name, fnName));
             }
 
             // adjust the success, error & skipped counters
-            if (oHashedItem.skipped) {
-                this.sizeSkipped -= oHashedItem.size;  this.countSkipped--;
-            } else if (oHashedItem.error) {
-                this.sizeError   -= oHashedItem.size;  this.countError--;
+            if (oThreadedItem.skipped) {
+                this.sizeSkipped -= oThreadedItem.size;  this.countSkipped--;
+            } else if (oThreadedItem.error) {
+                this.sizeError   -= oThreadedItem.size;  this.countError--;
             } else {
-                this.sizeSuccess -= oHashedItem.size;  this.countSuccess--;
+                this.sizeSuccess -= oThreadedItem.size;  this.countSuccess--;
             }
 
             // remove the item from the list
-            this.sizeTotal -= oHashedItem.size; this.countTotal--;
-            delete this._myItems[oHashedItem.fullpath];
+            this.sizeTotal -= oThreadedItem.size; this.countTotal--;
+            delete this._myItems[oThreadedItem.fullpath];
 
             // decrement the drive letter count for this file
-            var driveLet = oHashedItem.fullpath.slice(0,2);
+            var driveLet = oThreadedItem.fullpath.slice(0,2);
             this.driveLetters[driveLet]--;
         };
         /**
 		 * @param {string} path full path
-		 * @returns {HashedItem}
+		 * @returns {ThreadedItem}
 		 */
-        HashedItemsCollection.prototype.getByPath = function (path) {
+        ThreadedItemsCollection.prototype.getByPath = function (path) {
             return this._myItems[path];
         };
         /**
 		 * @param {DOpusItem} oItem DOpus item
-		 * @returns {HashedItem}
+		 * @returns {ThreadedItem}
 		 */
-        HashedItemsCollection.prototype.getItemByDOpusItem = function (oItem) {
+        ThreadedItemsCollection.prototype.getItemByDOpusItem = function (oItem) {
             return this._myItems[''+oItem.realpath];
         };
         /**
 		 * @param {string} rootPath starting path to use to adjust the relative paths
 		 */
-        HashedItemsCollection.prototype.adjustRelativePaths = function (rootPath) {
+        ThreadedItemsCollection.prototype.adjustRelativePaths = function (rootPath) {
             rootPath = rootPath.normalizeTrailingBackslashes();
             for(var fp in this._myItems) {
-                var oHashedItem = this._myItems[fp];
-                var relativePathAndFileName = (''+oHashedItem.fullpath).replace(rootPath, '');
-                oHashedItem.relpath = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oHashedItem.name));
+                var oThreadedItem = this._myItems[fp];
+                var relativePathAndFileName = (''+oThreadedItem.fullpath).replace(rootPath, '');
+                oThreadedItem.relpath = relativePathAndFileName.slice(0, relativePathAndFileName.lastIndexOf(''+oThreadedItem.name));
             }
         };
         /**
 		 * @param {string} algorithm
 		 * @throws @see {InvalidParameterValueException}
 		 */
-        HashedItemsCollection.prototype.setAlgorithmForAll = function (algorithm) {
+        ThreadedItemsCollection.prototype.setAlgorithmForAll = function (algorithm) {
             if (!algorithm) {
                 abortWith(new InvalidParameterValueException('Given algorithm is invalid: ' + algorithm, 'setAlgorithmForAll'));
             }
@@ -4246,46 +4364,48 @@
                 this._myItems[fp].algorithm = algorithm;
             }
         };
-        /**
-		 * @returns {Object.<string, HashedItem>} all items
-		 */
-        HashedItemsCollection.prototype.getItems          = function () { return this._myItems; };
-        /**
-		 * @returns {Object.<string, HashedItem>} success items
-		 */
-        HashedItemsCollection.prototype.getSuccessItems   = function () { return this._filterByAttribute(function (o){ return !o.error && !o.skipped; }); };
-        /**
-		 * @returns {Object.<string, HashedItem>} error items
-		 */
-        HashedItemsCollection.prototype.getErrorItems     = function () { return this._filterByAttribute(function (o){ return !!o.error; }); };
-        /**
-		 * @returns {Object.<string, HashedItem>} skipped items
-		 */
-        HashedItemsCollection.prototype.getSkippedItems   = function () { return this._filterByAttribute(function (o){ return !!o.skipped; }); };
-        /**
-		 * @returns {HashedItem} earliest item
-		 */
-        HashedItemsCollection.prototype.getEarliestItem   = function () { return this._findMinByAttribute(function (o){ return o.mod_ts; }, TS_MAX_VALID); };
-        /**
-		 * @returns {HashedItem} latest item
-		 */
-        HashedItemsCollection.prototype.getLatestItem     = function () { return this._findMaxByAttribute(function (o){ return o.mod_ts; }, TS_MIN_VALID); };
-        /**
-		 * @returns {HashedItem} smallest item
-		 */
-        HashedItemsCollection.prototype.getSmallestItem   = function () { return this._findMinByAttribute(function (o){ return o.size; }, Math.pow(2, 50)); }; // 1 petabyte, I doubt anybody will attempt to hash it! :D
-        /**
-		 * @returns {HashedItem} largest item
-		 */
-        HashedItemsCollection.prototype.getLargestItem    = function () { return this._findMaxByAttribute(function (o){ return o.size; }, 0); };
-        /**
-		 * @returns {HashedItem} earliest item
-		 */
-        HashedItemsCollection.prototype.getMinElapsedItem = function () { return this._findMinByAttribute(function (o){ return o.elapsed; }, TS_MAX_VALID); };
-        /**
-		 * @returns {HashedItem} largest item
-		 */
-        HashedItemsCollection.prototype.getMaxElapsedItem = function () { return this._findMaxByAttribute(function (o){ return o.elapsed; }, 0);
+        /** @returns {Object.<string, ThreadedItem>} all items */
+        ThreadedItemsCollection.prototype.getItems          = function () { return this._myItems; };
+        /** @returns {Object.<string, ThreadedItem>} success ite ms */
+        ThreadedItemsCollection.prototype.getSuccessItems   = function () { return this._filterByAttribute(function (o){ return !o.error && !o.skipped; }); };
+        /** @returns {Object.<string, ThreadedItem>} error items */
+        ThreadedItemsCollection.prototype.getErrorItems     = function () { return this._filterByAttribute(function (o){ return !!o.error; }); };
+        /** @returns {Object.<string, ThreadedItem>} skipped items */
+        ThreadedItemsCollection.prototype.getSkippedItems   = function () { return this._filterByAttribute(function (o){ return !!o.skipped; }); };
+        /** @returns {ThreadedItem} earliest item */
+        ThreadedItemsCollection.prototype.getEarliestItem   = function () { return this._getMinByAttribute(function (o){ return o.mod_ts; }, TS_MAX_VALID); };
+        /** @returns {ThreadedItem} latest item */
+        ThreadedItemsCollection.prototype.getLatestItem     = function () { return this._getMaxByAttribute(function (o){ return o.mod_ts; }, TS_MIN_VALID); };
+        /** @returns {ThreadedItem} smallest item */
+        ThreadedItemsCollection.prototype.getSmallestItem   = function () { return this._getMinByAttribute(function (o){ return o.size; }, Math.pow(2, 50)); }; // 1 petabyte, I doubt anybody will attempt to hash it! :D
+        /** @returns {ThreadedItem} largest item */
+        ThreadedItemsCollection.prototype.getLargestItem    = function () { return this._getMaxByAttribute(function (o){ return o.size; }, 0); };
+        /** @returns {ThreadedItem} earliest item */
+        ThreadedItemsCollection.prototype.getMinElapsedItem = function () { return this._getMinByAttribute(function (o){ return o.elapsed; }, TS_MAX_VALID); };
+        /** @returns {ThreadedItem} largest item */
+        ThreadedItemsCollection.prototype.getMaxElapsedItem = function () { return this._getMaxByAttribute(function (o){ return o.elapsed; }, 0);
+        };
+    }
+
+
+    // DOpusItemCollection
+    {
+        // unfortunately I cannot check if a parameter is of type DOpusVector with
+        // if (oParam instanceof DOpusVector)
+        // so I had to encapsulate it with a custom object
+        /** @constructor */
+        function DOpusItemsVector() {
+            /** @type {DOpusVector.<DOpusItem>} */
+            this.items = DOpus.create().vector();
+        }
+        /** @param {DOpusItem} oItem */
+        DOpusItemsVector.prototype.addItem = function (oItem) {
+            this.items.push_back(oItem);
+            return this;
+        };
+        /** @returns {DOpusVector.<DOpusItem>} */
+        DOpusItemsVector.prototype.getItems = function() {
+            return this.items;
         };
     }
 
@@ -4299,7 +4419,7 @@
 		 * All attribute names are in Capitalized_Words with underscores, which are used for example in exported files;
 		 * the underscores are automatically replaced by space.
 		 *
-		 * @param {HashedItemsCollection} oHashedItemsColl
+		 * @param {ThreadedItemsCollection} oThreadedItemsCollection
 		 * @param {string} rootPath root path, not checked for validity
 		 * @param {string=} algorithm hashing algorithm used, default: CURRENT_ALGORITHM
 		 * @param {number=} tsStart start timestamp
@@ -4308,7 +4428,7 @@
 		 * @param {number=} slowestThreadSize
 		 * @constructor
 		 */
-        function CommandResults(oHashedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestThreadDuration, slowestThreadSize) {
+        function CommandResults(oThreadedItemsCollection, rootPath, algorithm, tsStart, tsFinish, slowestThreadDuration, slowestThreadSize) {
             var nowTS = now();
 
             // adjust the parameters - not every caller runs in multi-threading and have this information
@@ -4318,11 +4438,11 @@
             slowestThreadSize     = slowestThreadSize || 0;
 
             // adjust these before calling the success, skipped & error
-            if (rootPath)  oHashedItemsColl.adjustRelativePaths(rootPath);
-            if (algorithm) oHashedItemsColl.setAlgorithmForAll(algorithm);
-            var oSuccess = oHashedItemsColl.getSuccessItems(),
-                oSkipped = oHashedItemsColl.getSkippedItems(),
-                oError   = oHashedItemsColl.getErrorItems();
+            if (rootPath)  oThreadedItemsCollection.adjustRelativePaths(rootPath);
+            if (algorithm) oThreadedItemsCollection.setAlgorithmForAll(algorithm);
+            var oSuccess = oThreadedItemsCollection.getSuccessItems(),
+                oSkipped = oThreadedItemsCollection.getSkippedItems(),
+                oError   = oThreadedItemsCollection.getErrorItems();
 
             // the reason why we are using _ in the attribute names is
             // so that we can replace them with space in text outputs
@@ -4334,12 +4454,12 @@
 
             // these calculations are not as time-consuming as you might think
             // but the extra info may not be for everyone's taste
-            var oEarliestItem   = oHashedItemsColl.getEarliestItem(),
-                oLatestItem     = oHashedItemsColl.getLatestItem(),
-                oSmallestItem   = oHashedItemsColl.getSmallestItem(),
-                oLargestItem    = oHashedItemsColl.getLargestItem(),
-                oMinElapsedItem = oHashedItemsColl.getMinElapsedItem(),
-                oMaxElapsedItem = oHashedItemsColl.getMaxElapsedItem();
+            var oEarliestItem   = oThreadedItemsCollection.getEarliestItem(),
+                oLatestItem     = oThreadedItemsCollection.getLatestItem(),
+                oSmallestItem   = oThreadedItemsCollection.getSmallestItem(),
+                oLargestItem    = oThreadedItemsCollection.getLargestItem(),
+                oMinElapsedItem = oThreadedItemsCollection.getMinElapsedItem(),
+                oMaxElapsedItem = oThreadedItemsCollection.getMaxElapsedItem();
 
             this.ExtInfo = {
                 Snapshot_DateTime_Timestamp     : nowTS,
@@ -4349,14 +4469,14 @@
                 Snapshot_DateTime_UTC           : new Date(nowTS).toUTCString(),
                 Snapshot_DateTime_Locale        : new Date(nowTS).toLocaleString(),
 
-                Total_Size                      : oHashedItemsColl.sizeTotal + ' B (' + oHashedItemsColl.sizeTotal.formatAsSize() + ')',
-                Total_Count                     : oHashedItemsColl.countTotal,
-                Valid_Size                      : oHashedItemsColl.sizeSuccess + ' B (' + oHashedItemsColl.sizeSuccess.formatAsSize() + ')',
-                Valid_Count                     : oHashedItemsColl.countSuccess,
-                Skipped_Size                    : oHashedItemsColl.sizeSkipped + ' B (' + oHashedItemsColl.sizeSkipped.formatAsSize() + ')',
-                Skipped_Count                   : oHashedItemsColl.countSkipped,
-                Invalid_Size                    : oHashedItemsColl.sizeError + ' B (' + oHashedItemsColl.sizeError.formatAsSize() + ')',
-                Invalid_Count                   : oHashedItemsColl.countError,
+                Total_Size                      : oThreadedItemsCollection.sizeTotal + ' B (' + oThreadedItemsCollection.sizeTotal.formatAsSize() + ')',
+                Total_Count                     : oThreadedItemsCollection.countTotal,
+                Valid_Size                      : oThreadedItemsCollection.sizeSuccess + ' B (' + oThreadedItemsCollection.sizeSuccess.formatAsSize() + ')',
+                Valid_Count                     : oThreadedItemsCollection.countSuccess,
+                Skipped_Size                    : oThreadedItemsCollection.sizeSkipped + ' B (' + oThreadedItemsCollection.sizeSkipped.formatAsSize() + ')',
+                Skipped_Count                   : oThreadedItemsCollection.countSkipped,
+                Invalid_Size                    : oThreadedItemsCollection.sizeError + ' B (' + oThreadedItemsCollection.sizeError.formatAsSize() + ')',
+                Invalid_Count                   : oThreadedItemsCollection.countError,
 
                 Slowest_Thread_Duration         : slowestThreadDuration + ' ms (' + slowestThreadDuration.formatAsDuration() + ' s)',
                 Slowest_Thread_Size             : slowestThreadSize + ' B (' + slowestThreadSize.formatAsSize() + ')',
@@ -4367,7 +4487,7 @@
                 Finish_Time                     : tsFinish.formatAsHms(),
                 Elapsed_Time_Timestamp          : (tsFinish - tsStart),
                 Elapsed_Time                    : (tsFinish - tsStart) + ' ms (' + (tsFinish - tsStart).formatAsDuration() + ' s)',
-                Average_Speed_Success_Only      : ( (oHashedItemsColl.sizeSuccess * 1000 / (tsFinish - tsStart)) || 0 ).formatAsSize() + '/s', // we calculate speed per second
+                Average_Speed_Success_Only      : ( (oThreadedItemsCollection.sizeSuccess * 1000 / (tsFinish - tsStart)) || 0 ).formatAsSize() + '/s', // we calculate speed per second
 
                 Earliest_File_Name              : oEarliestItem.fullpath,
                 Earliest_File_DateTime_Compact  : oEarliestItem.mod_date, // already formatte,
@@ -4390,16 +4510,16 @@
 
             // remove some internal fields
             for (var ohi in oSuccess) {
-                var oHashedItem = oSuccess[ohi];
-                delete oHashedItem.error;     // this will be falsy for all success items
-                delete oHashedItem.skipped;   // this will be falsy for all success items
-                delete oHashedItem.finished;  // this may or may not be falsy for success items - TODO review!
-                delete oHashedItem.algorithm; // this is already in the header, I do not support multiple algorithms in one go yet
+                var oThreadedItem = oSuccess[ohi];
+                delete oThreadedItem.error;     // this will be falsy for all success items
+                delete oThreadedItem.skipped;   // this will be falsy for all success items
+                delete oThreadedItem.finished;  // this may or may not be falsy for success items - TODO review!
+                delete oThreadedItem.algorithm; // this is already in the header, I do not support multiple algorithms in one go yet
                 if (!EXPORT_EXTENDED_DATA) {
-                    delete oHashedItem.fullpath;
-                    delete oHashedItem.size;
-                    delete oHashedItem.mod_ts;
-                    delete oHashedItem.mod_date;
+                    delete oThreadedItem.fullpath;
+                    delete oThreadedItem.size;
+                    delete oThreadedItem.mod_ts;
+                    delete oThreadedItem.mod_date;
                 }
             }
             // add the Success, Skipped, Error items
@@ -4507,39 +4627,37 @@
 			 * total number of bytes in this knapsack
 			 */
             this.size      = 0;
-            this.itemsColl = new HashedItemsCollection();
+            this.itemsColl = new ThreadedItemsCollection();
             this.finished  = false;
         }
         /**
-		 * @param {HashedItem} oHashedItem
+		 * @param {ThreadedItem} oThreadedItem
 		 */
-        Knapsack.prototype.addItem = function (oHashedItem) {
-            this.itemsColl.addItem(oHashedItem);
-            this.size += oHashedItem.size;
+        Knapsack.prototype.addItem = function (oThreadedItem) {
+            this.itemsColl.addItem(oThreadedItem);
+            this.size += oThreadedItem.size;
             this.count++;
         };
         /**
-		 * @param {HashedItem} oHashedItem
+		 * @param {ThreadedItem} oThreadedItem
 		 */
-        Knapsack.prototype.delItem = function (oHashedItem) {
-            this.size -= oHashedItem.size;
+        Knapsack.prototype.delItem = function (oThreadedItem) {
+            this.size -= oThreadedItem.size;
             this.count--;
-            this.itemsColl.delItem(oHashedItem);
+            this.itemsColl.delItem(oThreadedItem);
         };
         /**
 		 * @returns {boolean} true if all subitems in this knapsack are finished, must be marked by the items
-		 * @see HashedItem
+		 * @see ThreadedItem
 		 */
         Knapsack.prototype.isFinished = function () {
             if (this.finished) return true;
-
             // not marked as finished yet, check all subitems
             var oItems = this.itemsColl.getItems();
-            for (var k in oItems) {
-                if (!oItems[k].finished) return false;
-            }
+            for (var k in oItems) if (!oItems[k].finished) return false;
             // all items report back as finished
             this.finished = true;
+            return true;
         };
 
 
@@ -4625,9 +4743,9 @@
          * @returns {CommandResults}
 		 */
         KnapsacksCollection.prototype.getAsCommandResults = function (rootPath, algorithm, tsStart, tsFinish) {
-            var oHashedItemsColl  = new HashedItemsCollection(),
-                slowestKSDuration = 0,
-                slowestKSSize     = 0;
+            var oThreadedItemsColl = new ThreadedItemsCollection(),
+                slowestKSDuration  = 0,
+                slowestKSSize      = 0;
 
             // a threadID points to 1 knapsack
             var oFinishedKS = this.finishedKS;
@@ -4644,9 +4762,9 @@
                     // get results from fileAttribs (DOpus Map)
                     var oItem = doh.getItem(fileFullpath);
                     // if (!oItem) { abortWith(new InvalidParameterTypeException('Item is not valid', fnName)); return; } // return needed for VSCode/TSC // TODO DELETE
-                    var oHashedItem = new HashedItem(oItem, null, fileAttribs('result'), algorithm, fileAttribs('error'), null);
-                    oHashedItem.elapsed = fileAttribs('elapsed');
-                    oHashedItemsColl.addItem(oHashedItem);
+                    var oThreadedItem = new ThreadedItem(oItem, null, fileAttribs('result'), algorithm, fileAttribs('error'), null);
+                    oThreadedItem.elapsed = fileAttribs('elapsed');
+                    oThreadedItemsColl.addItem(oThreadedItem);
 
                     elapsedForThisKS += fileAttribs('elapsed');
                 }
@@ -4656,7 +4774,7 @@
                     slowestKSSize     = ksCurrent.size;
                 }
             }
-            return new CommandResults(oHashedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
+            return new CommandResults(oThreadedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
         };
     }
 
@@ -4747,6 +4865,10 @@
         function InvalidNumberException(message, where) {
             this.message='';this.name='';this.where=''; UserException.call(this, InvalidNumberException, message, where);
         }
+        /** @constructor @param {string} message @param {string|function} where */
+        function UserAbortedException(message, where) {
+            this.message='';this.name='';this.where=''; UserException.call(this, UserAbortedException, message, where);
+        }
 
 
     }
@@ -4769,19 +4891,27 @@
 {
     /**
      * Not the most elegant solution, but JScript/JS does not easily allow to determine function name from a given function object.
+     *
      * It cannot parse 'anonymous' methods, incl. exposed method names in singletons, e.g. funcNameExtractor(actions.getFunc).
+     *
      * There is no debugger for DOpus user scripts, blame the universe not me.
+     * @function funcNameExtractor
+     * @param {function} fnFunc
+     * @param {string=} parentName
+     * @returns {string}
+     * @throws @see {InvalidParameterTypeException}
      */
     var funcNameExtractor = (function () {
         var reExtractor = new RegExp(/^function\s+(\w+)\(.+/),
             fnName      = 'funcNameExtractor',
             cache       = {};
         /**
-		 * @param {function} fnFunc
-		 * @param {string=} parentName
-		 * @returns {string}
-		 * @throws @see {InvalidParameterTypeException}
-		 */
+         * @param {function} fnFunc
+         * @param {string=} parentName
+         * @function funcNameExtractor
+         * @returns {string}
+         * @throws @see {InvalidParameterTypeException}
+         */
         return function(fnFunc, parentName) {
             // the cache speeds it up immensely
             // typically 1st uncached call might take 3-15 ms, but later it drops to 0.04 ms (>100x faster)
@@ -4814,34 +4944,34 @@
         // out.prototype = obj.prototype;
         out.value     = '';
         switch(typeof obj) {
-        case 'string':
-        case 'number':
-        case 'boolean':
-        case 'bigint':
-            out.value = obj; break;
-        case 'undefined':
-            out.value = 'undefined'; break;
-        case 'function':
-            out.value = obj.toString().slice(0, 100) + ' ...cropped for brevity'; break;
+            case 'string':
+            case 'number':
+            case 'boolean':
+            case 'bigint':
+                out.value = obj; break;
+            case 'undefined':
+                out.value = 'undefined'; break;
+            case 'function':
+                out.value = obj.toString().slice(0, 100) + ' ...cropped for brevity'; break;
             // out.value = obj.toString(); break;
-        case 'object':
-            if (obj === null) { out.value = 'null'; break; }
-            try {
-                if      (doh.isValidDOItem(obj))        { out.value = 'DOpus Item - fullpath: ' + obj.realpath; break; }
-                else if (doh.isValidDOCommandData(obj)) { out.value = 'DOpus Command Data'; break; }
-                else if (doh.isValidDOColumnData(obj))  { out.value = 'DOpus Column Data'; break; }
-                else if (doh.isValidDOMap(obj))         { out.value = 'DOpus Map'; break; }
-                else if (doh.isValidDOVector(obj))      { out.value = 'DOpus Vector'; break; }
-                else if (doh.isValidDOEnumerable(obj))  { out.value = 'DOpus Enumerable'; break; }
-            } catch (e) { /* TODO */ }
-            try { JSON.parse(JSON.stringify(obj, null, 4)); out.value = obj; break; } catch(e) { /* TODO */ }
+            case 'object':
+                if (obj === null) { out.value = 'null'; break; }
+                try {
+                    if      (doh.isValidDOItem(obj))        { out.value = 'DOpus Item - fullpath: ' + obj.realpath; break; }
+                    else if (doh.isValidDOCommandData(obj)) { out.value = 'DOpus Command Data'; break; }
+                    else if (doh.isValidDOColumnData(obj))  { out.value = 'DOpus Column Data'; break; }
+                    else if (doh.isValidDOMap(obj))         { out.value = 'DOpus Map'; break; }
+                    else if (doh.isValidDOVector(obj))      { out.value = 'DOpus Vector'; break; }
+                    else if (doh.isValidDOEnumerable(obj))  { out.value = 'DOpus Enumerable'; break; }
+                } catch (e) { /* TODO */ }
+                try { JSON.parse(JSON.stringify(obj, null, 4)); out.value = obj; break; } catch(e) { /* TODO */ }
 
-            try { out.value = obj.toString(); return out.value; } catch (e) { /* TODO */ }
-            try { out.value = new RegExp(obj); return out.value; } catch (e) { /* TODO */ }
-            out.value = 'undetermined object';
-            break;
-        default:
-            out.value = 'unknown type';
+                try { out.value = obj.toString(); return out.value; } catch (e) { /* TODO */ }
+                try { out.value = new RegExp(obj); return out.value; } catch (e) { /* TODO */ }
+                out.value = 'undetermined object';
+                break;
+            default:
+                out.value = 'unknown type';
         }
         return asPOJO ? out : JSON.stringify(out, null, 4);
     }
@@ -4951,11 +5081,11 @@
                 // parse flags
                 var leftJustify = false, positivePrefix = '', zeroPad = false, prefixBaseX = false;
                 for (var j = 0; flags && j < flags.length; j++) switch (flags.charAt(j)) {
-                case ' ': positivePrefix = ' '; break;
-                case '+': positivePrefix = '+'; break;
-                case '-': leftJustify = true; break;
-                case '0': zeroPad = true; break;
-                case '#': prefixBaseX = true; break;
+                    case ' ': positivePrefix = ' '; break;
+                    case '+': positivePrefix = '+'; break;
+                    case '-': leftJustify = true; break;
+                    case '0': zeroPad = true; break;
+                    case '#': prefixBaseX = true; break;
                 }
 
                 // parameters may be null, undefined, empty-string or real valued
@@ -4999,61 +5129,61 @@
                 var prefix, base;
 
                 switch (type) {
-                case 'c': value = String.fromCharCode(+value);
-                // eslint-disable-next-line no-fallthrough
-                case 's': {
+                    case 'c': value = String.fromCharCode(+value);
+                        // eslint-disable-next-line no-fallthrough
+                    case 's': {
                     // If you'd rather treat nulls as empty-strings, uncomment next line:
                     // if (value == null) return '';
 
-                    value = String(value);
-                    if (precision != null) {
-                        value = value.slice(0, precision);
+                        value = String(value);
+                        if (precision != null) {
+                            value = value.slice(0, precision);
+                        }
+                        prefix = '';
+                        break;
                     }
-                    prefix = '';
-                    break;
-                }
-                case 'b': base = 2; break;
-                case 'o': base = 8; break;
-                case 'u': base = 10; break;
-                case 'x': case 'X': base = 16; break;
-                case 'i':
-                case 'd': {
-                    var number = parseInt(value, 10);
-                    if (isNaN(number)) {
-                        return '';
+                    case 'b': base = 2; break;
+                    case 'o': base = 8; break;
+                    case 'u': base = 10; break;
+                    case 'x': case 'X': base = 16; break;
+                    case 'i':
+                    case 'd': {
+                        var number = parseInt(value, 10);
+                        if (isNaN(number)) {
+                            return '';
+                        }
+                        prefix = number < 0 ? '-' : positivePrefix;
+                        value = prefix + pad(String(Math.abs(number)), precision, '0', false);
+                        break;
                     }
-                    prefix = number < 0 ? '-' : positivePrefix;
-                    value = prefix + pad(String(Math.abs(number)), precision, '0', false);
-                    break;
-                }
-                case 'e': case 'E':
-                case 'f': case 'F':
-                case 'g': case 'G':
-                case 'p': case 'P':
-                {
+                    case 'e': case 'E':
+                    case 'f': case 'F':
+                    case 'g': case 'G':
+                    case 'p': case 'P':
+                    {
                     // eslint-disable-next-line no-redeclare
-                    var number = +value;
-                    if (isNaN(number)) {
-                        return '';
-                    }
-                    prefix = number < 0 ? '-' : positivePrefix;
-                    var method;
-                    if ('p' != type.toLowerCase()) {
-                        method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
-                    } else {
+                        var number = +value;
+                        if (isNaN(number)) {
+                            return '';
+                        }
+                        prefix = number < 0 ? '-' : positivePrefix;
+                        var method;
+                        if ('p' != type.toLowerCase()) {
+                            method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
+                        } else {
                         // Count significant-figures, taking special-care of zeroes ('0' vs '0.00' etc.)
-                        var sf = String(value).replace(/[eE].*|[^\d]/g, '');
-                        var sf2 = (number ? sf.replace(/^0+/, '') : sf).length;
-                        precision = precision ? Math.min(precision, sf2) : precision;
-                        method = (!precision || precision <= sf2) ? 'toPrecision' : 'toExponential';
+                            var sf = String(value).replace(/[eE].*|[^\d]/g, '');
+                            var sf2 = (number ? sf.replace(/^0+/, '') : sf).length;
+                            precision = precision ? Math.min(precision, sf2) : precision;
+                            method = (!precision || precision <= sf2) ? 'toPrecision' : 'toExponential';
+                        }
+                        var number_str = Math.abs(number)[method](precision);
+                        // number_str = thousandSeparation ? thousand_separate(number_str): number_str;
+                        value = prefix + number_str;
+                        break;
                     }
-                    var number_str = Math.abs(number)[method](precision);
-                    // number_str = thousandSeparation ? thousand_separate(number_str): number_str;
-                    value = prefix + number_str;
-                    break;
-                }
-                case 'n': return '';
-                default: return substring;
+                    case 'n': return '';
+                    default: return substring;
                 }
 
                 if (base) {
@@ -5071,3 +5201,5 @@
     }
     // sprintf - END
 }
+
+Initialize();
