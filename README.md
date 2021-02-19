@@ -3,6 +3,9 @@ CuMTH or simply MTH is a user script for multi-threaded hashing for the brillian
 
 
 
+## DO NOT USE THIS SCRIPT YET, IT IS NOT READY FOR ENDUSERS
+
+
 
 ## FEATURES:
 
