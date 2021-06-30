@@ -212,58 +212,96 @@
         initData.log_prefix     = Global.SCRIPT_PREFIX;
         initData.default_enable = true;
 
-        // // collection names for find commands & files which reported an error
-        // /** @type {boolean} */
-        // initData.config.COLLECTIONS_ENABLED = true;
-        // /** @type {string} */
-        // initData.config.COLL_DUMMY          = ''; // needed only used for benchmark action
-        // /** @type {string} */
-        // initData.config.COLL_SUCCESS        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verified hashes';
-        // /** @type {string} */
-        // initData.config.COLL_DIRTY          = Global.SCRIPT_NAME_SHORT + ' - ' + 'Outdated hashes';
-        // /** @type {string} */
-        // initData.config.COLL_MISSING        = Global.SCRIPT_NAME_SHORT + ' - ' + 'Missing hashes';
-        // /** @type {string} */
-        // initData.config.COLL_ERRORS         = Global.SCRIPT_NAME_SHORT + ' - ' + 'Files with errors';
-        // /** @type {string} */
-        // initData.config.COLL_UPTODATE       = Global.SCRIPT_NAME_SHORT + ' - ' + 'Up-to-date hashes';
-        // /** @type {string} */
-        // initData.config.COLL_IMPORT_ERRORS  = Global.SCRIPT_NAME_SHORT + ' - ' + 'Import errors';
-        // /** @type {string} */
-        // initData.config.COLL_VERIFY_MISSING = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify missing files';
-        // initData.config_desc = DOpus.create().map(
-        //     'COLLECTIONS_ENABLED', 'Enable collections',
-        //     'COLL_SUCCESS', 'Collection for successful items, e.g. for verification',
-        //     'COLL_DIRTY', 'Collection for files with outdated hashes',
-        //     'COLL_MISSING', 'Collection for files without hashes');
-        // how to use: Script.config.COLLECTIONS_ENABLED, Script.config.SHOW_SUMMARY_DIALOG...
 
         doh.clear();
 
+        initData.config.CACHE_ENABLED                               = CACHE_ENABLED;
+        initData.config.USE_PROGRESS_BAR                            = USE_PROGRESS_BAR;
+        initData.config.MAX_AVAILABLE_CORE_COUNT                    = MAX_AVAILABLE_CORE_COUNT;
+        initData.config.COLLECTIONS_ENABLED                         = COLLECTIONS_ENABLED;
+        initData.config.COLL_SUCCESS                                = COLL_SUCCESS;
+        initData.config.COLL_DIRTY                                  = COLL_DIRTY;
+        initData.config.COLL_MISSING                                = COLL_MISSING;
+        initData.config.COLL_ERRORS                                 = COLL_ERRORS;
+        initData.config.COLL_UPTODATE                               = COLL_UPTODATE;
+        initData.config.COLL_IMPORT_ERRORS                          = COLL_IMPORT_ERRORS;
+        initData.config.COLL_VERIFY_MISSING                         = COLL_VERIFY_MISSING;
+        initData.config.SHOW_SUMMARY_DIALOG                         = SHOW_SUMMARY_DIALOG;
+        initData.config.EXPORT_EXTENDED_DATA                        = EXPORT_EXTENDED_DATA;
+        initData.config.DUMP_DETAILED_RESULTS                       = DUMP_DETAILED_RESULTS;
+        initData.config.APPEND_CURRENT_DATETIME_TO_EXPORT_FILES     = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES;
+        initData.config.APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES = APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES;
+        initData.config.SKIP_SAVE_DIALOG_AND_OVERWRITE              = SKIP_SAVE_DIALOG_AND_OVERWRITE;
+        initData.config.EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED    = EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED;
+        initData.config.IMPORT_USE_SELECTED_FILE_AS_SOURCE          = IMPORT_USE_SELECTED_FILE_AS_SOURCE;
+        initData.config.IMPORT_USE_SELECTED_ITEM_AS_TARGET          = IMPORT_USE_SELECTED_ITEM_AS_TARGET;
+        initData.config.AUTO_DETECT_DISK_TYPE                       = AUTO_DETECT_DISK_TYPE;
+        initData.config.REDUCE_THREADS_ON_HDD_TO                    = REDUCE_THREADS_ON_HDD_TO;
+        initData.config.TEMPDIR                                     = TEMPDIR;
 
-        // initData.config.USE_PROGRESS_BAR                            = USE_PROGRESS_BAR;
-        // initData.config.MAX_AVAILABLE_CORE_COUNT                    = MAX_AVAILABLE_CORE_COUNT;
-        // initData.config.COLLECTIONS_ENABLED                         = COLLECTIONS_ENABLED;
-        // initData.config.COLL_SUCCESS                                = COLL_SUCCESS;
-        // initData.config.COLL_DIRTY                                  = COLL_DIRTY;
-        // initData.config.COLL_MISSING                                = COLL_MISSING;
-        // initData.config.COLL_ERRORS                                 = COLL_ERRORS;
-        // initData.config.COLL_UPTODATE                               = COLL_UPTODATE;
-        // initData.config.COLL_IMPORT_ERRORS                          = COLL_IMPORT_ERRORS;
-        // initData.config.COLL_VERIFY_MISSING                         = COLL_VERIFY_MISSING;
-        // initData.config.SHOW_SUMMARY_DIALOG                         = SHOW_SUMMARY_DIALOG;
-        // initData.config.EXPORT_EXTENDED_DATA                        = EXPORT_EXTENDED_DATA;
-        // initData.config.DUMP_DETAILED_RESULTS                       = DUMP_DETAILED_RESULTS;
-        // initData.config.APPEND_CURRENT_DATETIME_TO_EXPORT_FILES     = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES;
-        // initData.config.APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES = APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES;
-        // initData.config.SKIP_SAVE_DIALOG_AND_OVERWRITE              = SKIP_SAVE_DIALOG_AND_OVERWRITE;
-        // initData.config.EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED    = EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED;
-        // initData.config.IMPORT_USE_SELECTED_FILE_AS_SOURCE          = IMPORT_USE_SELECTED_FILE_AS_SOURCE;
-        // initData.config.IMPORT_USE_SELECTED_ITEM_AS_TARGET          = IMPORT_USE_SELECTED_ITEM_AS_TARGET;
-        // initData.config.AUTO_DETECT_DISK_TYPE                       = AUTO_DETECT_DISK_TYPE;
-        // initData.config.REDUCE_THREADS_ON_HDD_TO                    = REDUCE_THREADS_ON_HDD_TO;
-        // initData.config.REDUCE_THREADS_ON_HDD_TO                    = REDUCE_THREADS_ON_HDD_TO;
-        // initData.config.TEMPDIR                                     = TEMPDIR;
+        initData.config_desc = DOpus.create().map(
+            'CACHE_ENABLED',                               'Keep seen files in memory cache, TRUE is highly recommended',
+            'USE_PROGRESS_BAR',                            'For a small number of files this makes very little, < 3%, difference to overall performance, for a large number of files, especially small ones, this slows down a lot, e.g. from 100% speed down to 70%!',
+            'SHOW_SUMMARY_DIALOG',                         'Show a summary dialog after manager actions',
+            'MAX_AVAILABLE_CORE_COUNT',                    'Default: automatically derived from CPU core count\nused primarily for SSD/NVME drives, can be overridden via user command parameter',
+            'DUMP_DETAILED_RESULTS',                       'Show detailed information in DOpus Output for each file after operation\nfiles with errors will be put into a collection regardless of this setting',
+
+            'AUTO_DETECT_DISK_TYPE',                       'Try to determine disk type where selected files reside, i.e. HDD or SSD\nif you are using no HDDs at all, e.g. on a laptop, no external disks, etc. deactivate this to skip check at every operation',
+            'REDUCE_THREADS_ON_HDD_TO',                    'Reduce the number of threads automatically when using an HDD to reduce disk thrashing\nused only if the disk type detection is active',
+
+            'COLLECTIONS_ENABLED',                         'Collection names for most commands',
+            'COLL_SUCCESS',                                'Files which have successfully verified or files used in on-the-fly calculation',
+            'COLL_DIRTY',                                  'Files which have outdated hash files, i.e. its filesize or modification date has been changed since ADS is attached',
+            'COLL_MISSING',                                'Files with no hash ADS',
+            'COLL_ERRORS',                                 'Files with valid hashes which failed the checksum verification',
+            'COLL_UPTODATE',                               'Up-to-date hashes\nNot used at the moment',
+            'COLL_IMPORT_ERRORS',                          'Files for which hash values could not be imported from external file to ADS',
+            'COLL_VERIFY_MISSING',                         'Files which were not found from verification from an external hash file (i.e. ADS is ignored)',
+
+            'EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED',    'Export hashes from ADS for all files in current lister, if no file or folder is selected',
+            'IMPORT_USE_SELECTED_FILE_AS_SOURCE',          'Use the selected file as source for importing from external checksum file to ADS',
+            'IMPORT_USE_SELECTED_ITEM_AS_TARGET',          'Use the selected file as target for exporting from ADS to external checksum file',
+            'EXPORT_EXTENDED_DATA',                        'Include extended data (in header area) in exported checksum files',
+            'APPEND_CURRENT_DATETIME_TO_EXPORT_FILES',     'Append the current date-time in sort-friendly format YYYYMMDD-HHMMSS',
+            'APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES', 'Append the date-time of file with most recent change in sort-friendly format YYYYMMDD-HHMMSS',
+            'SKIP_SAVE_DIALOG_AND_OVERWRITE',              'WARNING: Automatically overwrite file if an export is started and a file is selected',
+
+            'TEMPDIR',                                     'Temp directory, derived from %TEMP% envvar'
+        );
+
+        initData.config_groups = DOpus.create().map(
+            'CACHE_ENABLED',                               'Main Options',
+            'USE_PROGRESS_BAR',                            'Main Options',
+            'SHOW_SUMMARY_DIALOG',                         'Main Options',
+            'MAX_AVAILABLE_CORE_COUNT',                    'Main Options',
+            'DUMP_DETAILED_RESULTS',                       'Main Options',
+
+            'AUTO_DETECT_DISK_TYPE',                       'HDD Detection',
+            'REDUCE_THREADS_ON_HDD_TO',                    'HDD Detection',
+
+            'COLLECTIONS_ENABLED',                         'Action Output',
+            'COLL_SUCCESS',                                'Action Output',
+            'COLL_DIRTY',                                  'Action Output',
+            'COLL_MISSING',                                'Action Output',
+            'COLL_ERRORS',                                 'Action Output',
+            'COLL_UPTODATE',                               'Action Output',
+            'COLL_IMPORT_ERRORS',                          'Action Output',
+            'COLL_VERIFY_MISSING',                         'Action Output',
+
+            'EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED',    'Import/Export',
+            'IMPORT_USE_SELECTED_FILE_AS_SOURCE',          'Import/Export',
+            'IMPORT_USE_SELECTED_ITEM_AS_TARGET',          'Import/Export',
+            'EXPORT_EXTENDED_DATA',                        'Import/Export',
+            'APPEND_CURRENT_DATETIME_TO_EXPORT_FILES',     'Import/Export',
+            'APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES', 'Import/Export',
+            'SKIP_SAVE_DIALOG_AND_OVERWRITE',              'Import/Export',
+
+            'TEMPDIR',                                     'Miscellaneous'
+        );
+
+
+
+
 
 
         // put the script path, etc. into DOpus Global Vars,
@@ -681,7 +719,7 @@
                 }
             }
         } else if (forOpen) {
-            if (IMPORT_USE_SELECTED_FILE_AS_SOURCE && doh.getSelItemsCount(cmdData) === 1 && doh.getSelFilesCount(cmdData) === 1) {
+            if (Script.config.IMPORT_USE_SELECTED_FILE_AS_SOURCE && doh.getSelItemsCount(cmdData) === 1 && doh.getSelFilesCount(cmdData) === 1) {
                 // if a single file is selected use it as source
                 filename = ''+doh.getSelFileAsItem(cmdData).realpath;
                 logger.sverbose('%s -- Using selected file as input: %s', fnName, filename);
@@ -693,7 +731,7 @@
                 if (oPath.result) filename = ''+oPath;
             }
         } else {
-            if (IMPORT_USE_SELECTED_ITEM_AS_TARGET && doh.getSelItemsCount(cmdData) === 1 && doh.getSelDirsCount(cmdData) === 1) {
+            if (Script.config.IMPORT_USE_SELECTED_ITEM_AS_TARGET && doh.getSelItemsCount(cmdData) === 1 && doh.getSelDirsCount(cmdData) === 1) {
                 // if a single directory is selected use it as target name
                 basename = ''+doh.getSelectedAsItem(cmdData).name_stem;
                 logger.sverbose('%s -- Using selected item name in output: %s', fnName, basename);
@@ -706,7 +744,7 @@
             filename = currentPath + basename + suggestedNameSuffix + ALGORITHMS[CURRENT_ALGORITHM].fileExt;
             logger.sverbose('%s -- Using filename for output: %s', fnName, filename);
 
-            if (!SKIP_SAVE_DIALOG_AND_OVERWRITE) {
+            if (!Script.config.SKIP_SAVE_DIALOG_AND_OVERWRITE) {
                 // show a Save Dialog
                 oPath = cmdData.func.dlg().save('Save', filename);
                 if (!oPath.result) abortWith(new UserAbortedException('User aborted', fnName));
@@ -853,20 +891,20 @@
              * @type {Object.<string, SWITCH>}
              */
             var VALID_SWITCHES = {
-                CALCULATE_ONLY   : { name: 'CALCULATE_ONLY',    filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateOnly,            collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
-                HARD_UPDATE_ADS  : { name: 'HARD_UPDATE_ADS',   filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS },
-                SMART_UPDATE_ADS : { name: 'SMART_UPDATE_ADS',  filter: filters.PUBLIC.fnAcceptMissingOrDirty, action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
-                VERIFY_FROM_ADS  : { name: 'VERIFY_FROM_ADS',   filter: filters.PUBLIC.fnAcceptUptodateOnly,   action: actions.PUBLIC.fnCalculateAndCompareToADS, collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE },
-                DELETE_ADS       : { name: 'DELETE_ADS',        filter: filters.PUBLIC.fnAcceptWithHashes,     action: actions.PUBLIC.fnDeleteADS,                collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_UPTODATE, maxCount: 1 },
-                FIND_DIRTY       : { name: 'FIND_DIRTY',        filter: filters.PUBLIC.fnAcceptDirtyOnly,      action: actions.PUBLIC.fnNull,                     collSuccess: COLL_DIRTY },
-                FIND_MISSING     : { name: 'FIND_MISSING',      filter: filters.PUBLIC.fnRejectWithHashes,     action: actions.PUBLIC.fnNull,                     collSuccess: COLL_MISSING },
+                CALCULATE_ONLY   : { name: 'CALCULATE_ONLY',    filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateOnly,            collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS },
+                HARD_UPDATE_ADS  : { name: 'HARD_UPDATE_ADS',   filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS },
+                SMART_UPDATE_ADS : { name: 'SMART_UPDATE_ADS',  filter: filters.PUBLIC.fnAcceptMissingOrDirty, action: actions.PUBLIC.fnCalculateAndSaveToADS,    collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS, collSkipped: Script.config.COLL_UPTODATE },
+                VERIFY_FROM_ADS  : { name: 'VERIFY_FROM_ADS',   filter: filters.PUBLIC.fnAcceptUptodateOnly,   action: actions.PUBLIC.fnCalculateAndCompareToADS, collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS, collSkipped: Script.config.COLL_UPTODATE },
+                DELETE_ADS       : { name: 'DELETE_ADS',        filter: filters.PUBLIC.fnAcceptWithHashes,     action: actions.PUBLIC.fnDeleteADS,                collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS, collSkipped: Script.config.COLL_UPTODATE, maxCount: 1 },
+                FIND_DIRTY       : { name: 'FIND_DIRTY',        filter: filters.PUBLIC.fnAcceptDirtyOnly,      action: actions.PUBLIC.fnNull,                     collSuccess: Script.config.COLL_DIRTY },
+                FIND_MISSING     : { name: 'FIND_MISSING',      filter: filters.PUBLIC.fnRejectWithHashes,     action: actions.PUBLIC.fnNull,                     collSuccess: Script.config.COLL_MISSING },
                 COPY_TO_CLIPBOARD: { name: 'COPY_TO_CLIPBOARD', filter: filters.PUBLIC.fnRejectAnyFile,        action: actions.PUBLIC.fnNOT_IMPLEMENTED_YET,      collSuccess: COLL_DUMMY },
-                VERIFY_FROM      : { name: 'VERIFY_FROM',       filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCompareAgainstHash,       collSuccess: COLL_SUCCESS, collErrors: COLL_ERRORS, collSkipped: COLL_VERIFY_MISSING },
+                VERIFY_FROM      : { name: 'VERIFY_FROM',       filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnCompareAgainstHash,       collSuccess: Script.config.COLL_SUCCESS, collErrors: Script.config.COLL_ERRORS, collSkipped: Script.config.COLL_VERIFY_MISSING },
                 BENCHMARK        : { name: 'BENCHMARK',         filter: filters.PUBLIC.fnAcceptAnyFile,        action: actions.PUBLIC.fnBenchmark,                collSuccess: COLL_DUMMY }
             };
             var cargs     = cmdData.func.args;
             // maxiumum number of threads, default: all available
-            var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || MAX_AVAILABLE_CORE_COUNT;
+            var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || Script.config.MAX_AVAILABLE_CORE_COUNT;
             // file to use for on-the-fly export & verify
             var file      = cargs.got_arg.FILE && cargs.FILE.toString() || '';
             // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
@@ -986,15 +1024,15 @@
 
         // DISK TYPE DETECTION
         {
-            if (AUTO_DETECT_DISK_TYPE) {
+            if (Script.config.AUTO_DETECT_DISK_TYPE) {
                 var driveType = FS.detectDriveType(selectedFiltered.driveLetters);
                 if (driveType.isErr()) {
                     // assume SSD and continue
                 } else {
-                    if ( (driveType.ok === 'HDD' || driveType.ok === 'Unspecified') && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
-                        var driveDetectMsg = sprintf('This drive seems to be of type: %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType.ok, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+                    if ( (driveType.ok === 'HDD' || driveType.ok === 'Unspecified') && command.maxcount > Script.config.REDUCE_THREADS_ON_HDD_TO) {
+                        var driveDetectMsg = sprintf('This drive seems to be of type: %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType.ok, command.maxcount, Script.config.REDUCE_THREADS_ON_HDD_TO);
                         var result = showMessageDialog(cmdData.func.dlg(), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
-                        if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
+                        if (result && command.maxcount > 1) command.maxcount = Script.config.REDUCE_THREADS_ON_HDD_TO;
                     }
                 }
                 logger.snormal('%s -- Number of threads to use: %d', fnName, command.maxcount);
@@ -1171,10 +1209,10 @@
 
         // FROM THIS POINT ON, DO WHAT YOU WANT...
         {
-            var oSummaries = oCommandResults.getSummaries(fnName, userAborted, DUMP_DETAILED_RESULTS);
+            var oSummaries = oCommandResults.getSummaries(fnName, userAborted, Script.config.DUMP_DETAILED_RESULTS);
             logger.force(oSummaries.successSummary);
             logger.force(oSummaries.errorsSummary);
-            if (SHOW_SUMMARY_DIALOG) {
+            if (Script.config.SHOW_SUMMARY_DIALOG) {
                 // show an overall summary message as dialog if you like
                 showMessageDialog(
                     cmdData.func.dlg(),
@@ -1203,7 +1241,7 @@
     //     // if dirs are selected process children files
     //     var recurse   = cargs.got_arg.RECURSE || true;
     //     // maxiumum number of threads, default: all available
-    //     var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || MAX_AVAILABLE_CORE_COUNT;
+    //     var maxcount  = cargs.got_arg.MAXCOUNT && cargs.MAXCOUNT.toString().asInt() || Script.config.MAX_AVAILABLE_CORE_COUNT;
     //     // file to use for on-the-fly export & verify
     //     var file      = cargs.got_arg.FILE && cargs.FILE.toString() || '';
     //     // input size for benchmarking, 2^10: 1 KB, 2^20: 1 MB...
@@ -1236,7 +1274,7 @@
     function addFilesToCollection(filepathsArray, collectionName) {
         var fnName = funcNameExtractor(arguments.callee);
 
-        if (!COLLECTIONS_ENABLED) return;
+        if (!Script.config.COLLECTIONS_ENABLED) return;
 
         if (!collectionName) abortWith(new InvalidParameterValueException('No collection name is supplied, check script', fnName));
 
@@ -1398,7 +1436,7 @@
             }
 
             // create a new temp file with all collected files in this thread
-            var tmpFilelist = TEMPDIR + '\\' + param.threadID + '.filelist.txt'; // TODO check 255 char limit
+            var tmpFilelist = Script.config.TEMPDIR + '\\' + param.threadID + '.filelist.txt'; // TODO check 255 char limit
 
             var res = FS.saveFile(tmpFilelist, aFilepaths.join('\n'));
             if (res.isErr()) abortWith(new FileCreateException('Cannot create temporary filelist: ' + tmpFilelist, fnName));
@@ -1572,7 +1610,7 @@
 
         logger.normal(SW.startAndPrint(fnName, 'Knapsacking'));
 
-        numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : MAX_AVAILABLE_CORE_COUNT;
+        numThreads = typeof numThreads === 'number' && numThreads >= 1 ? numThreads : Script.config.MAX_AVAILABLE_CORE_COUNT;
         // SPLIT FILES INTO KNAPSACKS
         {
             // now that we all file paths & sizes
@@ -1728,7 +1766,7 @@
             }
             outstr += ';\n';
             // extended info
-            if (EXPORT_EXTENDED_DATA) {
+            if (Script.config.EXPORT_EXTENDED_DATA) {
                 for (kheader in oCmdRes.ExtInfo) {
                     if (!reStringOrNumber.test(typeof oCmdRes.ExtInfo[kheader])) continue;
                     outstr += sprintf('; %-35s: %s\n', kheader.replace(/_/g, ' '), oCmdRes.ExtInfo[kheader]);
@@ -1813,9 +1851,9 @@
 
             // determine suggested file name
             var nameSuffix = '';
-            if (APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES) {
+            if (Script.config.APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES) {
                 nameSuffix = oInternalJSONFormat.ExtInfo.Latest_File_DateTime_Timestamp.formatAsDateTimeCompact();
-            } else if (APPEND_CURRENT_DATETIME_TO_EXPORT_FILES) {
+            } else if (Script.config.APPEND_CURRENT_DATETIME_TO_EXPORT_FILES) {
                 nameSuffix = now().formatAsDateTimeCompact();
             }
             logger.sforce('%s -- nameSuffix: %s', fnName, nameSuffix);
@@ -1974,7 +2012,7 @@
                     var el = importErrors[i];
                     logger.sforce('%s -- Error: %s', fnName, el);
                 }
-                addFilesToCollection(importErrors, COLL_IMPORT_ERRORS);
+                addFilesToCollection(importErrors, Script.config.COLL_IMPORT_ERRORS);
             }
             return !importErrors.length ? ResultOk(true) : ResultErr(true);
         }
@@ -1993,7 +2031,7 @@
             if (!inPOJO) return;
             // we have a valid POJO in internal format
             if (inPOJO.ExtInfo.Invalid_Count) {
-                showMessageDialog(null, 'Some files will not be verified, these will be put into collection:\n' + COLL_VERIFY_MISSING, fnName);
+                showMessageDialog(null, 'Some files will not be verified, these will be put into collection:\n' + Script.config.COLL_VERIFY_MISSING, fnName);
             }
             return inPOJO;
         }
@@ -2060,7 +2098,7 @@
 
         // check if all files have valid hashes
         var busyIndicator = new BusyIndicator(cmdData.func.sourcetab, sprintf('%s -- Filter: %s', fnName, fnFilterName)).start();
-        if (EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED && doh.getSelItemsCount(cmdData) === 0) {
+        if (Script.config.EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED && doh.getSelItemsCount(cmdData) === 0) {
             // Nothing selected, using all items
             itemsFiltered = applyFilterToSelectedItems(doh.getAllItems(cmdData), fnFilter);
         } else {
@@ -2371,7 +2409,7 @@
 
             logger.snormal(SW.startAndPrint(fnName, 'Drive Type Detection'));
             for (var driveLetter in driveLetters) {
-                var tempPSOutFile = TEMPDIR + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
+                var tempPSOutFile = Script.config.TEMPDIR + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
                 // cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" -encoding ascii > "' + tempPSOutFile + '"';
                 cmd = 'PowerShell.exe ( "Get-Partition -DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD|Unspecified)\' -encoding ascii | Out-String" ).trim() > "' + tempPSOutFile + '"';
                 logger.sforce('%s -- Running: %s', fnName, cmd);
@@ -2385,10 +2423,10 @@
                 } else {
                     var driveType = res.ok.trim().replace(/.*\{MediaType=([^}]+)\}.*/mg, '$1').trim();
                     logger.sforce('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
-                    // if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
-                    // 	var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+                    // if (driveType === 'HDD' && command.maxcount > Script.config.REDUCE_THREADS_ON_HDD_TO) {
+                    // 	var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, Script.config.REDUCE_THREADS_ON_HDD_TO);
                     // 	var result = showMessageDialog(cmdData.func.dlg(), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
-                    // 	if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
+                    // 	if (result && command.maxcount > 1) command.maxcount = Script.config.REDUCE_THREADS_ON_HDD_TO;
                     // }
                 }
             }
@@ -2624,7 +2662,7 @@
 
         /** @returns {boolean} true if cache is enabled globally */
         function isCacheEnabled() {
-            return CACHE_ENABLED;
+            return Script.config.CACHE_ENABLED;
         }
         /**
          * initializes cache if necessary and returns it
@@ -3444,7 +3482,7 @@
      * @param {string} unitMax selected bytes size unit
      */
     function ProgressBar(cmdData, enabled, tsStart, selected_bytes_cnt, formattedMax, unitMax) {
-        this.enabled = enabled !== undefined ? enabled : USE_PROGRESS_BAR;
+        this.enabled = enabled !== undefined ? enabled : Script.config.USE_PROGRESS_BAR;
 
         if (!this.enabled) return;
 
@@ -4586,7 +4624,7 @@
                 delete oThreadedItem.skipped;   // this will be falsy for all success items
                 delete oThreadedItem.finished;  // this may or may not be falsy for success items - TODO review!
                 delete oThreadedItem.algorithm; // this is already in the header, I do not support multiple algorithms in one go yet
-                if (!EXPORT_EXTENDED_DATA) {
+                if (!Script.config.EXPORT_EXTENDED_DATA) {
                     delete oThreadedItem.fullpath;
                     delete oThreadedItem.size;
                     delete oThreadedItem.mod_ts;
