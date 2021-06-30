@@ -47,9 +47,6 @@
         Global.SCRIPT_PATH        = '';
         Global.SCRIPT_IS_OSP      = false;
 
-        /** @type {number} */
-        var sleepdur = 1; // in millisecs, used as wait between checking available # of threads & still running threads checks
-
         /** @type {string} */
         var STREAM_PREFIX = 'MTHash_';
 
@@ -183,7 +180,7 @@
         // var TEMPDIR = '%TEMP%';
         // TEMPDIR = (''+doh.shell.ExpandEnvironmentStrings(TEMPDIR));
         /** @type {string} */
-        var TEMPDIR = ''+DOpus.fsUtil().resolve('%TEMP');
+        var TEMPDIR = ''+DOpus.fsUtil().resolve('%TEMP%');
 
     }
 }
@@ -215,9 +212,6 @@
         initData.log_prefix     = Global.SCRIPT_PREFIX;
         initData.default_enable = true;
 
-        logger.setLevel(logger.levels.ERROR);
-
-
         // // collection names for find commands & files which reported an error
         // /** @type {boolean} */
         // initData.config.COLLECTIONS_ENABLED = true;
@@ -242,9 +236,35 @@
         //     'COLL_SUCCESS', 'Collection for successful items, e.g. for verification',
         //     'COLL_DIRTY', 'Collection for files with outdated hashes',
         //     'COLL_MISSING', 'Collection for files without hashes');
-        // how to use: Script.config.COLLECTIONS_ENABLED, Script.config.sleepdur...
+        // how to use: Script.config.COLLECTIONS_ENABLED, Script.config.SHOW_SUMMARY_DIALOG...
 
         doh.clear();
+
+
+        // initData.config.USE_PROGRESS_BAR                            = USE_PROGRESS_BAR;
+        // initData.config.MAX_AVAILABLE_CORE_COUNT                    = MAX_AVAILABLE_CORE_COUNT;
+        // initData.config.COLLECTIONS_ENABLED                         = COLLECTIONS_ENABLED;
+        // initData.config.COLL_SUCCESS                                = COLL_SUCCESS;
+        // initData.config.COLL_DIRTY                                  = COLL_DIRTY;
+        // initData.config.COLL_MISSING                                = COLL_MISSING;
+        // initData.config.COLL_ERRORS                                 = COLL_ERRORS;
+        // initData.config.COLL_UPTODATE                               = COLL_UPTODATE;
+        // initData.config.COLL_IMPORT_ERRORS                          = COLL_IMPORT_ERRORS;
+        // initData.config.COLL_VERIFY_MISSING                         = COLL_VERIFY_MISSING;
+        // initData.config.SHOW_SUMMARY_DIALOG                         = SHOW_SUMMARY_DIALOG;
+        // initData.config.EXPORT_EXTENDED_DATA                        = EXPORT_EXTENDED_DATA;
+        // initData.config.DUMP_DETAILED_RESULTS                       = DUMP_DETAILED_RESULTS;
+        // initData.config.APPEND_CURRENT_DATETIME_TO_EXPORT_FILES     = APPEND_CURRENT_DATETIME_TO_EXPORT_FILES;
+        // initData.config.APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES = APPEND_LATEST_FILE_DATETIME_TO_EXPORT_FILES;
+        // initData.config.SKIP_SAVE_DIALOG_AND_OVERWRITE              = SKIP_SAVE_DIALOG_AND_OVERWRITE;
+        // initData.config.EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED    = EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED;
+        // initData.config.IMPORT_USE_SELECTED_FILE_AS_SOURCE          = IMPORT_USE_SELECTED_FILE_AS_SOURCE;
+        // initData.config.IMPORT_USE_SELECTED_ITEM_AS_TARGET          = IMPORT_USE_SELECTED_ITEM_AS_TARGET;
+        // initData.config.AUTO_DETECT_DISK_TYPE                       = AUTO_DETECT_DISK_TYPE;
+        // initData.config.REDUCE_THREADS_ON_HDD_TO                    = REDUCE_THREADS_ON_HDD_TO;
+        // initData.config.REDUCE_THREADS_ON_HDD_TO                    = REDUCE_THREADS_ON_HDD_TO;
+        // initData.config.TEMPDIR                                     = TEMPDIR;
+
 
         // put the script path, etc. into DOpus Global Vars,
         // Unfortunately initData cannot be accessed later by methods
@@ -255,6 +275,7 @@
 
         _initializeCommands(initData);
         _initializeColumns(initData);
+
         return false;
     }
 
@@ -881,7 +902,8 @@
             // benchmarking, runaway stoppers for while loops, progress bar abort
             var tsStart         = now(),
                 itercnt         = 0,
-                itermax         = Math.round(60 * 60 * 1000 / (sleepdur||1)),
+                // itermax         = Math.round(60 * 60 * 1000),
+                itermax         = Math.pow(2, 50),
                 userAborted     = false,
                 rootPath        = doh.getCurrentPath(cmdData),
                 sendViaFilelist = false;
@@ -969,8 +991,8 @@
                 if (driveType.isErr()) {
                     // assume SSD and continue
                 } else {
-                    if (driveType.ok === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
-                        var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
+                    if ( (driveType.ok === 'HDD' || driveType.ok === 'Unspecified') && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
+                        var driveDetectMsg = sprintf('This drive seems to be of type: %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType.ok, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
                         var result = showMessageDialog(cmdData.func.dlg(), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
                         if (result && command.maxcount > 1) command.maxcount = REDUCE_THREADS_ON_HDD_TO;
                     }
@@ -1057,7 +1079,6 @@
             logger.normal(SW.startAndPrint(fnName, 'Worker loop'));
             var finished_bytes_so_far = 0;
             unfinished: while(itercnt++ < itermax && !selectedKnapsacked.allFinished()) {
-                // doh.delay(sleepdur);
                 for (var kskeyWait in selectedKnapsacked.unfinishedKS) {
                     var ksWait   = selectedKnapsacked.unfinishedKS[kskeyWait],
                         threadID = ksWait.id,
@@ -2112,7 +2133,7 @@
             NORMAL:  2,
             VERBOSE: 3
         };
-        var _level = VALID_LEVELS.VERBOSE;
+        var _level = VALID_LEVELS.ERROR;
         function _setLevel(level) {
             // if valid level use new, if not use old
             _level = typeof level === 'number' && level >= VALID_LEVELS.NONE && level <= VALID_LEVELS.VERBOSE ? level : _level;
@@ -2173,9 +2194,10 @@
 		 * contents = FS.readFile("Y:\\MyDir\\myfile.txt", FS.TEXT_ENCODING.utf16);
 		 * contents = FS.readFile("Y:\\MyDir\\myfile.txt:SecondStream", FS.TEXT_ENCODING.utf8);
 		 * @param {string} path file path to read, e.g. "Y:\\Path\\file.txt" or "Y:\\Path\\file.txt:CustomMetaInfo" for ADS
+		 * @param {string=} decodeFormat decoding format, utf-8, utf-16, etc.
 		 * @returns {Result.<string, string>} file contents on success, error string on error
 		 */
-        function readFile(path) {
+        function readFile(path, decodeFormat) {
             var fnName = funcNameExtractor(arguments.callee, myName);
 
             if (!this.isValidPath(path)) { return ResultErr(); }
@@ -2189,7 +2211,7 @@
                 return ResultErr(sprintf('%s -- FSUtil.Read() error: %s, file: %s', fnName, e.description, path));
             }
             try {
-                var res = ''+doh.st.decode(blob, FORMAT_FOR_DECODE); // "utf-8" seems to be standard, "auto" does not work for me
+                var res = ''+doh.st.decode(blob, decodeFormat||FORMAT_FOR_DECODE); // "utf-8" seems to be standard, "auto" does not work for me
             } catch(e) {
                 return ResultErr(sprintf('%s -- StringTools.Decode() error: %s, file: %s', fnName, e.description, path));
             }
@@ -2231,7 +2253,7 @@
                 // var blob = doh.dc.blob();
                 // blob.copyFrom(contents, FORMAT_FOR_COPY);  // seems to use implicitly utf-16, only available optional param is utf8
                 // var numBytesWritten = fh.write(blob);
-                // logger.snormal('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
+                logger.snormal('%s -- Written bytes: %d, orig length: %d, path: %s, contents:\n%s', fnName, numBytesWritten, contents.length, path, contents);
                 // blob.free();
                 fh.close();
                 return ResultOk(numBytesWritten);
@@ -2320,7 +2342,7 @@
 
         /**
          * @param {Object} driveLetters object which maps driveLetter, e.g. Y: to the number of files found under it (this function ignores it)
-         * @returns {Result.<string, boolean>} drive type, e.g. HDD, SDD on success
+         * @returns {Result.<string, boolean>} drive type, e.g. HDD, SSD on success
          */
         function detectDriveType(driveLetters) {
             var fnName = funcNameExtractor(arguments.callee);
@@ -2350,17 +2372,19 @@
             logger.snormal(SW.startAndPrint(fnName, 'Drive Type Detection'));
             for (var driveLetter in driveLetters) {
                 var tempPSOutFile = TEMPDIR + '\\' + Global.SCRIPT_NAME + '.tmp.txt';
-                cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" > "' + tempPSOutFile + '"';
-                logger.sverbose('%s -- Running: %s', fnName, cmd);
+                // cmd = 'PowerShell.exe "Get-Partition –DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD)\'" -encoding ascii > "' + tempPSOutFile + '"';
+                cmd = 'PowerShell.exe ( "Get-Partition -DriveLetter ' + driveLetter.slice(0,1) + ' | Get-Disk | Get-PhysicalDisk | Select MediaType | Select-String \'(HDD|SSD|Unspecified)\' -encoding ascii | Out-String" ).trim() > "' + tempPSOutFile + '"';
+                logger.sforce('%s -- Running: %s', fnName, cmd);
                 doh.shell.Run(cmd, 0, true); // 0: hidden, true: wait
 
-                var res = FS.readFile(tempPSOutFile);
+                var res = FS.readFile(tempPSOutFile, 'utf-16');
+
                 doh.cmd.runCommand('Delete /quiet /norecycle "' + tempPSOutFile + '"');
                 if (res.isErr() || !res.ok) {
                     logger.snormal('%s -- Could not determine disk type of %s, assuming SSD', fnName, driveLetter);
                 } else {
-                    var driveType = res.ok.replace(/.+\{MediaType=([^}]+)\}.+/mg, '$1').trim();
-                    logger.sverbose('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
+                    var driveType = res.ok.trim().replace(/.*\{MediaType=([^}]+)\}.*/mg, '$1').trim();
+                    logger.sforce('%s -- Detemined disk type for %s is %s', fnName, driveLetter, driveType);
                     // if (driveType === 'HDD' && command.maxcount > REDUCE_THREADS_ON_HDD_TO) {
                     // 	var driveDetectMsg = sprintf('This drive seems to be an %s.\n\nThe script will automatically reduce the number of threads to avoid disk thrashing.\nOld # of Threads: %d\nNew # of Threads	: %d\n\nIf you press Cancel, the old value will be used instead.\nIs this drive type correct?', driveType, command.maxcount, REDUCE_THREADS_ON_HDD_TO);
                     // 	var result = showMessageDialog(cmdData.func.dlg(), driveDetectMsg, 'Drive Type detection', 'OK|Cancel');
@@ -3465,7 +3489,6 @@
             case 'p':
                 while (this.progbar.getAbortState() !== '') {
                     memory.setPauseStatus(true);
-                    // if (sleepdur) doh.delay(sleepdur);
                     doh.delay(500);
                     if (this.progbar.getAbortState() === 'a') {
                         memory.setAbortStatus(true);
@@ -4791,30 +4814,48 @@
          * @returns {CommandResults}
 		 */
         KnapsacksCollection.prototype.getAsCommandResults = function (rootPath, algorithm, tsStart, tsFinish) {
+            var fnName = 'KnapsacksCollection.getAsCommandResults';
+
+            var ts1, total1 = 0, ts2, total2 = 0, ts3, total3 = 0, ts4, total4 = 0, ts5, total5 = 0;
+
+
             var oThreadedItemsColl = new ThreadedItemsCollection(),
                 slowestKSDuration  = 0,
                 slowestKSSize      = 0;
 
+            logger.snormal(SW.startAndPrint(fnName, 'ThreadedItemsCollection building'));
             // a threadID points to 1 knapsack
-            var oFinishedKS = this.finishedKS;
-            for (var kskey in oFinishedKS) { // knapsacks
-                var ksCurrent = oFinishedKS[kskey],
-                    ksMap     = memory.getThreadVar(ksCurrent.id);
+            for (var kskey in this.finishedKS) { // knapsacks
+                ts5 = now();
+                var ksCurrent = this.finishedKS[kskey];
+                var ksMap     = memory.getThreadVar(ksCurrent.id);
+
 
                 // each knapsack contains a DOpus Map of files, which are also DOpus Maps themselves
                 var elapsedForThisKS = 0;
                 for (var eKS = new Enumerator(ksMap); !eKS.atEnd(); eKS.moveNext()) { // files
-                    var fileFullpath = eKS.item(),
-                        fileAttribs  = ksMap.get(fileFullpath);
+                    ts3 = now();
+                    var fileFullpath = eKS.item();
+                    var fileAttribs  = ksMap.get(fileFullpath);
+                    total3 += now() - ts3;
 
                     // get results from fileAttribs (DOpus Map)
+                    ts5 = now();
                     var oItem = doh.getItem(fileFullpath);
-                    // if (!oItem) { abortWith(new InvalidParameterTypeException('Item is not valid', fnName)); return; } // return needed for VSCode/TSC // TODO DELETE
-                    var oThreadedItem = new ThreadedItem(oItem, null, fileAttribs('result'), algorithm, fileAttribs('error'), null);
-                    oThreadedItem.elapsed = fileAttribs('elapsed');
-                    oThreadedItemsColl.addItem(oThreadedItem);
+                    total5 += now() - ts5;
 
-                    elapsedForThisKS += fileAttribs('elapsed');
+                    ts1 = now();
+                    var oThreadedItem = new ThreadedItem(oItem, null, fileAttribs.get('result'), algorithm, fileAttribs.get('error'), null);
+                    total1 += now() - ts1;
+
+                    ts2 = now();
+                    oThreadedItem.elapsed = fileAttribs.get('elapsed');
+                    oThreadedItemsColl.addItem(oThreadedItem);
+                    total2 += now() - ts2;
+
+                    ts4 = now();
+                    elapsedForThisKS += fileAttribs.get('elapsed');
+                    total4 += now() - ts4;
                 }
                 // check if we have the slowest KS
                 if (elapsedForThisKS >= slowestKSDuration) {
@@ -4822,7 +4863,13 @@
                     slowestKSSize     = ksCurrent.size;
                 }
             }
-            return new CommandResults(oThreadedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
+            logger.snormal(SW.stopAndPrint(fnName, 'ThreadedItemsCollection building', sprintf('Totals -- 1: %s, 2: %s, 3: %s, 4: %s, 5: %s', total1, total2, total3, total4, total5) ));
+
+            // return new CommandResults(oThreadedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
+            logger.snormal(SW.startAndPrint(fnName, 'CommandResults building'));
+            var oCR = new CommandResults(oThreadedItemsColl, rootPath, algorithm, tsStart, tsFinish, slowestKSDuration, slowestKSSize);
+            logger.snormal(SW.stopAndPrint(fnName, 'CommandResults building'));
+            return oCR;
         };
     }
 

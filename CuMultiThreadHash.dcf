@@ -20,8 +20,10 @@
 		<icon1>#MTHasher:Green_VerifyFromADS</icon1>
 		<function type="normal">
 			<instruction>@disablenosel</instruction>
-			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
-			<instruction>// MTHManagerStart MAXWAIT 300000 VERIFY_FROM_ADS</instruction>
+			<instruction>// NO_PROGRESS_BAR increases e.g. verify speed greatly (&gt;30%) if a lot of small files are verified</instruction>
+			<instruction>// if files are somehow large, the speed difference is negligible</instruction>
+			<instruction>// MTHManagerStart VERIFY_FROM_ADS NO_PROGRESS_BAR </instruction>
+			<instruction />
 			<instruction>MTHManagerStart VERIFY_FROM_ADS</instruction>
 		</function>
 	</button>
@@ -66,7 +68,7 @@
 			<instruction>MTHManagerStart HARD_UPDATE_ADS </instruction>
 		</function>
 	</button>
-	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
 		<label>Delete ADS</label>
 		<tip>Delete existing hash ADS</tip>
 		<icon1>#MTHasher:Red_DeleteADS</icon1>
@@ -75,6 +77,18 @@
 			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
 			<instruction>// MTHManagerStart MAXWAIT 300000 DELETE_ADS</instruction>
 			<instruction>MTHManagerStart DELETE_ADS</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" icon_size="large" label_pos="right" separate="yes" textcol="none">
+		<label>Delete ADS (New, faster)</label>
+		<tip>Delete existing hash ADS</tip>
+		<icon1>#MTHasher:Red_DeleteADS</icon1>
+		<function type="normal">
+			<instruction>@disablenosel</instruction>
+			<instruction>// do not set maxwait too low if you are using single-threading and/or processing large files on a slow disk</instruction>
+			<instruction>// MTHManagerStart MAXWAIT 300000 DELETE_ADS</instruction>
+			<instruction>// MTHManagerStart DELETE_ADS</instruction>
+			<instruction>MTHDeleteADS </instruction>
 		</function>
 	</button>
 	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
@@ -103,7 +117,7 @@
 		<function type="normal">
 			<instruction>@disablenosel</instruction>
 			<instruction>// MTHCopyToClipboard SKIP_PRECHECK </instruction>
-			<instruction>MTHCopyToClipboard SKIP_PRECHECK</instruction>
+			<instruction>MTHCopyToClipboard</instruction>
 		</function>
 	</button>
 	<button backcol="none" display="both" icon_size="large" label_pos="right" textcol="none">
@@ -119,14 +133,11 @@
 			<instruction>// MTHADSExportFrom FORMAT=sha1 FILE=&quot;{sourcepath$}\checksums.sha1&quot;</instruction>
 			<instruction />
 			<instruction>// if no file name is supplied one will be automatically generated</instruction>
-			<instruction>MTHADSExportFrom FORMAT=sha1 </instruction>
+			<instruction>MTHADSExportFrom</instruction>
 			<instruction />
 			<instruction>// other examples</instruction>
-			<instruction>// MTHADSExportFrom FORMAT=md5 USE_FORWARD_SLASH</instruction>
 			<instruction>// MTHADSExportFrom FORMAT=sha1 USE_FORWARD_SLASH</instruction>
-			<instruction>// MTHADSExportFrom FORMAT=md5</instruction>
 			<instruction>// MTHADSExportFrom FORMAT=sha1</instruction>
-			<instruction>// MTHADSExportFrom FORMAT=mthjson</instruction>
 			<instruction />
 			<instruction>// do not use unless you do not want to be informed about files with missing or outdated hashes</instruction>
 			<instruction>// your output file will be incomplete!</instruction>
