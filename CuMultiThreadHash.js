@@ -56,17 +56,17 @@
         /** @type {boolean} */
         var CACHE_ENABLED = true;
 
-        /**
-		 * @typedef Algorithm
-		 * @type {object}
-		 *
-		 * @property {string} name
-		 * @property {string} fileExt
-		 * @property {boolean} native
-		 * @property {boolean=} viaFilelist
-		 * @property {string=} binaryPath
-		 * @property {number=} maxThreads
-		 */
+        // /**
+        //  * @typedef Algorithm
+        //  * @type {object}
+        //  *
+        //  * @property {string} name
+        //  * @property {string} fileExt
+        //  * @property {boolean} native
+        //  * @property {boolean=} viaFilelist
+        //  * @property {string=} binaryPath
+        //  * @property {number=} maxThreads
+        //  */
 
         /**
 		 * Why are SHA-256 & SHA-512 are missing from this list?
@@ -132,6 +132,8 @@
         var COLL_IMPORT_ERRORS  = Global.SCRIPT_NAME_SHORT + ' - ' + 'Import errors';
         /** @type {string} */
         var COLL_VERIFY_MISSING = Global.SCRIPT_NAME_SHORT + ' - ' + 'Verify missing files';
+        /** @type {string} */
+        var COLL_DUPLICATES     = Global.SCRIPT_NAME_SHORT + ' - ' + 'Duplicate files';
 
         // show a summary dialog after manager actions
         /** @type {boolean} */
@@ -213,7 +215,8 @@
         initData.default_enable = true;
 
 
-        doh.clear();
+        // doh.clear();
+        DOpus.output('initialization started');
 
         initData.config.CACHE_ENABLED                               = CACHE_ENABLED;
         initData.config.USE_PROGRESS_BAR                            = USE_PROGRESS_BAR;
@@ -226,6 +229,7 @@
         initData.config.COLL_UPTODATE                               = COLL_UPTODATE;
         initData.config.COLL_IMPORT_ERRORS                          = COLL_IMPORT_ERRORS;
         initData.config.COLL_VERIFY_MISSING                         = COLL_VERIFY_MISSING;
+        initData.config.COLL_DUPLICATES                             = COLL_DUPLICATES;
         initData.config.SHOW_SUMMARY_DIALOG                         = SHOW_SUMMARY_DIALOG;
         initData.config.EXPORT_EXTENDED_DATA                        = EXPORT_EXTENDED_DATA;
         initData.config.DUMP_DETAILED_RESULTS                       = DUMP_DETAILED_RESULTS;
@@ -257,6 +261,7 @@
             'COLL_UPTODATE',                               'Up-to-date hashes\nNot used at the moment',
             'COLL_IMPORT_ERRORS',                          'Files for which hash values could not be imported from external file to ADS',
             'COLL_VERIFY_MISSING',                         'Files which were not found from verification from an external hash file (i.e. ADS is ignored)',
+            'COLL_DUPLICATES',                             'Duplicate files based on their hashes (all files must have ADS)',
 
             'EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED',    'Export hashes from ADS for all files in current lister, if no file or folder is selected',
             'IMPORT_USE_SELECTED_FILE_AS_SOURCE',          'Use the selected file as source for importing from external checksum file to ADS',
@@ -287,6 +292,7 @@
             'COLL_UPTODATE',                               'Action Output',
             'COLL_IMPORT_ERRORS',                          'Action Output',
             'COLL_VERIFY_MISSING',                         'Action Output',
+            'COLL_DUPLICATES',                             'Action Output',
 
             'EXPORT_USE_ALL_ITEMS_IF_NOTHING_SELECTED',    'Import/Export',
             'IMPORT_USE_SELECTED_FILE_AS_SOURCE',          'Import/Export',
@@ -314,6 +320,7 @@
         _initializeCommands(initData);
         _initializeColumns(initData);
 
+        DOpus.output('initialization finished');
         return false;
     }
 
@@ -371,7 +378,7 @@
     function _getIcon(iconName) {
         var myInfo = _getScriptPathVars();
         // #MTHasher is defined in the Icons.XML file
-        return ( myInfo.isOSP ? ('#MTHasher:' + iconName) : (myInfo.path + 'Icons\\MTH_32_' + iconName + '.png') );
+        return ( myInfo.isOSP ? ('#MTHasher:' + iconName) : (myInfo.path + 'Icons\\MTH\\MTH_32_' + iconName + '.png') );
     }
 
 
@@ -522,6 +529,14 @@
             'MTH Import into ADS',
             'Imports hashes from selected file to ADS for all matched files by name; the current lister tab path is used to resolve relative paths'
         );
+        _addCommand('FindDuplicates',
+            onDOpusFindDuplicates,
+            initData,
+            '',
+            'Green_FindDuplicates',
+            'MTH Find Duplicates',
+            'Finds duplicate finds based on their ADS hashes (similar to DOpus-builtin MD5-based duplicates finder)'
+        );
     }
 
 
@@ -560,6 +575,12 @@
             onDOpusColMultiCol,
             initData,
             'ADSData (Raw)',
+            'left', true, true, true);
+
+        _addColumn('Hash',
+            onDOpusColMultiCol,
+            initData,
+            'Hash',
             'left', true, true, true);
     }
 }
@@ -659,6 +680,83 @@
         }
         var resImport = fileImportExport.importFrom(cmdData);
         playSoundForResult(resImport);
+    }
+
+    /** @param {DOpusScriptCommandData} cmdData DOpus command data */
+    function onDOpusFindDuplicates(cmdData) {
+        // get the hashes
+        var resHashes = _getHashesOfAllSelectedFiles(cmdData, CURRENT_ALGORITHM);
+        if (resHashes.isErr()) {
+            playSoundForResult(resHashes);
+            return; // a message dialog is automatically shown in _getHashesOfAllSelectedFiles()
+        }
+        // DOpus.output('onDOpusFindDuplicates');
+
+        // collect all hashes to file(s) assignment
+        var aAllHashes = {};
+        for (var filepath in resHashes.ok.items) {
+            var item = resHashes.ok.items[filepath];
+            if (typeof aAllHashes[item.hash] === 'undefined') {
+                aAllHashes[item.hash] = new Array();
+            }
+            aAllHashes[item.hash].push(item.fullpath);
+        }
+        // find hashes with >= 2 items
+        var aHashesWithMultipleFiles = {};
+        var aAllDuplicateFiles = [];
+        for (var hash in aAllHashes) {
+            var files = aAllHashes[hash];
+            if (files.length >= 2) {
+                aHashesWithMultipleFiles[hash] = files;
+                for (var i = 0; i < files.length; i++) {
+                    var file = files[i];
+                    aAllDuplicateFiles.push(file);
+                }
+            }
+        }
+        var colNameHash = 'scp:' + Global.SCRIPT_NAME + '/' + _getColumnNameFor('Hash'),
+            command = DOpus.create().command();
+        // DOpus.output('aHashesWithMultipleFiles: ' + JSON.stringify(aHashesWithMultipleFiles, null, 4));
+        DOpus.output('aAllDuplicateFiles: ' + JSON.stringify(aAllDuplicateFiles, null, 4));
+        DOpus.output('Script.config.COLL_DUPLICATES: ' + Script.config.COLL_DUPLICATES);
+        // add to duplicate files collection
+        var collectionName = Script.config.COLL_DUPLICATES;
+        var busyIndicator = new BusyIndicator(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName)).start();
+        addFilesToCollection(aAllDuplicateFiles, collectionName);
+        // var cmd = 'Set COLUMNSTOGGLE=' + item + '(!' + (i+1) + '+' +  col_after + ',*)'; // * is for auto-size
+        var cmdLine;
+        DOpus.output('current tab: ' + cmdData.func.sourceTab.path);
+        DOpus.output('active tab: ' + cmdData.func.sourceTab.lister.activeTab.path);
+
+        // cmdLine = 'Go "' + collectionName + '" TABFINDEXISTING';
+        // DOpus.output('cmdLine: ' + cmdLine);
+        // cmdData.func.command.runCommand(cmdLine);
+        cmdLine = 'Set COLUMNSADD=' + colNameHash + '(2+Name)'; // * is for auto-size
+        DOpus.output('cmdLine: ' + cmdLine);
+        // cmdData.func.command.runCommand(cmdLine);
+        command.runCommand(cmdLine);
+
+        cmdLine = 'Set GROUPBY=' + colNameHash;
+        command.runCommand(cmdLine);
+
+        // for (var e = new Enumerator(scriptColData.columns); !e.atEnd(); e.moveNext()) {
+        // }
+
+        /*
+            var collectionName = command.collNameSuccess;
+            busyIndicator = new BusyIndicator(cmdData.func.sourceTab, sprintf('Populating collection: %s', collectionName)).start();
+            logger.normal(SW.startAndPrint(fnName, 'Populating collection', 'Collection name: ' + collectionName));
+
+            // addFilesToCollection(selectedFiltered.getSuccessItems().keys(), collectionName);
+            addFilesToCollection(getKeys(selectedFiltered.getSuccessItems()), collectionName);
+
+            logger.normal(SW.stopAndPrint(fnName, 'Populating collection'));
+            busyIndicator.stop();
+            playSoundSuccess();
+            return;
+        */
+        busyIndicator.stop();
+        playSoundSuccess();
     }
 
 
@@ -834,6 +932,10 @@
                     scriptColData.columns.get(key).value = outstr;
                     break;
 
+                case _getColumnNameFor('Hash'):
+                    scriptColData.columns.get(key).value = itemProps.hash;
+                    break;
+
                 case _getColumnNameFor('ADSDataRaw'):
                     scriptColData.columns.get(key).value = JSON.stringify(itemProps);
                     break;
@@ -846,7 +948,6 @@
     }
 }
 
-
 /*
 	888b     d888        d8888 888b    888        d8888  .d8888b.  8888888888 8888888b.
 	8888b   d8888       d88888 8888b   888       d88888 d88P  Y88b 888        888   Y88b
@@ -858,7 +959,6 @@
 	888       888 d88P     888 888    Y888 d88P     888  "Y8888P88 8888888888 888   T88b
 */
 {
-
 
     // called by custom DOpus command
     /**
@@ -2493,8 +2593,8 @@
 		 * @see getHashStreamName()
 		 */
         function hasHashStream(oItem) {
-            var fnName = funcNameExtractor(arguments.callee, myName);
-            logger.sverbose('%s -- oItem.name: %s', fnName, oItem.name);
+            // var fnName = funcNameExtractor(arguments.callee, myName);
+            // logger.sverbose('%s -- oItem.name: %s', fnName, oItem.name);
             if (!doh.isFile(oItem)) return false;
             return FS.isValidPath(oItem.realpath + ':' + hashStreamName);
         }

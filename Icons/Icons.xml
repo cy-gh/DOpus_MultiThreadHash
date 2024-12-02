@@ -8,7 +8,9 @@
 <set size="small" width="24" height="24" filename="MTH_24_Blue_GitHubPage.png"                                    ><icon row="1" col="1" name="Blue_GitHubPage"                                    /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Blue_Settings.png"                                      ><icon row="1" col="1" name="Blue_Settings"                                      /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Green_FindDirty.png"                                    ><icon row="1" col="1" name="Green_FindDirty"                                    /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_FindDuplicates.png"                               ><icon row="1" col="1" name="Green_FindDuplicates"                               /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Green_FindMissing.png"                                  ><icon row="1" col="1" name="Green_FindMissing"                                  /></set>
+<set size="small" width="24" height="24" filename="MTH_24_Green_SmartCompare.png"                                 ><icon row="1" col="1" name="Green_SmartCompare"                                 /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate.png"                                  ><icon row="1" col="1" name="Green_SmartUpdate"                                  /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt1.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt1"                             /></set>
 <set size="small" width="24" height="24" filename="MTH_24_Green_SmartUpdate_Alt2.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt2"                             /></set>
@@ -31,7 +33,9 @@
 <set size="large" width="32" height="32" filename="MTH_32_Blue_GitHubPage.png"                                    ><icon row="1" col="1" name="Blue_GitHubPage"                                    /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Blue_Settings.png"                                      ><icon row="1" col="1" name="Blue_Settings"                                      /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Green_FindDirty.png"                                    ><icon row="1" col="1" name="Green_FindDirty"                                    /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_FindDuplicates.png"                               ><icon row="1" col="1" name="Green_FindDuplicates"                               /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Green_FindMissing.png"                                  ><icon row="1" col="1" name="Green_FindMissing"                                  /></set>
+<set size="large" width="32" height="32" filename="MTH_32_Green_SmartCompare.png"                                 ><icon row="1" col="1" name="Green_SmartCompare"                                 /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate.png"                                  ><icon row="1" col="1" name="Green_SmartUpdate"                                  /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt1.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt1"                             /></set>
 <set size="large" width="32" height="32" filename="MTH_32_Green_SmartUpdate_Alt2.png"                             ><icon row="1" col="1" name="Green_SmartUpdate_Alt2"                             /></set>
